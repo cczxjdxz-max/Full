@@ -1,4 +1,4 @@
-name: 1. Pro-Player AI Executor
+name: 1. AI Pro-Hunter (Skeleton Detection)
 
 on:
   repository_dispatch:
@@ -6,40 +6,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  ai_core:
+  pro_hunter_core:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: "Checkout Repo"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Restore AI Models & Game Data"
+      - name: "Restore AI Brain"
         uses: actions/cache@v4
         with:
           path: |
-            game.apk
-            data/extracted/
             venv/
-          key: ai-player-v1-${{ hashFiles('game.apk') }}
+            models/
+          key: ai-hunter-v2-${{ runner.os }}
 
-      - name: "Autonomous AI Execution"
+      - name: "Setup Vision Environment"
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          # تثبيت مكتبات الرؤية الحاسوبية المتقدمة
+          pip install ultralytics opencv-python-headless numpy
+
+      - name: "Execute Gemini Command"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          # تجهيز بيئة بايثون للذكاء الاصطناعي
-          python3 -m venv venv
           source venv/bin/activate
-          pip install opencv-python ultralytics numpy
-          
-          if [ ! -z "$COMMANDS" ]; then
-            eval "$COMMANDS"
-          fi
+          eval "$COMMANDS"
 
-      - name: "Sync AI Intelligence"
+      - name: "Save AI Evolution"
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "AI-Pro-Player"
-          git add physics_report.txt ai_logic.py || echo "No changes"
-          git commit -m "Gemini: Update AI Strategic Logic" || echo "No changes"
+          git config --local user.name "AI-Pro-Hunter"
+          git add hunter_logic.py || echo "No changes"
+          git commit -m "Gemini: Update Skeleton-Based Detection" || echo "No changes"
           git push
