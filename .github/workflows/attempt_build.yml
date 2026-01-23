@@ -1,49 +1,41 @@
-name: 1. AI Pro-Hunter (Skeleton Detection)
+name: 1. AI Pro-Hunter (Build APK)
 
 on:
   repository_dispatch:
-    types: [execute_task]  # تأكد أن هذا الاسم مطابق تماماً للقائد
-  workflow_dispatch:      # أضفت لك هذا الخيار لتشغيله يدوياً للتجربة
-
-# هذه الأسطر هي الحل: تمنح المنفذ القدرة على العمل عند استلام إشارة خارجية
-permissions:
-  contents: write
-  actions: write
-  packages: write
+    types: [execute_task]
+  workflow_dispatch:
 
 jobs:
-  pro_hunter_core:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Restore AI Brain"
-        uses: actions/cache@v4
-        with:
-          path: |
-            venv/
-            models/
-          key: ai-hunter-v2-${{ runner.os }}
-
-      - name: "Setup Vision Environment"
+      - name: "Setup Python & Build Tools"
         run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install ultralytics opencv-python-headless numpy
+          sudo apt-get update
+          sudo apt-get install -y python3-pip build-essential git ffmpeg libsdl2-dev
+          pip install buildozer cython torch numpy
 
       - name: "Execute Gemini Command"
         env:
-          # إذا كان التشغيل عبر القائد يأخذ الأوامر، وإذا كان يدوياً يطبع رسالة ترحيب
-          COMMANDS: ${{ github.event.client_payload.commands || 'echo Manual Start Success' }}
+          COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          source venv/bin/activate
+          # تنفيذ الأوامر (بناء العقل، الشخصية، الواجهة)
           eval "$COMMANDS"
 
-      - name: "Save AI Evolution"
+      - name: "Clean & Push Results"
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "AI-Pro-Hunter"
-          git add .
-          git commit -m "Gemini: Update Skeleton-Based Detection" || echo "No changes"
+          # تجاهل المجلدات الضخمة تماماً
+          echo "venv/" > .gitignore
+          echo ".buildozer/" >> .gitignore
+          echo "bin/" >> .gitignore
+          
+          git add .gitignore hunter_logic.py arrogant_brain.py ai_model.py main.py
+          git commit -m "Gemini: Deploying Arrogant Personality Core" || echo "No changes"
           git push
