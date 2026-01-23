@@ -1,4 +1,4 @@
-name: 1. Autonomous Executor
+name: 1. Attempt to Build (Self-Healing)
 
 on:
   repository_dispatch:
@@ -6,29 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  dynamic_execution:
+  perform_task:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Repo"
-        uses: actions/checkout@v4
-
-      - name: "Autonomous Shell Execution"
-        env:
-          COMMANDS: ${{ github.event.client_payload.commands }}
+      - uses: actions/checkout@v4
+      
+      - name: "Main Mission"
         run: |
-          if [ ! -z "$COMMANDS" ]; then
-            echo "[*] Executing commands from Leader..."
-            eval "$COMMANDS"
-          else
-            echo "[!] No commands received."
-            exit 1
-          fi
-
-      - name: "Push Results"
-        if: success()
+          # الأوامر الحالية (تحميل اللعبة وتفكيكها)
+          curl -L -o game.apk "[https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk](https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk)"
+          apktool d game.apk --force
+          
+      - name: "On Failure: Signal Brain"
+        if: failure()
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "Auto-Executor"
-          git add .
-          git commit -m "Results of adaptive mission" || echo "No changes"
-          git push
+          # إرسال تقرير الفشل للقائد ليقوم جيمني بالتعديل
+          curl -L -X POST -H "Authorization: Bearer ${{ secrets.PAT }}" \
+          [https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches) \
+          -d "{\"event_type\": \"executor_failed\", \"client_payload\": {\"step\": \"dissection\", \"log\": \"failed to decompile apk\"}}"
