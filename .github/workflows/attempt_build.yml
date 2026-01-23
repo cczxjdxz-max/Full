@@ -2,14 +2,18 @@ name: 1. AI Pro-Hunter (Skeleton Detection)
 
 on:
   repository_dispatch:
-    types: [execute_task]
-  workflow_dispatch:
+    types: [execute_task]  # تأكد أن هذا الاسم مطابق تماماً للقائد
+  workflow_dispatch:      # أضفت لك هذا الخيار لتشغيله يدوياً للتجربة
+
+# هذه الأسطر هي الحل: تمنح المنفذ القدرة على العمل عند استلام إشارة خارجية
+permissions:
+  contents: write
+  actions: write
+  packages: write
 
 jobs:
   pro_hunter_core:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
@@ -26,12 +30,12 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          # تثبيت مكتبات الرؤية الحاسوبية المتقدمة
           pip install ultralytics opencv-python-headless numpy
 
       - name: "Execute Gemini Command"
         env:
-          COMMANDS: ${{ github.event.client_payload.commands }}
+          # إذا كان التشغيل عبر القائد يأخذ الأوامر، وإذا كان يدوياً يطبع رسالة ترحيب
+          COMMANDS: ${{ github.event.client_payload.commands || 'echo Manual Start Success' }}
         run: |
           source venv/bin/activate
           eval "$COMMANDS"
@@ -40,6 +44,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "AI-Pro-Hunter"
-          git add hunter_logic.py || echo "No changes"
+          git add .
           git commit -m "Gemini: Update Skeleton-Based Detection" || echo "No changes"
           git push
