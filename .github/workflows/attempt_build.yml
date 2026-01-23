@@ -1,26 +1,22 @@
-name: 1. Attempt to Build (Self-Healing)
-
-on:
-  repository_dispatch:
-    types: [execute_task]
-  workflow_dispatch:
-
-jobs:
-  perform_task:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: "Main Mission"
+      - name: "Rewrite Executor Workflow"
+        env:
+          PAT: ${{ secrets.PAT }}
         run: |
-          # الأوامر الحالية (تحميل اللعبة وتفكيكها)
-          curl -L -o game.apk "[https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk](https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk)"
-          apktool d game.apk --force
+          # 1. تحويل الملف الجديد إلى Base64
+          CONTENT=$(base64 -w 0 new_executor_config.yml)
           
-      - name: "On Failure: Signal Brain"
-        if: failure()
-        run: |
-          # إرسال تقرير الفشل للقائد ليقوم جيمني بالتعديل
-          curl -L -X POST -H "Authorization: Bearer ${{ secrets.PAT }}" \
-          [https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches) \
-          -d "{\"event_type\": \"executor_failed\", \"client_payload\": {\"step\": \"dissection\", \"log\": \"failed to decompile apk\"}}"
+          # 2. الحصول على SHA للملف الحالي لتحديثه
+          FILE_URL="https://api.github.com/repos/cczxjdxz-max/Full/contents/.github/workflows/attempt_build.yml"
+          SHA=$(curl -s -H "Authorization: Bearer $PAT" "$FILE_URL" | jq -r '.sha')
+          
+          # 3. إرسال التحديث للمنفذ (بدون أقواس أو روابط Markdown)
+          if [ "$SHA" != "null" ]; then
+            curl -s -X PUT -H "Authorization: Bearer $PAT" \
+              -H "Content-Type: application/json" \
+              -d "{\"message\":\"Gemini: Self-Heal Update\",\"content\":\"$CONTENT\",\"sha\":\"$SHA\"}" \
+              "$FILE_URL"
+            echo "Successfully updated executor workflow."
+          else
+            echo "Could not find target file or SHA."
+            exit 1
+          fi
