@@ -1,4 +1,4 @@
-name: 1. AI Oracle (Madara Edition - Build & Deploy)
+name: 1. Build Oracle APK (Red Headshot Edition)
 
 on:
   repository_dispatch:
@@ -9,50 +9,29 @@ permissions:
   contents: write
 
 jobs:
-  forge_apk:
+  build_final_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Code"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Setup Android Build & AI Environment"
+      - name: "Setup Master Tools"
         run: |
-          echo "[Setup] Initializing comprehensive build environment..."
           sudo apt-get update
-          sudo apt-get install -y python3-pip build-essential git ffmpeg libsdl2-dev libespeak-dev zip unzip
-          pip install --upgrade pip
-          # المكتبات الأساسية لعمل العقل والصوت والرؤية
-          pip install torch numpy ultralytics pyttsx3 buildozer cython kivy==2.2.1
-          # تثبيت أدوات الأندرويد لبناء APK
-          buildozer init --force
+          pip install torch numpy buildozer cython kivy==2.2.1
 
-      - name: "Assemble the Soul of Madara (Execute Commands)"
+      - name: "Execute Gemini Headshot Training"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          echo "[Oracle] Beginning the grand synthesis..."
           eval "$COMMANDS"
-          echo "[Oracle] All modules crafted. Initiating APK compilation..."
-          buildozer android debug # الأمر السحري لبناء الـ APK
 
-      - name: "Secure Artifacts & Push Changes"
-        uses: actions/upload-artifact@v4
-        if: always() # لرفع الملف حتى لو فشل البناء
-        with:
-          name: Madara_Oracle_APK
-          path: bin/*.apk # سيتم حفظ الـ APK الناتج هنا
-          retention-days: 7 # يحتفظ بالملف لمدة 7 أيام
-
-      - name: "Commit & Push Core Files"
+      - name: "Final APK Production"
         run: |
-          git config --local user.email "madara@uchiha.com"
-          git config --local user.name "Uchiha-Architect"
-          echo "venv/" > .gitignore
-          echo ".buildozer/" >> .gitignore
-          echo "bin/" >> .gitignore
-          echo "*.pyc" >> .gitignore
-          echo "__pycache__/" >> .gitignore
-          echo "*.pt" >> .gitignore # تجاهل نماذج YOLO الكبيرة
-          git add .gitignore *.py buildozer.spec # إضافة كل ملفات الكود والـ spec
-          git commit -m "Oracle: Final synthesis complete. APK ready." || echo "No changes to commit."
-          git push
+          buildozer android debug
+
+      - name: "Deliver Masterpiece"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madara_Headshot_Oracle_Final
+          path: bin/*.apk
