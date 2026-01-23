@@ -1,17 +1,51 @@
-      - name: "Fix System Dependencies (Corrected)"
+name: 1. AI Oracle Master Build (Final Correction)
+
+on:
+  repository_dispatch:
+    types: [execute_task]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  forge_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Fix System Dependencies (SDL2 & PortMidi)"
         run: |
           sudo apt-get update
-          # تم تصحيح اسم المكتبة وإضافة مكتبات جرافيك إضافية لضمان استقرار Kivy
+          # تصحيح المكتبات لضمان بناء Kivy و Pyttsx3 بدون أخطاء
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
                                   libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
                                   libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
                                   libespeak-dev pkg-config libdbus-1-dev
-          
-      - name: "Install Python Matrix (Python 3.12 Optimized)"
+
+      - name: "Install Python Matrix (Python 3.12 Fix)"
         run: |
           pip install --upgrade pip setuptools wheel
-          # تثبيت Cython أولاً لضمان بناء Kivy بنجاح
-          pip install Cython==3.0.8 
-          # تثبيت Kivy مع تجاهل الكاش لضمان استخدام المكتبات الجديدة
+          pip install Cython==3.0.8
           pip install --no-cache-dir kivy==2.3.0
           pip install torch numpy ultralytics pyttsx3 buildozer
+
+      - name: "Gemini Tactical Dissection & Training"
+        env:
+          COMMANDS: ${{ github.event.client_payload.commands }}
+        run: |
+          echo "[Oracle] البدء في استخراج البيانات والتدريب الفيزيائي..."
+          eval "$COMMANDS"
+
+      - name: "Generate Master APK"
+        run: |
+          echo "[Oracle] تجميع الـ APK النهائي الحامل لخبرة مادارا..."
+          # بناء APK متوافق مع معالجات الهواتف الحديثة
+          buildozer android debug
+
+      - name: "Deliver Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Madara_Oracle_Pro_V1
+          path: bin/*.apk
