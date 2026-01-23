@@ -14,7 +14,7 @@ jobs:
       - name: "Checkout Repo"
         uses: actions/checkout@v4
 
-      # استعادة ملفات اللعبة من الذاكرة السحابية إذا كانت موجودة
+      # استعادة الكاش (الـ APK والمجلد المفكك) لسرعة التنفيذ
       - name: "Restore Game Data Cache"
         id: cache-game
         uses: actions/cache@v4
@@ -22,26 +22,34 @@ jobs:
           path: |
             game.apk
             data/extracted/
-          key: game-v1-https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk
+          key: game-v1-${{ hashFiles('game.apk') }}
+          restore-keys: |
+            game-v1-
 
       - name: "Autonomous Execution"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
           if [ ! -z "$COMMANDS" ]; then
-            echo "[*] Executing Smart Mission from Brain..."
+            echo "[*] Executing Smart Mission..."
             eval "$COMMANDS"
           else
             echo "[!] No commands received."
             exit 1
           fi
 
-      # حفظ أي تغييرات في ملفات النصوص (مثل قيم الفيزياء) للمستودع
-      - name: "Push Progress"
+      # رفع النتائج النصية فقط وتجاهل المجلدات الضخمة
+      - name: "Push Progress (Results Only)"
         if: success()
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Auto-Executor"
-          git add .
-          git commit -m "Auto-update physics & logic" || echo "No changes"
+          
+          # إنشاء ملف .gitignore مؤقت لمنع رفع الملفات الضخمة
+          echo "data/extracted/" > .gitignore
+          echo "game.apk" >> .gitignore
+          
+          # إضافة ملفات التقارير والنتائج فقط
+          git add physics_report.txt .gitignore || echo "No changes to add"
+          git commit -m "Gemini: Update Physics Constants" || echo "No changes"
           git push
