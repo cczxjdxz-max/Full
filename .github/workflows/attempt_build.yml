@@ -1,41 +1,58 @@
-name: 1. AI Pro-Hunter (Build APK)
+name: 1. AI Oracle (Madara Edition - Build & Deploy)
 
 on:
   repository_dispatch:
     types: [execute_task]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  forge_apk:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: "Checkout"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "Setup Python & Build Tools"
+      - name: "Setup Android Build & AI Environment"
         run: |
+          echo "[Setup] Initializing comprehensive build environment..."
           sudo apt-get update
-          sudo apt-get install -y python3-pip build-essential git ffmpeg libsdl2-dev
-          pip install buildozer cython torch numpy
+          sudo apt-get install -y python3-pip build-essential git ffmpeg libsdl2-dev libespeak-dev zip unzip
+          pip install --upgrade pip
+          # المكتبات الأساسية لعمل العقل والصوت والرؤية
+          pip install torch numpy ultralytics pyttsx3 buildozer cython kivy==2.2.1
+          # تثبيت أدوات الأندرويد لبناء APK
+          buildozer init --force
 
-      - name: "Execute Gemini Command"
+      - name: "Assemble the Soul of Madara (Execute Commands)"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          # تنفيذ الأوامر (بناء العقل، الشخصية، الواجهة)
+          echo "[Oracle] Beginning the grand synthesis..."
           eval "$COMMANDS"
+          echo "[Oracle] All modules crafted. Initiating APK compilation..."
+          buildozer android debug # الأمر السحري لبناء الـ APK
 
-      - name: "Clean & Push Results"
+      - name: "Secure Artifacts & Push Changes"
+        uses: actions/upload-artifact@v4
+        if: always() # لرفع الملف حتى لو فشل البناء
+        with:
+          name: Madara_Oracle_APK
+          path: bin/*.apk # سيتم حفظ الـ APK الناتج هنا
+          retention-days: 7 # يحتفظ بالملف لمدة 7 أيام
+
+      - name: "Commit & Push Core Files"
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "AI-Pro-Hunter"
-          # تجاهل المجلدات الضخمة تماماً
+          git config --local user.email "madara@uchiha.com"
+          git config --local user.name "Uchiha-Architect"
           echo "venv/" > .gitignore
           echo ".buildozer/" >> .gitignore
           echo "bin/" >> .gitignore
-          
-          git add .gitignore hunter_logic.py arrogant_brain.py ai_model.py main.py
-          git commit -m "Gemini: Deploying Arrogant Personality Core" || echo "No changes"
+          echo "*.pyc" >> .gitignore
+          echo "__pycache__/" >> .gitignore
+          echo "*.pt" >> .gitignore # تجاهل نماذج YOLO الكبيرة
+          git add .gitignore *.py buildozer.spec # إضافة كل ملفات الكود والـ spec
+          git commit -m "Oracle: Final synthesis complete. APK ready." || echo "No changes to commit."
           git push
