@@ -1,42 +1,55 @@
-# اسم سير العمل: محاولة البناء أو التشغيل
 name: 1. Attempt to Build/Run
 
-# المشغل: يعمل عند أي تحديث للكود
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  repository_dispatch:
+    types: [execute_task]
+  workflow_dispatch:
 
 jobs:
-  build:
+  execution_core:
     runs-on: ubuntu-latest
     steps:
-      # الخطوة 1: تشغيل عملية البناء أو الاختبار
-      - name: "Run the build/test process"
-        id: build_step
-        run: |
-          echo "Attempting to build the project in 'Full' repo..."
-          # هذا السطر سيجعل المهمة تفشل عمداً لأغراض الاختبار
-          exit 1
-      
-      # الخطوة 2: الإبلاغ عن النجاح (لن يتم الوصول إليها في هذا المثال)
-      - name: "Report Success (if it happens)"
-        if: success()
-        run: echo "Build was successful!"
+      - name: "Checkout Executor Code"
+        uses: actions/checkout@v4
 
-      # الخطوة 3: الإبلاغ عن الفشل إلى القائد (أهم خطوة)
-      - name: "CRITICAL: Report Failure to Leader (avatar-template)"
-        # يعمل فقط في حالة فشل الخطوات السابقة
-        if: failure()
+      - name: "Step 1: Dissect APK & OBB"
+        id: dissect
+        continue-on-error: true
         run: |
-          echo "Build failed. Reporting to the Leader at 'avatar-template'..."
-          # استخدام cURL لإرسال إشارة "repository_dispatch" إلى مستودع القائد
-          # تم تحديث اسم المستخدم في الرابط التالي
-          curl -L \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.PAT }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-            -d '{"event_type":"executor_failed", "client_payload": {"error_log":"Build failed with exit code 1", "goal":"Initial build test to trigger the Leader-Executor loop", "code_snippet":"exit 1"}}'
+          echo "Downloading APK from provided link..."
+          # هنا يتم وضع كود التحميل والتشريح (apktool, lib analysis)
+          # في حال الفشل سيتم تفعيل خطوة الإبلاغ أدناه
+
+      - name: "Step 2: Training 10B Loop (RL)"
+        id: train
+        continue-on-error: true
+        run: |
+          pip install stable-baselines3 shimmy gymnasium numpy
+          python -c "
+          import numpy as np
+          # هنا يوضع سكربت المحاكي والتدريب الملياري
+          print('Training AI against itself...')
+          "
+
+      - name: "Step 3: Integrate YOLO & MediaProjection"
+        id: yolo
+        continue-on-error: true
+        run: |
+          echo "Integrating YOLOv8 Nano for screen processing..."
+          # بناء مكتبة الرؤية الحاسوبية
+
+      - name: "CRITICAL: Report Failure to Leader"
+        if: steps.dissect.outcome == 'failure' || steps.train.outcome == 'failure' || steps.yolo.outcome == 'failure'
+        run: |
+          curl -L -X POST -H "Authorization: Bearer ${{ secrets.PAT }}" \
+          [https://api.github.com/repos/YOUR_USER/LEADER_REPO/dispatches](https://api.github.com/repos/YOUR_USER/LEADER_REPO/dispatches) \
+          -d '{"event_type": "executor_failed", "client_payload": {"error_log": "Failure in step: ${{ github.job }}", "goal": "10B Training Loop"}}'
+
+      - name: "Success: Save Progress & Artifacts"
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "AI Executor"
+          git add models/
+          git commit -m "AI Training Progress Update" || echo "No changes"
+          git push
