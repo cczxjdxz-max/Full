@@ -1,50 +1,17 @@
-name: 1. AI Oracle Master Build (Final Fix)
-
-on:
-  repository_dispatch:
-    types: [execute_task]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  forge_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout Code"
-        uses: actions/checkout@v4
-
-      - name: "Fix System Dependencies (SDL2 & Gstreamer)"
+      - name: "Fix System Dependencies (Corrected)"
         run: |
           sudo apt-get update
+          # تم تصحيح اسم المكتبة وإضافة مكتبات جرافيك إضافية لضمان استقرار Kivy
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
                                   libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-                                  libportdoc-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
-                                  libespeak-dev pkg-config
+                                  libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
+                                  libespeak-dev pkg-config libdbus-1-dev
           
-      - name: "Install Python Matrix (Python 3.12 Compatible)"
+      - name: "Install Python Matrix (Python 3.12 Optimized)"
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install Cython==3.0.8
-          pip install kivy==2.3.0
+          # تثبيت Cython أولاً لضمان بناء Kivy بنجاح
+          pip install Cython==3.0.8 
+          # تثبيت Kivy مع تجاهل الكاش لضمان استخدام المكتبات الجديدة
+          pip install --no-cache-dir kivy==2.3.0
           pip install torch numpy ultralytics pyttsx3 buildozer
-
-      - name: "Gemini Tactical Dissection & Training"
-        env:
-          COMMANDS: ${{ github.event.client_payload.commands }}
-        run: |
-          echo "[Oracle] البدء في تشريح اللعبة والتدريب الذاتي..."
-          eval "$COMMANDS"
-
-      - name: "Generate Final APK"
-        run: |
-          echo "[Oracle] بناء ملف الـ APK النهائي..."
-          # بناء APK متوافق مع arm64
-          buildozer android debug
-
-      - name: "Deliver Artifact"
-        uses: actions/upload-artifact@v4
-        with:
-          name: Madara_Oracle_Red_Edition
-          path: bin/*.apk
