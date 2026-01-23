@@ -1,22 +1,56 @@
-      - name: "Rewrite Executor Workflow"
-        env:
-          PAT: ${{ secrets.PAT }}
+name: 1. Autonomous Architect (with Cache)
+
+on:
+  repository_dispatch:
+    types: [execute_task]
+  workflow_dispatch:
+
+jobs:
+  execution_core:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: "Checkout Repo"
+        uses: actions/checkout@v4
+
+      # 1. التحقق من وجود الملفات في الذاكرة السحابية (Cache)
+      - name: "Restore Game Data Cache"
+        id: cache-game
+        uses: actions/cache@v4
+        with:
+          path: |
+            game.apk
+            data/extracted/
+          # المفتاح يعتمد على الرابط؛ إذا تغير الرابط سيعيد التحميل
+          key: game-v1-https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk
+
+      # 2. تحميل اللعبة فقط إذا لم تكن موجودة في الكاش
+      - name: "Download APK (If not cached)"
+        if: steps.cache-game.outputs.cache-hit != 'true'
         run: |
-          # 1. تحويل الملف الجديد إلى Base64
-          CONTENT=$(base64 -w 0 new_executor_config.yml)
-          
-          # 2. الحصول على SHA للملف الحالي لتحديثه
-          FILE_URL="https://api.github.com/repos/cczxjdxz-max/Full/contents/.github/workflows/attempt_build.yml"
-          SHA=$(curl -s -H "Authorization: Bearer $PAT" "$FILE_URL" | jq -r '.sha')
-          
-          # 3. إرسال التحديث للمنفذ (بدون أقواس أو روابط Markdown)
-          if [ "$SHA" != "null" ]; then
-            curl -s -X PUT -H "Authorization: Bearer $PAT" \
-              -H "Content-Type: application/json" \
-              -d "{\"message\":\"Gemini: Self-Heal Update\",\"content\":\"$CONTENT\",\"sha\":\"$SHA\"}" \
-              "$FILE_URL"
-            echo "Successfully updated executor workflow."
+          echo "[*] Data not found in cache. Starting fresh download..."
+          curl -L -o game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+
+      # 3. تفكيك اللعبة (يتم استئنافه أيضاً إذا كان المجلد موجوداً)
+      - name: "Dissect and Analyze"
+        run: |
+          sudo apt-get update && sudo apt-get install -y apktool binutils
+          if [ ! -d "data/extracted" ]; then
+            echo "[*] Extracting game files for the first time..."
+            apktool d game.apk -o data/extracted --force
           else
-            echo "Could not find target file or SHA."
-            exit 1
+            echo "[+] Game already extracted. Resuming analysis..."
           fi
+          
+          # استخراج قيم الفيزياء المحدثة دائماً
+          find data/extracted/lib -name "*.so" -exec strings {} + | grep -E "Damage|Speed" > physics_constants.txt
+
+      # 4. حفظ النتائج في المستودع
+      - name: "Save Progress"
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "Auto-Architect"
+          git add physics_constants.txt
+          git commit -m "Update physics constants" || echo "No changes"
+          git push
