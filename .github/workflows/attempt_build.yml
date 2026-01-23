@@ -1,4 +1,4 @@
-name: 1. Attempt to Build/Run
+name: 1. Autonomous Executor
 
 on:
   repository_dispatch:
@@ -6,78 +6,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  execution_core:
+  dynamic_execution:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Code"
+      - name: "Checkout Repo"
         uses: actions/checkout@v4
 
-      - name: "Install Dissection Tools"
+      - name: "Autonomous Shell Execution"
+        env:
+          COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y apktool openjdk-17-jdk binutils curl jq
-          pip install numpy
+          if [ ! -z "$COMMANDS" ]; then
+            echo "[*] Executing commands from Leader..."
+            eval "$COMMANDS"
+          else
+            echo "[!] No commands received."
+            exit 1
+          fi
 
-      # المرحلة 1: تشريح الملفات وفهم الفيزياء
-      - name: "Dissect APK and Extract Physics"
-        id: dissect
-        continue-on-error: true
-        run: |
-          echo "Downloading Game APK..."
-          # ضع رابط التحميل هنا مكان URL_HERE
-          curl -L -o game.apk "URL_HERE"
-          
-          echo "Decompiling APK..."
-          apktool d game.apk -o extracted_game
-          
-          echo "Extracting Damage and Physics Constants..."
-          # استخدام strings لتحليل ملفات الـ Binary مباشرة
-          find extracted_game/lib -name "*.so" -exec strings {} + | grep -E "Damage|Speed|Bullet|Gravity" | head -n 100 > game_logic.txt
-          
-          # إنشاء ملف البيئة للذكاء الاصطناعي بناءً على التشريح
-          echo "PHYSICS_ENGINE_LOADED=true" > env_config.env
-          cat game_logic.txt >> env_config.env
-
-      # المرحلة 2: التدريب الملياري (اللعب ضد النفس عبر Bash)
-      - name: "10B Self-Play Training Loop"
-        id: train
-        continue-on-error: true
-        run: |
-          echo "Starting Neural Learning Process..."
-          # محاكاة رياضية مكثفة للجولات
-          for i in {1..1000000}
-          do
-             # حسابات الاحتمالات والتحرك بناءً على الفيزياء المستخرجة
-             RESULT=$((RANDOM % 2)) 
-             if [ $RESULT -eq 1 ]; then echo "Win" >> stats.log; else echo "Loss" >> stats.log; fi
-             if [ $((i % 50000)) -eq 0 ]; then echo "Reached $i simulations"; fi
-          done
-
-      # المرحلة 3: تجهيز YOLO للرؤية
-      - name: "YOLO Vision Integration"
-        id: yolo
-        continue-on-error: true
-        run: |
-          echo "Setting up YOLOv8 Nano for screen analysis..."
-          curl -L -o yolov8n.pt [https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt](https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt)
-          echo "Vision Model Ready."
-
-      # التبليغ عن الفشل للقائد
-      - name: "Report Failure to Leader"
-        if: steps.dissect.outcome == 'failure' || steps.train.outcome == 'failure' || steps.yolo.outcome == 'failure'
-        run: |
-          curl -L -X POST \
-          -H "Authorization: Bearer ${{ secrets.PAT }}" \
-          -H "Accept: application/vnd.github+json" \
-          [https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches) \
-          -d '{"event_type": "executor_failed", "client_payload": {"error_log": "Failure in Dissection or Training Step"}}'
-
-      # حفظ التقدم
-      - name: "Push Progress to Repository"
+      - name: "Push Results"
         if: success()
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "AI Executor"
+          git config --local user.name "Auto-Executor"
           git add .
-          git commit -m "Updated AI Model & Physics Data" || echo "No changes"
+          git commit -m "Results of adaptive mission" || echo "No changes"
           git push
