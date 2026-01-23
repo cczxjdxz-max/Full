@@ -1,4 +1,4 @@
-name: 1. Autonomous Executor (Persistent)
+name: 1. Pro-Player AI Executor
 
 on:
   repository_dispatch:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  execution_core:
+  ai_core:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,42 +14,32 @@ jobs:
       - name: "Checkout Repo"
         uses: actions/checkout@v4
 
-      # استعادة الكاش (الـ APK والمجلد المفكك) لسرعة التنفيذ
-      - name: "Restore Game Data Cache"
-        id: cache-game
+      - name: "Restore AI Models & Game Data"
         uses: actions/cache@v4
         with:
           path: |
             game.apk
             data/extracted/
-          key: game-v1-${{ hashFiles('game.apk') }}
-          restore-keys: |
-            game-v1-
+            venv/
+          key: ai-player-v1-${{ hashFiles('game.apk') }}
 
-      - name: "Autonomous Execution"
+      - name: "Autonomous AI Execution"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
+          # تجهيز بيئة بايثون للذكاء الاصطناعي
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install opencv-python ultralytics numpy
+          
           if [ ! -z "$COMMANDS" ]; then
-            echo "[*] Executing Smart Mission..."
             eval "$COMMANDS"
-          else
-            echo "[!] No commands received."
-            exit 1
           fi
 
-      # رفع النتائج النصية فقط وتجاهل المجلدات الضخمة
-      - name: "Push Progress (Results Only)"
-        if: success()
+      - name: "Sync AI Intelligence"
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "Auto-Executor"
-          
-          # إنشاء ملف .gitignore مؤقت لمنع رفع الملفات الضخمة
-          echo "data/extracted/" > .gitignore
-          echo "game.apk" >> .gitignore
-          
-          # إضافة ملفات التقارير والنتائج فقط
-          git add physics_report.txt .gitignore || echo "No changes to add"
-          git commit -m "Gemini: Update Physics Constants" || echo "No changes"
+          git config --local user.name "AI-Pro-Player"
+          git add physics_report.txt ai_logic.py || echo "No changes"
+          git commit -m "Gemini: Update AI Strategic Logic" || echo "No changes"
           git push
