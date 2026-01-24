@@ -2,6 +2,7 @@ name: 2. The Executor
 on:
   repository_dispatch:
     types: [execute_mission]
+  workflow_dispatch: # ضروري لاستقبال إشارة "رُن وورك فلو"
 
 jobs:
   execute_task:
@@ -14,29 +15,20 @@ jobs:
         id: run_mission
         continue-on-error: true
         run: |
-          # تنفيذ الأوامر المستلمة من القائد
-          ${{ github.event.client_payload.commands }}
+          # نضع قيمة افتراضية في حال تم التشغيل بدون Payload
+          COMMANDS="${{ github.event.client_payload.commands }}"
+          if [ -z "$COMMANDS" ]; then COMMANDS="echo 'Manual Evolution Triggered'"; fi
+          eval "$COMMANDS"
 
       - name: "3. Smart Failure Reporting"
         if: steps.run_mission.outcome == 'failure'
         env:
           PAT: ${{ secrets.PAT }}
         run: |
-          # تلخيص الخطأ وإرساله للقائد فوراً
-          ERROR_MSG="Execution node $(hostname) failed to process commands. Possible YAML or Logic error."
+          ERROR_MSG="Execution node $(hostname) failed. Critical check required."
           PAYLOAD=$(jq -n --arg log "$ERROR_MSG" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
-
           curl -L -X POST -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
                -d "$PAYLOAD"
           exit 1
-
-      - name: "4. Signal Continuous Success"
-        if: success()
-        env:
-          PAT: ${{ secrets.PAT }}
-        run: |
-          curl -L -X POST -H "Authorization: Bearer $PAT" \
-               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d '{"event_type": "continue_mission"}'
