@@ -1,1 +1,30 @@
-ارى
+name: 2. The Executor
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [execute_mission]
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Execute Mission"
+        id: run_step
+        continue-on-error: true
+        run: |
+          # تنفيذ الأوامر المستلمة من القائد فقط
+          ${{ github.event.client_payload.commands }}
+
+      - name: "Emergency Reporting"
+        if: steps.run_step.outcome == 'failure'
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          # يرسل تقرير الفشل للقائد في حال حدث خطأ حقيقي فقط
+          JSON=$(jq -n --arg log "Mission Failed" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+          curl -X POST -H "Authorization: Bearer $PAT" \
+               -H "Accept: application/vnd.github+json" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d "$JSON"
+          exit 1
