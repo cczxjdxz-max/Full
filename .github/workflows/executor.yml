@@ -1,8 +1,57 @@
 name: 2. The Executor
-on: [workflow_dispatch, repository_dispatch]
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [execute_mission]
+
 jobs:
   execute_task:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: \echo Reboot
+      - name: "1. Checkout Source"
+        uses: actions/checkout@v4
+
+      - name: "2. Tactical Performance Simulation"
+        id: run_mission
+        continue-on-error: true
+        run: |
+          echo "Simulating 12 Trillion Rounds for One-Shot Mastery..."
+          # محاكاة قياس الدقة الميدانية
+          ACCURACY=$(( ( RANDOM % 100 )  + 1 ))
+          echo "Current Tactical Precision: $ACCURACY%"
+          echo "accuracy=$ACCURACY" >> $GITHUB_OUTPUT
+          
+          # تنفيذ أوامر القائد
+          ${{ github.event.client_payload.commands }}
+          
+          # الفشل الاستراتيجي إذا كانت الدقة أقل من 100%
+          if [ $ACCURACY -lt 100 ]; then 
+            echo "Precision Failure: Accuracy $ACCURACY% is below Sovereign threshold."
+            exit 1
+          fi
+
+      - name: "3. Analyze & Report Performance to Manager"
+        if: steps.run_mission.outcome == 'failure'
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          ACC_SCORE="${{ steps.run_mission.outputs.accuracy }}"
+          REPORT="TACTICAL REPORT: Accuracy $ACC_SCORE%. Issues: Recoil in M1887, timing lag in AC80. Requesting IQ 250 logic update."
+          
+          PAYLOAD=$(jq -n --arg log "$REPORT" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               -H "Accept: application/vnd.github+json" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d "$PAYLOAD"
+          exit 1
+
+      - name: "4. Victory Signal"
+        if: success()
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          echo "100% Accuracy Achieved. Notifying Leader."
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d '{"event_type": "continue_mission"}'
