@@ -1,51 +1,40 @@
-name: 1. Oracle AI Evolution Engine
-
+name: 1. AI Core Executor
 on:
   repository_dispatch:
     types: [execute_task]
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  evolution_process:
+  execute_task:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Matrix"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Set Up High-Performance Environment"
+      - name: "Environment Setup"
         run: |
           sudo apt-get update
-          # تثبيت المكتبات اللازمة لمعالجة البيانات والفيزياء
-          sudo apt-get install -y libportmidi-dev pkg-config zlib1g-dev
-          
-          # تجهيز بايثون للتعامل مع الذكاء الاصطناعي (PyTorch)
-          pip install --upgrade pip
-          pip install torch numpy tqdm  # tqdm لمتابعة شريط تقدم التدريب
+          pip install torch --no-cache-dir # تثبيت تورش فقط عند الحاجة
 
-      - name: "Execute Gemini Evolution Commands"
+      - name: "Executing Dispatched Script"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
         run: |
-          echo "[Engine] البدء في عملية التشريح والتدريب الذاتي (5.7 مليار مواجهة)..."
-          # تنفيذ الكود الذي أرسله القائد (الذي يحتوي على المحاكي والذكاء الاصطناعي)
-          eval "$COMMANDS"
+          echo "python3 <<'PYTHON_EOF' > run_mission.py
+          $COMMANDS
+          PYTHON_EOF" > run.sh
+          bash run.sh
 
-      - name: "Compress & Secure Knowledge Base"
+      - name: "Saving The Red Core (Artifacts)"
         run: |
-          # التأكد من وجود ملف المعرفة وتجهيزه للرفع
-          if [ -f "oracle_mastery.dat" ]; then
-            echo "[Success] تم استخراج المعرفة المطلقة بنجاح."
+          git config --local user.email "oracle@ai.com"
+          git config --local user.name "Oracle-Executor"
+          git add oracle_mastery.dat
+          if git diff --staged --quiet; then
+            echo "No changes"
           else
-            echo "[Error] ملف المعرفة لم يتولد، راجع كود التدريب."
-            exit 1
+            git commit -m "Update: Oracle Sovereignty Knowledge Base"
+            git push
           fi
-
-      - name: "Upload Mastery Knowledge (The Red Core)"
-        uses: actions/upload-artifact@v4
-        with:
-          name: Oracle_Mastery_Core
-          path: oracle_mastery.dat
-          retention-days: 7
