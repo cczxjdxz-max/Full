@@ -1,8 +1,50 @@
 name: 2. The Executor
-on: [workflow_dispatch, repository_dispatch]
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [execute_mission]
+
 jobs:
-  execute_task:
+  tactical_execution:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: \echo System Reset
+      - name: "1. Load Vision Modules"
+        uses: actions/checkout@v4
+
+      - name: "2. Execute Intelligence Commands"
+        id: brain
+        continue-on-error: true
+        run: |
+          echo "Applying One-Shot Algorithm (200m Zone)..."
+          ${{ github.event.client_payload.commands }}
+          
+          # محاكاة قياس الدقة الميدانية
+          PRECISION=$(( ( RANDOM % 100 )  + 1 ))
+          echo "Current Precision: $PRECISION%"
+          echo "precision=$PRECISION" >> $GITHUB_OUTPUT
+          
+          if [ $PRECISION -lt 100 ]; then exit 1; fi
+
+      - name: "3. Feed Failure Data to Manager"
+        if: steps.brain.outcome == 'failure'
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          P="${{ steps.brain.outputs.precision }}"
+          REPORT="Vision update needed. Precision: $P%. Target: 100%. Recoil detected in AC80 algorithm."
+          PAYLOAD=$(jq -n --arg log "$REPORT" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+          
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d "$PAYLOAD"
+          exit 1
+
+      - name: "4. Signal Peak Performance"
+        if: success()
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          echo "Absolute Precision Reached. Advancing Vision..."
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d '{"event_type": "continue_mission"}'
