@@ -16,25 +16,40 @@ jobs:
       - name: "Environment Setup"
         run: |
           sudo apt-get update
-          pip install torch --no-cache-dir # تثبيت تورش فقط عند الحاجة
+          pip install torch --no-cache-dir
 
-      - name: "Executing Dispatched Script"
+      - name: "Executing Mission"
         env:
           COMMANDS: ${{ github.event.client_payload.commands }}
+          EXPL: ${{ github.event.client_payload.explanation }}
         run: |
-          echo "python3 <<'PYTHON_EOF' > run_mission.py
-          $COMMANDS
-          PYTHON_EOF" > run.sh
-          bash run.sh
+          echo "$EXPL" > explanation.txt
+          echo "$COMMANDS" > run_mission.py
+          python3 run_mission.py
 
-      - name: "Saving The Red Core (Artifacts)"
+      # --- الأمان المزدوج: حفظ الملف حتى لو فشل الإنترنت ---
+      - name: "Emergency Artifact Backup"
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-mastery-result
+          path: oracle_mastery.dat
+          retention-days: 3
+
+      - name: "Pushing To Repository (With Persistence)"
         run: |
           git config --local user.email "oracle@ai.com"
           git config --local user.name "Oracle-Executor"
           git add oracle_mastery.dat
+          
           if git diff --staged --quiet; then
-            echo "No changes"
+            echo "No changes."
           else
-            git commit -m "Update: Oracle Sovereignty Knowledge Base"
-            git push
+            git commit -m "Update: Oracle Core (Gemini 2.5 Trained)"
+            for i in {1..5}; do
+              echo "محاولة الرفع رقم $i..."
+              git push && echo "تم الرفع بنجاح!" && break || {
+                echo "خطأ في الشبكة، محاولة جديدة بعد 15 ثانية..."
+                sleep 15
+              }
+            done
           fi
