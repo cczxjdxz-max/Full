@@ -7,41 +7,27 @@ jobs:
   execute_task:
     runs-on: ubuntu-latest
     steps:
-      - name: "1. Checkout Source"
+      - name: "1. Checkout"
         uses: actions/checkout@v4
 
-      - name: "2. Execute Mission Protocol"
-        id: execution_step
+      - name: "2. Run Protocol"
+        id: exec
         continue-on-error: true
         run: |
-          echo "Starting Execution..."
-          # تشغيل الأوامر المستلمة من القائد
+          # محاولة تنفيذ المهمة
           ${{ github.event.client_payload.commands }}
-          
-          # مثال لخطأ برمجي لاختبار التصحيح الذاتي (احذفه عند الاستقرار)
-          # ls /non_existent_directory_triggering_failure
 
-      - name: "3. Analyze & Report Failure"
-        if: steps.execution_step.outcome == 'failure'
+      - name: "3. Deep Failure Report"
+        if: steps.exec.outcome == 'failure'
         env:
           PAT: ${{ secrets.PAT }}
         run: |
-          # سحب آخر 10 أسطر من السجلات لإرسالها للقائد
-          ERROR_SUMMARY="Execution failed. Commands: ${{ github.event.client_payload.commands }}. Check YAML indentation or permissions."
+          # إرسال بلاغ مفصل للقائد
+          MSG="Execution Error on node: $(hostname). Check YAML structure and PAT permissions."
+          JSON_DATA=$(jq -n --arg log "$MSG" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
           
-          JSON_PAYLOAD=$(jq -n --arg log "$ERROR_SUMMARY" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
-
           curl -L -X POST -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d "$JSON_PAYLOAD"
+               -d "$JSON_DATA"
           exit 1
-
-      - name: "4. Signal Success"
-        if: success()
-        env:
-          PAT: ${{ secrets.PAT }}
-        run: |
-          curl -L -X POST -H "Authorization: Bearer $PAT" \
-               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d '{"event_type": "continue_mission"}'
