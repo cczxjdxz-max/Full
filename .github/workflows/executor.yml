@@ -1,0 +1,41 @@
+name: 2. The Executor
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [execute_mission]
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Load Vision"
+        uses: actions/checkout@v4
+
+      - name: "Execute Vision Commands"
+        id: mission
+        continue-on-error: true
+        run: |
+          # تنفيذ أوامر المحاكاة الحقيقية القادمة من القائد
+          ${{ github.event.client_payload.commands }}
+
+      - name: "Smart Reporting"
+        if: steps.mission.outcome == 'failure'
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          REPORT="Strategic Alert: Logic refinement required."
+          JSON=$(jq -n --arg log "$REPORT" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               -H "Accept: application/vnd.github+json" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d "$JSON"
+          exit 1
+
+      - name: "Victory Signal"
+        if: success()
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
+               -d '{"event_type": "continue_mission"}'
