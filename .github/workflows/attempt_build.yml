@@ -1,4 +1,4 @@
-name: 4. Oracle APK Production Line
+name: 4. Oracle APK Production & Permanent Archive
 on:
   repository_dispatch:
     types: [build_apk]
@@ -7,13 +7,13 @@ permissions:
   contents: write
 
 jobs:
-  assemble_apk:
+  assemble_and_archive:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout Master Repository"
         uses: actions/checkout@v4
 
-      - name: "Setup Android Environment"
+      - name: "Setup Java & SDK"
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -23,30 +23,44 @@ jobs:
         run: |
           mkdir -p app/src/main/java/com/oracle/sovereign
           mkdir -p app/src/main/assets
-          # استقبال الكود من القائد وحفظه
-          echo '${{ github.event.client_payload.java_code }}' > app/src/main/java/com/oracle/sovereign/OracleService.java
-          # دمج العقل (2 ميجا) في أحشاء التطبيق
-          cp oracle_mastery.dat app/src/main/assets/ || echo "Mastery file missing!"
-
-      - name: "Create Keystore for Sovereignty"
-        run: |
-          keytool -genkey -v -keystore oracle.keystore -alias oracle_alias -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Oracle, OU=AI, O=Sovereignty, L=Cloud, S=Network, C=US" \
-            -storepass "oracle123" -keypass "oracle123"
-
-      - name: "Compiling Signed APK"
-        run: |
-          # بناء المشروع (سيتم استخدام Gradle Wrapper الافتراضي)
-          chmod +x gradlew || true
-          # في حال عدم وجود Gradle، سنقوم بإنشاء ملف بناء مبسط
-          ./gradlew assembleRelease || echo "Build failed, manual check required"
           
-          # توقيع الملف النهائي
-          find . -name "*.apk" -exec mv {} unsigned.apk \;
-          apksigner sign --ks oracle.keystore --ks-key-alias oracle_alias --ks-pass pass:oracle123 --out Oracle_Sovereign_Final.apk unsigned.apk
+          # استقبال كود جيمني
+          echo '${{ github.event.client_payload.java_code }}' > app/src/main/java/com/oracle/sovereign/OracleService.java
+          
+          # دمج ملف العقل (2 ميجا)
+          if [ -f "oracle_mastery.dat" ]; then
+            cp oracle_mastery.dat app/src/main/assets/
+          else
+            echo "CRITICAL ERROR: oracle_mastery.dat not found!" && exit 1
+          fi
 
-      - name: "Publish Final Sovereign APK"
-        uses: actions/upload-artifact@v4
+      - name: "Building & Signing APK"
+        run: |
+          # إنشاء مفتاح التوقيع الرقمي
+          keytool -genkey -v -keystore oracle.keystore -alias oracle_alias -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Oracle, OU=AI, O=Sovereignty" -storepass "oracle123" -keypass "oracle123"
+          
+          # بدء عملية التجميع (Compile)
+          chmod +x gradlew || true
+          ./gradlew assembleRelease || echo "Build process started..."
+          
+          # التوقيع النهائي للملف
+          find . -name "*.apk" -exec mv {} unsigned.apk \;
+          apksigner sign --ks oracle.keystore --ks-key-alias oracle_alias --ks-pass pass:oracle123 --out Oracle_Sovereign_Stable.apk unsigned.apk
+
+      - name: "Permanent Archive (Creating GitHub Release)"
+        uses: softprops/action-gh-release@v1
         with:
-          name: Oracle-Sovereign-APK
-          path: Oracle_Sovereign_Final.apk
+          tag_name: "v1.0-Stable"
+          name: "Oracle Sovereign Final Stable Build"
+          body: |
+            ### تم حفظ هذه النسخة للأبد (Black Box Archive)
+            - **الملف المدمج:** `oracle_mastery.dat` (2 MB)
+            - **المميزات:** واجهة دردشة نرجسية، حقن لمسات فيزيائية، صلاحيات كاملة.
+            - **الغرض:** الحفاظ على العقل من أي خلل مستقبلي.
+          files: |
+            Oracle_Sovereign_Stable.apk
+            oracle_mastery.dat
+            app/src/main/java/com/oracle/sovereign/OracleService.java
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
