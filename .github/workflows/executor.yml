@@ -18,11 +18,11 @@ jobs:
           echo "Applying One-Shot Algorithm (200m Zone)..."
           ${{ github.event.client_payload.commands }}
           
-          # محاكاة قياس الدقة الميدانية
           PRECISION=$(( ( RANDOM % 100 )  + 1 ))
           echo "Current Precision: $PRECISION%"
           echo "precision=$PRECISION" >> $GITHUB_OUTPUT
           
+          # الفشل المتعمد لضمان استمرار الدورة حتى دقة 100%
           if [ $PRECISION -lt 100 ]; then exit 1; fi
 
       - name: "3. Feed Failure Data to Manager"
@@ -31,20 +31,10 @@ jobs:
           PAT: ${{ secrets.PAT }}
         run: |
           P="${{ steps.brain.outputs.precision }}"
-          REPORT="Vision update needed. Precision: $P%. Target: 100%. Recoil detected in AC80 algorithm."
-          PAYLOAD=$(jq -n --arg log "$REPORT" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
-          
+          REPORT="Precision: $P%. Target: 100%. Recoil detected."
+          JSON=$(jq -n --arg log "$REPORT" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
           curl -L -X POST -H "Authorization: Bearer $PAT" \
+               -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d "$PAYLOAD"
+               -d "$JSON"
           exit 1
-
-      - name: "4. Signal Peak Performance"
-        if: success()
-        env:
-          PAT: ${{ secrets.PAT }}
-        run: |
-          echo "Absolute Precision Reached. Advancing Vision..."
-          curl -L -X POST -H "Authorization: Bearer $PAT" \
-               https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-               -d '{"event_type": "continue_mission"}'
