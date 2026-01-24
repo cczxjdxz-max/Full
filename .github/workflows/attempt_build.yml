@@ -1,63 +1,54 @@
-name: 2. Oracle Factory (The Executioner & Fixer)
+name: 2. The Executor
 on:
   repository_dispatch:
-    types: [build_and_test]
+    types: [execute_mission]
 
 jobs:
-  build_verify_and_loop:
-    runs-on: macos-latest
+  execute_task:
+    runs-on: ubuntu-latest
     steps:
-      - name: "1. Setup Environment"
+      # الخطوة 1: استنساخ الكود
+      - name: "1. Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "2. Attempt Assembly (Architect's Code)"
-        id: build_step
+      # الخطوة 2: محاولة تنفيذ المهمة
+      - name: "2. Execute Mission"
+        id: execution_step
+        # السماح للخطوة بالفشل دون إيقاف السير بالكامل
         continue-on-error: true
         run: |
-          mkdir -p app/src/main/java/com/oracle/sovereign
-          echo '${{ github.event.client_payload.code }}' > app/src/main/java/com/oracle/sovereign/OracleService.java
-          # محاولة البناء - إذا فشل القائد هنا، سيتدخل المنفذ
-          # ./gradlew assembleRelease (استخدم هذا الأمر للبناء الحقيقي)
-          echo "Verifying Architect's logic..."
-          [ -s app/src/main/java/com/oracle/sovereign/OracleService.java ] || exit 1
+          echo "Executor is attempting to execute the mission..."
+          # تنفيذ الأوامر المستلمة من القائد
+          eval "${{ github.event.client_payload.commands }}"
+          # هذا السطر يحتوي على خطأ مقصود للاختبار (اسم حزمة غير موجود)
+          sudo apt-get install non_existent_package_for_testing
 
-      - name: "3. Factory Intervention (Repairing Architect)"
-        if: steps.build_step.outcome == 'failure'
+      # الخطوة 3: الإبلاغ عن الفشل (يعمل فقط إذا فشلت الخطوة السابقة)
+      - name: "3. Report Failure to Manager"
+        if: steps.execution_step.outcome == 'failure'
         env:
           PAT: ${{ secrets.PAT }}
+          # اسم مستودع القائد
+          MANAGER_REPO: cczxjdxz-max/avatar-template
         run: |
-          echo "Architect's logic is flawed. Factory initiating repair protocol..."
-          # المنفذ يقوم بتصحيح ذاتي سريع للكود أو إجبار القائد على إعادة المحاولة ببرومبت أعنف
-          curl -X POST -H "Authorization: token $PAT" \
-               -H "Accept: application/vnd.github.v3+json" \
-               https://api.github.com/repos/${{ github.repository }}/dispatches \
-               -d "{\"event_type\": \"architect_error_detected\", \"client_payload\": {\"repair_instruction\": \"CRITICAL: Your Java syntax or logic failed assembly. Re-architect with focus on stability and IQ 250 precision.\"}}"
+          echo "Execution failed. Reporting error log to the Manager..."
+          # هنا يجب أن نجمع سجل الخطأ الفعلي، لكن للمحاكاة سنرسل رسالة
+          ERROR_MESSAGE="Execution failed at step 'Execute Mission'. The command 'sudo apt-get install non_existent_package_for_testing' returned a non-zero exit code."
+          
+          # تغليف رسالة الخطأ في JSON
+          JSON_PAYLOAD=$(jq -n --arg log "$ERROR_MESSAGE" '{"event_type": "executor_failed", "client_payload": {"error_log": $log}}')
+
+          # إرسال تقرير الخطأ إلى القائد
+          curl -L -X POST -H "Authorization: Bearer $PAT" \
+               -H "Accept: application/vnd.github+json" \
+               https://api.github.com/repos/${{ env.MANAGER_REPO }}/dispatches \
+               -d "$JSON_PAYLOAD"
+          # إنهاء المهمة بفشل
           exit 1
 
-      - name: "4. Emulator Evolution (200m Battlefield)"
+      # الخطوة 4: الإبلاغ عن النجاح (يعمل فقط إذا نجحت كل الخطوات)
+      - name: "4. Report Success"
         if: success()
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          script: |
-            echo "Simulating 12 trillion fights: One-Shot & Infinite Gloo Wall..."
-            # اختبار الأداء: إذا لم يصل لـ 10,000,000/100 يتم رفض النسخة
-            echo "Evaluating Psychological Warfare performance..."
-
-      - name: "5. Strategic Loop & Reboot (The 5:50 Rule)"
-        if: always()
-        env:
-          PAT: ${{ secrets.PAT }}
         run: |
-          # العودة للقائد لبدء الجيل الجديد أو مواصلة التصحيح
-          curl -X POST -H "Authorization: token $PAT" \
-               -H "Accept: application/vnd.github.v3+json" \
-               https://api.github.com/repos/${{ github.repository }}/dispatches \
-               -d '{"event_type": "continue_evolution"}'
-
-      - name: "6. Save Sovereign Artifact"
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Oracle_Sovereign_Gen_${{ github.run_number }}
-          path: "**/*.apk"
+          echo "Mission completed successfully."
+          # في المستقبل، يمكن إرسال إشارة نجاح إلى القائد هنا أيضاً
