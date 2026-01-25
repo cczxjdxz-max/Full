@@ -9,19 +9,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: "Offline AI Environment Setup"
+      - name: "Local AI Dependencies"
         run: |
           sudo apt update
           sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev
           pip3 install --user --upgrade buildozer cython virtualenv
-          # مكتبات الذكاء المحلي
           pip3 install opencv-python-headless numpy scipy
 
-      - name: "Sovereign Evolution Build (On-Device Training)"
+      - name: "Sovereign Build (Offline Engine)"
         id: build_step
         run: |
-          echo "Packing IQ 250 into the APK... 5 Trillion Simulations embedded."
-          # تحديث ملف spec ليشمل المكتبات الثقيلة آلياً
+          echo "Packaging Local IQ 250..."
+          # إجبار المتطلبات المحلية في ملف البناء
           sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec || true
           yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
@@ -34,16 +33,14 @@ jobs:
           if [ "${{ steps.build_step.outcome }}" == "failure" ]; then
             git config --global user.name "Patient-Executor"
             git add error_report.txt
-            git commit -m "Build Failure: Reporting to Architect."
+            git commit -m "Failure: Reporting logs."
             git push origin main
-            curl -X POST -H "Authorization: token $PAT_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "[https://api.github.com/repos/$REPO/dispatches](https://api.github.com/repos/$REPO/dispatches)" \
-              -d '{"event_type": "doctor_needed"}'
+            API_URL="[https://api.github.com/repos/$REPO/dispatches](https://api.github.com/repos/$REPO/dispatches)"
+            curl -X POST -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3+json" "$API_URL" -d '{"event_type": "doctor_needed"}'
             exit 1
           fi
 
-      - name: "Deploy Offline Sovereign APK"
+      - name: "Deploy Local AI APK"
         if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
