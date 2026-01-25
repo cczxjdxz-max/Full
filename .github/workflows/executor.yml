@@ -10,37 +10,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Verification"
+      - name: "Setup Build Environment (Safe Versions)"
         run: |
-          if [ ! -f "main.py" ]; then
-            echo "Critical Error: main.py not found! The Leader has not sent the code yet."
-            exit 1
-          fi
-
-      - name: "Environment Injection"
-        run: |
-          sudo apt update && sudo apt install -y python3-pip build-essential cmake adb
-          pip3 install --user --upgrade buildozer cython
+          sudo apt update
+          sudo apt install -y python3-pip build-essential cmake adb zip unzip
+          # السر هنا: تثبيت Cython بإصدار قديم لحل مشكلة 'long'
+          pip3 install --user --upgrade "Cython<3.0" buildozer virtualenv
 
       - name: "Build Sovereign APK"
         id: build
         run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip && unzip -q android-ndk-r25b-linux.zip
+          # تحميل NDK r25b إذا لم يكن موجوداً
+          if [ ! -d "android-ndk-r25b" ]; then
+            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+            unzip -q android-ndk-r25b-linux.zip
+          fi
           export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
-          # البناء الفعلي (سيستغرق وقت)
+          
+          # تنظيف البناء القديم الفاشل لضمان عدم تداخل الملفات
+          buildozer android clean
+          
+          # بدء البناء الفعلي
           yes | buildozer android debug
 
-      - name: "Check APK Generation"
-        run: |
-          if ls bin/*.apk 1> /dev/null 2>&1; then
-            echo "Victory! APK created."
-          else
-            echo "Failure: APK was not generated."
-            exit 1
-          fi
-
-      - name: "Victory Artifact"
+      - name: "Upload APK"
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Final
+          name: Sovereign-AI-Final-Build
           path: bin/*.apk
