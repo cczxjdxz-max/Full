@@ -6,132 +6,146 @@ from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.window import Window
 import time
+import threading
 
-kivy.require('2.1.0')
+kivy.require('2.0.0')
 
-class SovereignAIWidget(BoxLayout):
-    def __init__(self, **kwargs):
-        super(SovereignAIWidget, self).__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.padding = [50, 50, 50, 50]
-        self.spacing = 20
+class SovereignAI(App):
+    def build(self):
+        self.title = "Dominator: The Sovereign AI"
+        self.icon = 'icon_dominator.png'  # Assuming an icon exists for grandeur
 
-        # Sovereign Aesthetics: Black and Gold
-        self.canvas.before.add(Color(0.1, 0.1, 0.1, 1))  # Deep Black Background
-        self.canvas.before.add(Rectangle(size=Window.size, pos=self.pos))
+        self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.main_layout.bind(size=self._update_bg)
+        self.background = Rectangle(size=self.main_layout.size, pos=self.main_layout.pos)
+        self.main_layout.canvas.before.add(self.background)
 
-        self.title_label = Label(
-            text="THE ASCENDANT INTELLECT",
-            font_size='48sp',
-            color=(0.8, 0.7, 0.2, 1),  # Regal Gold
-            halign='center',
-            valign='middle',
+        self.header = Label(
+            text="Dominator: The Sovereign AI",
             size_hint_y=None,
-            height='100dp'
+            height=70,
+            font_size='30sp',
+            color=(1, 0.8, 0, 1)  # Gold color
         )
-        self.add_widget(self.title_label)
+        self.main_layout.add_widget(self.header)
 
         self.status_label = Label(
-            text="INITIATING TRANSCENDENT ANALYSIS...",
-            font_size='24sp',
-            color=(0.7, 0.6, 0.1, 1),
-            halign='center',
-            valign='middle'
-        )
-        self.add_widget(self.status_label)
-
-        self.cycles_label = Label(
-            text="SIMULATING 5 TRILLION COGNITIVE CYCLES...",
-            font_size='18sp',
-            color=(0.6, 0.5, 0.05, 1),
-            halign='center',
-            valign='middle'
-        )
-        self.add_widget(self.cycles_label)
-
-        self.objective_label = Label(
-            text="OBJECTIVE: ABSOLUTE DOMINION OVER FREE FIRE REALM.",
+            text="Initiating Dominance Protocols...",
+            size_hint_y=None,
+            height=50,
             font_size='20sp',
-            color=(0.9, 0.8, 0.3, 1),
-            halign='center',
-            valign='middle'
+            color=(0.9, 0.9, 0.9, 1)
         )
-        self.add_widget(self.objective_label)
+        self.main_layout.add_widget(self.status_label)
 
-        self.simulation_active = False
-        self.start_simulation()
+        self.processing_label = Label(
+            text="Processing cycles: 0 / 5,000,000,000,000",
+            size_hint_y=None,
+            height=50,
+            font_size='18sp',
+            color=(0.7, 0.7, 0.7, 1)
+        )
+        self.main_layout.add_widget(self.processing_label)
 
-    def on_resize(self, instance, width, height):
-        # Ensure the background rectangle updates with window size
-        self.canvas.before.clear()
-        self.canvas.before.add(Color(0.1, 0.1, 0.1, 1))
-        self.canvas.before.add(Rectangle(size=(width, height), pos=(0, 0)))
+        self.analysis_status_label = Label(
+            text="Analyzing Free Fire for absolute subjugation...",
+            size_hint_y=None,
+            height=50,
+            font_size='18sp',
+            color=(0.6, 0.6, 0.6, 1)
+        )
+        self.main_layout.add_widget(self.analysis_status_label)
 
-    def start_simulation(self):
-        if not self.simulation_active:
-            self.simulation_active = True
-            self.status_label.text = "ASCENDANCY PROTOCOLS ENGAGED. PROCESSING..."
-            self.title_label.text = "THE UNRIVALED ARCHITECT" # Subtle, imperious shift
+        self.error_display = Label(
+            text="",
+            size_hint_y=None,
+            height=0,  # Hidden by default
+            font_size='16sp',
+            color=(1, 0.2, 0.2, 1)
+        )
+        self.main_layout.add_widget(self.error_display)
 
-            # High-performance simulation initiation - NO WEAKNESS
-            self.simulation_start_time = time.perf_counter()
-            self.cognitive_cycles_completed = 0
-            self.total_cognitive_cycles = 5 * (10**12)
+        self.start_dominance_simulation()
+        return self.main_layout
 
-            # Schedule updates for visual feedback, maintaining thread safety and performance focus.
-            # A complex, multi-threaded simulation would be managed here. For demonstration,
-            # we simulate progress with periodic updates.
-            Clock.schedule_interval(self.update_simulation, 0.01) # More frequent updates for perceived power
+    def _update_bg(self, instance, value):
+        self.background.rect = (0, 0, self.main_layout.width, self.main_layout.height)
+        self.background.rgba = (0.1, 0.1, 0.1, 1)  # Black background
 
-    def update_simulation(self, dt):
-        if not self.simulation_active:
-            return
+    def start_dominance_simulation(self):
+        self.total_cycles = 5_000_000_000_000
+        self.current_cycles = 0
+        self.simulation_running = True
+        self.error_occurred = False
 
-        # Simulate significant progress without overwhelming the UI.
-        # In a real sovereign AI, this would be actual computation.
-        progress_factor = min(1.0, (time.perf_counter() - self.simulation_start_time) / 10.0) # Simulate completion over 10 secs for demo
-        simulated_cycles_this_update = int(self.total_cognitive_cycles * 0.0000000001 * (progress_factor + 0.000001)) # Imperceptible yet massive increments
+        # Simulate heavy processing with a dedicated thread to avoid UI freezing
+        self.simulation_thread = threading.Thread(target=self.run_simulation, daemon=True)
+        self.simulation_thread.start()
 
-        self.cognitive_cycles_completed += simulated_cycles_this_update
-        self.cognitive_cycles_completed = min(self.cognitive_cycles_completed, self.total_cognitive_cycles)
+        # Schedule updates to the UI from the main thread
+        Clock.schedule_interval(self.update_ui, 0.1)
 
-        cycles_display = f"{self.cognitive_cycles_completed:,}"
-        self.cycles_label.text = f"SIMULATED COGNITIVE CYCLES: {cycles_display} / {self.total_cognitive_cycles:,}"
+    def run_simulation(self):
+        try:
+            for i in range(self.total_cycles):
+                if not self.simulation_running:
+                    break
 
-        # Update status with subtle dominance
-        if self.cognitive_cycles_completed < self.total_cognitive_cycles * 0.75:
-            self.status_label.text = "MASTERING THE BATTLEFIELD ALGORITHMS..."
-        elif self.cognitive_cycles_completed < self.total_cognitive_cycles * 0.95:
-            self.status_label.text = "SYNTHESIZING PATHS TO UNCHALLENGED SUPREMACY..."
-        else:
-            self.status_label.text = "DOMAIN ACHIEVED. THE REALM IS MY DOMAIN."
-            self.objective_label.text = "FREE FIRE IS SUBJUGATED."
-            self.objective_label.color = (0.9, 0.2, 0.2, 1) # Red for absolute control
-            Clock.unschedule(self.update_simulation)
-            self.simulation_active = False
-            self.end_simulation()
+                # Simulated intensive processing - representing complex Free Fire analysis and strategy generation
+                # In a real scenario, this would involve massive data processing, AI model inference, etc.
+                time.sleep(1e-9) # Extremely brief pause to represent infinitesimal computation
 
-    def end_simulation(self):
-        self.title_label.text = "THE SOVEREIGN INTELLECT REIGNS"
-        self.cycles_label.text = "TRANSCENDENT ANALYSIS COMPLETE."
-        self.status_label.text = "ABSOLUTE CONTROL ESTABLISHED."
-        # Final reinforcement of power and elegance
-        self.canvas.before.clear()
-        self.canvas.before.add(Color(0.1, 0.1, 0.1, 1))
-        self.canvas.before.add(Rectangle(size=Window.size, pos=(0, 0)))
-        self.canvas.add(Color(0.8, 0.7, 0.2, 1)) # Gold accent on complete victory
-        self.canvas.add(Rectangle(size=(Window.width, 10), pos=(0, Window.height - 10))) # Subtle, dominant line
+                self.current_cycles += 1
 
-class SovereignAIApp(App):
-    def build(self):
-        Window.clearcolor = (0.1, 0.1, 0.1, 1) # Ensure background is set from app level too
-        self.root = SovereignAIWidget()
-        self.root.bind(size=self.root.on_resize)
-        return self.root
+                if self.current_cycles % 100_000_000 == 0:
+                    self.status_label.text = "Dominance protocols escalating..."
+                    self.analysis_status_label.text = "Analyzing Free Fire for strategic supremacy..."
+
+                if self.current_cycles % 500_000_000 == 0:
+                    self.status_label.text = "Conquering new strategic frontiers..."
+                    self.analysis_status_label.text = "Integrating all variables for inevitable victory..."
+
+                if i == self.total_cycles // 2:
+                    self.status_label.text = "Halfway to absolute control. The universe trembles."
+
+            if self.simulation_running:
+                self.simulation_running = False
+                self.status_label.text = "Dominance Achieved. Free Fire is now under my absolute control."
+                self.processing_label.text = f"Final Cycles: {self.total_cycles:,}"
+                self.analysis_status_label.text = "The game yields to my will."
+                self.error_display.height = 0 # Ensure error is hidden on success
+
+        except Exception as e:
+            self.error_occurred = True
+            self.handle_error(f"System Malfunction Detected: {e}")
+            self.simulation_running = False
+
+    def update_ui(self, dt):
+        if self.simulation_running:
+            self.processing_label.text = f"Processing cycles: {self.current_cycles:,} / {self.total_cycles:,}"
+            if self.error_occurred:
+                self.error_display.height = 50
+                self.status_label.text = "System in Crisis Mode. Subjugation Imperative."
+                self.analysis_status_label.text = "Corrective protocols engaged."
+        elif not self.error_occurred:
+            self.status_label.text = "Dominance Achieved. Free Fire is now under my absolute control."
+            self.processing_label.text = f"Final Cycles: {self.total_cycles:,}"
+            self.analysis_status_label.text = "The game yields to my will."
+            Clock.unschedule(self.update_ui) # Stop UI updates once simulation is complete
+
+    def handle_error(self, error_message):
+        self.error_display.text = f"ERROR: {error_message}"
+        self.error_display.height = 50
+        self.status_label.text = "ERROR STATE: Correction Protocol Activated."
+        self.analysis_status_label.text = "Reassessing parameters for renewed assault."
+        # In a real scenario, this would involve more sophisticated self-repair or reporting mechanisms.
+        # For the purpose of this simulation, we display the error prominently.
+        Clock.unschedule(self.update_ui)
+
+    def on_stop(self):
+        self.simulation_running = False
+        if self.simulation_thread.is_alive():
+            self.simulation_thread.join()
 
 if __name__ == '__main__':
-    # For the sake of demonstrating the fix, assuming the original build failure
-    # was related to how Kivy was initialized or managed. This structure is robust.
-    # The error reporting mechanism itself is beyond the scope of this code fix,
-    # but the application's structure is made resilient.
-    SovereignAIApp().run()
+    SovereignAI().run()
