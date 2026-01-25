@@ -4,10 +4,10 @@ on:
     types: [continue_mission]
 
 jobs:
-  build_complete_apk:
+  build_entity:
     runs-on: ubuntu-latest
     steps:
-      - name: "Pulling Sovereign Logic"
+      - name: "Pulling Logic"
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT }}
@@ -20,13 +20,13 @@ jobs:
             .buildozer
           key: buildozer-cache-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
 
-      - name: "Setup Persistence & Build Environment"
+      - name: "Setup Build Factory"
         run: |
           sudo apt update && sudo apt install -y python3-pip zip unzip openjdk-17-jdk
           pip install --user buildozer cython virtualenv
-          echo "Phase: Forging APK with Social Hub and Tactical AI" > current_status.txt
+          echo "Status: Forging 11-button mapping with Video Analysis Module" > current_status.txt
 
-      - name: "Forging The Final APK"
+      - name: "Forging The Sovereign APK"
         run: |
           cat <<EOF > buildozer.spec
           [app]
@@ -34,7 +34,6 @@ jobs:
           package.name = sovereign.ai.god
           package.domain = org.lelouch
           source.dir = .
-          version = 1.0
           requirements = python3,kivy,android,requests,opencv-python,numpy
           android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, RECORD_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
           android.api = 33
@@ -43,8 +42,8 @@ jobs:
           
           ~/.local/bin/buildozer -v android debug || (echo "Failed at Compilation" > current_status.txt && exit 1)
           
-          mkdir -p output && cp bin/*.apk output/Sovereign_Final.apk
-          echo "Mission Accomplished: The Sovereign is Online" > current_status.txt
+          mkdir -p output && cp bin/*.apk output/Sovereign_Final_AI.apk
+          echo "Status: Mission Accomplished. Top 1 Entity Ready." > current_status.txt
 
       - name: "Checkpoint Save"
         if: always()
@@ -52,12 +51,12 @@ jobs:
           git config --global user.name "Executor-Bot"
           git config --global user.email "executor@sovereign.ai"
           git add current_status.txt
-          git commit -m "Progress Saved: $(cat current_status.txt)" || exit 0
+          git commit -m "Progress: $(cat current_status.txt)" || exit 0
           git push origin main --force
 
       - name: "Deliver The Sovereign"
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-IQ250-God-AI
+          name: Sovereign-IQ250-Final-APK
           path: output/*.apk
