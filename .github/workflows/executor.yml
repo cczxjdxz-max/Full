@@ -1,66 +1,19 @@
-name: 2. The Immortal Executor
-on:
-  repository_dispatch:
-    types: [continue_mission]
-
-jobs:
-  execute_12_trillion:
-    runs-on: ubuntu-latest
-    timeout-minutes: 350
-    permissions:
-      contents: write
-    steps:
-      - name: "1. Pulling Architectural Data"
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT }}
-
-      - name: "2. Engine-Twin Simulation & Training"
-        run: |
-          if [ ! -f "checkpoint.json" ]; then
-             echo '{"cycle": 0, "accuracy": 0}' > checkpoint.json
-          fi
-          python3 core_logic.py --cycles 12000000000000 --checkpoint "checkpoint.json"
-
-      - name: "3. Build Sovereign APK"
-        if: success()
-        run: |
-          mkdir -p build
-          echo "Lelouch_Final_Sovereign.apk" > build/Lelouch_Final.apk
-
-      - name: "4. Secure Progress & Signal Boss"
+      - name: "4. Status Reporting & Signaling"
         if: always()
         env:
           PAT: ${{ secrets.PAT }}
         run: |
-          git config --global user.name "Executor-Bot"
-          git config --global user.email "executor@britannia.ai"
-          git add checkpoint.json
-          # إضافة ملفات الـ build أيضاً إذا أردت تتبعها
-          git add build/ || echo "No build folder"
-          git commit -m "Progress Saved" || echo "No changes to commit"
-          git push origin main || echo "Already up to date"
-          
-          # حماية الرابط من التنسيق التلقائي
-          PROTO="https://"
-          HOST="api.github.com"
-          REPO_PATH="/repos/cczxjdxz-max/avatar-template/dispatches"
-          FINAL_URL="${PROTO}${HOST}${REPO_PATH}"
-          
+          # إعداد رسالة الخطأ في حال الفشل
           if [ "${{ job.status }}" == "failure" ]; then
-             EVENT="executor_failed"
+             STATUS="executor_failed"
+             ERROR_MSG="Failure in core_logic.py execution or Buildozer process"
           else
-             EVENT="wake_up_call"
+             STATUS="wake_up_call"
+             ERROR_MSG="Success"
           fi
           
-          curl -X POST "$FINAL_URL" \
+          URL_BOSS="[https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches)"
+          curl -X POST "$URL_BOSS" \
                -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
-               -d "{\"event_type\": \"$EVENT\"}"
-
-      - name: "5. Upload Artifact"
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Sovereign-APK-Final
-          path: build/Lelouch_Final.apk
+               -d "{\"event_type\": \"$STATUS\", \"client_payload\": {\"error\": \"$ERROR_MSG\"}}"
