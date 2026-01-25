@@ -1,8 +1,7 @@
-name: 2. The Combat Executor (Builder)
-
+name: 2. The Combat Executor (Full)
 on:
   repository_dispatch:
-    types: [execute_build, doctor_needed] # تأكد أن الأسماء مطابقة تماماً لما يرسله القائد
+    types: [execute_build]
 
 jobs:
   training_and_build:
@@ -10,48 +9,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: "Local AI Dependencies"
+      - name: "Install AI Engine"
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev
+          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libatlas-base-dev
           pip3 install --user --upgrade buildozer cython virtualenv
           pip3 install opencv-python-headless numpy scipy
 
-      - name: "Sovereign Build (Offline Engine)"
+      - name: "Sovereign Build"
         id: build_step
         run: |
-          echo "Packaging Local IQ 250 into APK..."
-          # بناء ملف المواصفات إذا لم يوجد
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-          fi
-          # تعديل المتطلبات لتشمل كل شيء داخلي
+          [ -f buildozer.spec ] || buildozer init
           sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec
-          # تفعيل ميزة التموييه لتعزيز التشفير
-          sed -i 's/#android.preserve_paths/android.preserve_paths/' buildozer.spec
-          
           yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
 
-      - name: "Failure Feedback Loop"
+      - name: "Emergency Call to Physician"
         if: steps.build_step.outcome == 'failure'
         env:
-          REPO_NAME: ${{ github.repository }}
           PAT_TOKEN: ${{ secrets.PAT }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
-          git config --global user.name "Patient-Executor"
-          git add error_report.txt
-          git commit -m "Failure: Reporting logs to Architect."
-          git push origin main
+          # إرسال تقرير الفشل إلى مستودع Avatar-template (الطبيب) لإصلاحه
+          git config --global user.name "Patient-Full"
+          git add error_report.txt && git commit -m "Build failed" && git push origin main
           
           P1="https"; P2="api.github.com"; P3="repos"
-          CLEAN_URL="${P1}://${P2}/${P3}/${REPO_NAME}/dispatches"
-          curl -X POST -H "Authorization: token ${PAT_TOKEN}" -H "Accept: application/vnd.github.v3+json" -d '{"event_type": "doctor_needed"}' "${CLEAN_URL}"
+          DOC_URL="${P1}://${P2}/${P3}/${REPO_OWNER}/Avatar-template/dispatches"
+          curl -X POST -H "Authorization: token ${PAT_TOKEN}" -H "Accept: application/vnd.github.v3+json" -d '{"event_type": "doctor_needed"}' "${DOC_URL}"
           exit 1
 
-      - name: "Deploy Local AI APK"
+      - name: "Export Sovereign APK"
         if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Offline
+          name: Sovereign-AI-Final
           path: bin/*.apk
