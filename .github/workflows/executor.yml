@@ -1,78 +1,51 @@
-name: 2. The Immortal Executor
+name: 2. The Immortal Executor (Persistent Build)
 on:
   repository_dispatch:
     types: [continue_mission]
 
 jobs:
-  build_and_simulate:
+  build_entity:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: "1. Checkout Master Data"
+      - name: "Pulling Logic"
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT }}
-          fetch-depth: 0
 
-      - name: "2. Execute Sovereign Logic"
+      - name: "Setup Persistence & Build Environment"
         run: |
-          if [ ! -f "checkpoint.json" ]; then echo '{"cycle": 0, "status": "sovereign"}' > checkpoint.json; fi
-          python3 core_logic.py --mode "autonomous_play"
+          sudo apt update && sudo apt install -y python3-pip zip unzip openjdk-17-jdk
+          pip install --user buildozer cython virtualenv
+          echo "Current Phase: Building APK with 11-button mapping" > current_status.txt
 
-      - name: "3. Build Master APK (Accessibility Mode)"
+      - name: "Forging The Sovereign APK"
         run: |
-          sudo apt update && sudo apt install -y python3-pip
-          pip install --user buildozer cython
+          # بناء ملف المواصفات ليدعم الفيديو والدردشة والوصول
+          cat <<EOF > buildozer.spec
+          [app]
+          title = Sovereign IQ 250
+          package.name = sovereign.ai.god
+          requirements = python3,kivy,android,requests,opencv-python,numpy
+          android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, RECORD_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
+          android.api = 33
+          android.archs = arm64-v8a
+          EOF
           
-          if [ ! -f "buildozer.spec" ]; then
-            echo "[app]" > buildozer.spec
-            echo "title = Lelouch Sovereign AI" >> buildozer.spec
-            echo "package.name = sovereign.ai.access" >> buildozer.spec
-            echo "source.dir = ." >> buildozer.spec
-            echo "requirements = python3,kivy,android" >> buildozer.spec
-            echo "android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE" >> buildozer.spec
-            echo "android.api = 33" >> buildozer.spec
-            echo "android.archs = arm64-v8a" >> buildozer.spec
-          fi
+          ~/.local/bin/buildozer -v android debug || (echo "Failed at Build" > current_status.txt && exit 1)
           
-          ~/.local/bin/buildozer -v android debug
-          mkdir -p build_output
-          cp bin/*.apk build_output/Lelouch_Sovereign_Final.apk || echo "In Progress"
+          mkdir -p output && cp bin/*.apk output/Sovereign_FF_God.apk
+          echo "Mission Accomplished: Top 1 AI Ready" > current_status.txt
 
-      - name: "4. Status Sync & Protected Signal"
+      - name: "Check-in Progress"
         if: always()
-        env:
-          PAT: ${{ secrets.PAT }}
         run: |
           git config --global user.name "Executor-Bot"
-          git config --global user.email "executor@britannia.ai"
-          git add .
-          git commit -m "Progress Secured" || echo "Clean"
+          git add current_status.txt
+          git commit -m "Progress Update: $(cat current_status.txt)" || exit 0
           git push origin main --force
-          
-          # حماية رابط العودة للقائد
-          P="https://"
-          H="api.github.com"
-          T="/repos/cczxjdxz-max/avatar-template/dispatches"
-          DEST="${P}${H}${T}"
-          
-          if [ "${{ job.status }}" == "failure" ]; then
-             MSG="executor_failed"
-             ERROR="Build process failed"
-          else
-             MSG="wake_up_call"
-             ERROR="Success"
-          fi
-          
-          curl -X POST "$DEST" \
-               -H "Authorization: Bearer $PAT" \
-               -H "Accept: application/vnd.github+json" \
-               -d "{\"event_type\": \"$MSG\", \"client_payload\": {\"error\": \"$ERROR\"}}"
 
-      - name: "5. Upload Final Artifact"
-        if: success()
-        uses: actions/upload-artifact@v4
+      - name: "Artifact Delivery"
+        uses: upload-artifact@v4
         with:
-          name: Sovereign-AI-APK
-          path: bin/*.apk
+          name: Sovereign-IQ250-APK
+          path: output/*.apk
