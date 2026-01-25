@@ -4,10 +4,10 @@ on:
     types: [continue_mission]
 
 jobs:
-  build_entity:
+  build_complete_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: "Pulling Logic"
+      - name: "Pulling Sovereign Logic"
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT }}
@@ -24,11 +24,10 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y python3-pip zip unzip openjdk-17-jdk
           pip install --user buildozer cython virtualenv
-          echo "Current Phase: Building APK with 11-button mapping" > current_status.txt
+          echo "Phase: Forging APK with Social Hub and Tactical AI" > current_status.txt
 
-      - name: "Forging The Sovereign APK"
+      - name: "Forging The Final APK"
         run: |
-          # التأكد من وجود ملف المواصفات
           cat <<EOF > buildozer.spec
           [app]
           title = Sovereign IQ 250
@@ -42,25 +41,23 @@ jobs:
           android.archs = arm64-v8a
           EOF
           
-          # بدء البناء
-          ~/.local/bin/buildozer -v android debug || (echo "Failed at Build" > current_status.txt && exit 1)
+          ~/.local/bin/buildozer -v android debug || (echo "Failed at Compilation" > current_status.txt && exit 1)
           
-          mkdir -p output
-          cp bin/*.apk output/Sovereign_FF_God.apk
-          echo "Mission Accomplished: Top 1 AI Ready" > current_status.txt
+          mkdir -p output && cp bin/*.apk output/Sovereign_Final.apk
+          echo "Mission Accomplished: The Sovereign is Online" > current_status.txt
 
-      - name: "Check-in Progress"
+      - name: "Checkpoint Save"
         if: always()
         run: |
           git config --global user.name "Executor-Bot"
           git config --global user.email "executor@sovereign.ai"
           git add current_status.txt
-          git commit -m "Progress Update: $(cat current_status.txt)" || exit 0
+          git commit -m "Progress Saved: $(cat current_status.txt)" || exit 0
           git push origin main --force
 
-      - name: "Artifact Delivery"
+      - name: "Deliver The Sovereign"
         if: success()
-        uses: actions/upload-artifact@v4 # هنا تم الإصلاح بإضافة actions/
+        uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-IQ250-APK
+          name: Sovereign-IQ250-God-AI
           path: output/*.apk
