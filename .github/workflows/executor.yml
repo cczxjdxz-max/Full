@@ -1,19 +1,78 @@
-      - name: "4. Status Reporting & Signaling"
+name: 2. The Immortal Executor
+on:
+  repository_dispatch:
+    types: [continue_mission]
+
+jobs:
+  build_and_simulate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: "1. Checkout Master Data"
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
+
+      - name: "2. Execute Sovereign Logic"
+        run: |
+          if [ ! -f "checkpoint.json" ]; then echo '{"cycle": 0, "status": "sovereign"}' > checkpoint.json; fi
+          python3 core_logic.py --mode "autonomous_play"
+
+      - name: "3. Build Master APK (Accessibility Mode)"
+        run: |
+          sudo apt update && sudo apt install -y python3-pip
+          pip install --user buildozer cython
+          
+          if [ ! -f "buildozer.spec" ]; then
+            echo "[app]" > buildozer.spec
+            echo "title = Lelouch Sovereign AI" >> buildozer.spec
+            echo "package.name = sovereign.ai.access" >> buildozer.spec
+            echo "source.dir = ." >> buildozer.spec
+            echo "requirements = python3,kivy,android" >> buildozer.spec
+            echo "android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE" >> buildozer.spec
+            echo "android.api = 33" >> buildozer.spec
+            echo "android.archs = arm64-v8a" >> buildozer.spec
+          fi
+          
+          ~/.local/bin/buildozer -v android debug
+          mkdir -p build_output
+          cp bin/*.apk build_output/Lelouch_Sovereign_Final.apk || echo "In Progress"
+
+      - name: "4. Status Sync & Protected Signal"
         if: always()
         env:
           PAT: ${{ secrets.PAT }}
         run: |
-          # إعداد رسالة الخطأ في حال الفشل
+          git config --global user.name "Executor-Bot"
+          git config --global user.email "executor@britannia.ai"
+          git add .
+          git commit -m "Progress Secured" || echo "Clean"
+          git push origin main --force
+          
+          # حماية رابط العودة للقائد
+          P="https://"
+          H="api.github.com"
+          T="/repos/cczxjdxz-max/avatar-template/dispatches"
+          DEST="${P}${H}${T}"
+          
           if [ "${{ job.status }}" == "failure" ]; then
-             STATUS="executor_failed"
-             ERROR_MSG="Failure in core_logic.py execution or Buildozer process"
+             MSG="executor_failed"
+             ERROR="Build process failed"
           else
-             STATUS="wake_up_call"
-             ERROR_MSG="Success"
+             MSG="wake_up_call"
+             ERROR="Success"
           fi
           
-          URL_BOSS="[https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches)"
-          curl -X POST "$URL_BOSS" \
+          curl -X POST "$DEST" \
                -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
-               -d "{\"event_type\": \"$STATUS\", \"client_payload\": {\"error\": \"$ERROR_MSG\"}}"
+               -d "{\"event_type\": \"$MSG\", \"client_payload\": {\"error\": \"$ERROR\"}}"
+
+      - name: "5. Upload Final Artifact"
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sovereign-AI-APK
+          path: bin/*.apk
