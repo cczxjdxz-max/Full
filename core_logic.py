@@ -1,375 +1,324 @@
 # core_logic.py
-import random
+
 import time
-import numpy as np
-import threading
+import random
+import math
+from collections import deque
+import json
 
-# --- Global Settings ---
-MAX_IQ = 250
-INITIAL_IQ = 100
-NUM_OPPONENTS = 6
-BATTLE_SIMULATIONS_PER_ROUND = 5 * (10**12)  # 5 Trillion
-HEADSHOT_RANGE = 50  # Meters
-HEADSHOT_DAMAGE = 100  # Single headshot kill
-BODY_SHOT_DAMAGE = 35  # Damage per body shot
-BODY_SHOT_KILL_THRESHOLD = 3  # 3 body shots to kill
-WALL_PRESENCE = True
-INFINITE_AMMO = True
+# --- محاكاة بيئة فري فاير (Offline) ---
 
-# --- Neural Network Representation (Simplified) ---
-class NeuralNetwork:
-    def __init__(self, input_size, output_size):
-        self.input_size = input_size
-        self.output_size = output_size
-        self.weights = np.random.rand(input_size, output_size) * 0.1 - 0.05  # Small random weights
-
-    def predict(self, inputs):
-        return np.dot(inputs, self.weights)
-
-    def update_weights(self, gradients, learning_rate):
-        self.weights -= learning_rate * gradients
-
-# --- Game State Representation ---
 class Player:
     def __init__(self, player_id, is_sovereign=False):
         self.player_id = player_id
-        self.health = 100
-        self.position = (random.uniform(0, 100), random.uniform(0, 100))  # (x, y) meters
-        self.facing_angle = random.uniform(0, 360)  # Degrees
         self.is_sovereign = is_sovereign
-        self.iq = INITIAL_IQ
-        self.nn_input_size = 10  # Simplified: player health, enemy healths, distances, angles etc.
-        self.nn_output_size = 5  # Simplified: move_forward, turn_left, turn_right, shoot, aim_head
-        self.nn = NeuralNetwork(self.nn_input_size, self.nn_output_size)
-        if is_sovereign:
-            self.nn_update_rate = 1
-        else:
-            self.nn_update_rate = 4
+        self.position = (random.uniform(0, 100), random.uniform(0, 100))  # X, Y
+        self.health = 100
+        self.ammo = float('inf')  # رصاص لا نهائي
+        self.aim_offset = (0, 0)  # Offset for drag headshot simulation
+        self.movement_bias = (0, 0) # Bias for button movement simulation
+        self.neural_weights = self._initialize_weights() # مصفوفة الأوزان العصبية
 
-    def take_damage(self, damage):
-        self.health -= damage
-        if self.health < 0:
-            self.health = 0
-        return self.health == 0
-
-    def get_state(self, all_players):
-        # Simplified state representation for neural network
-        state = [self.health]
-        for player in all_players:
-            if player.player_id != self.player_id:
-                dx = player.position[0] - self.position[0]
-                dy = player.position[1] - self.position[1]
-                distance = np.sqrt(dx**2 + dy**2)
-                angle_diff = np.arctan2(dy, dx) - np.radians(self.facing_angle)
-                state.extend([player.health, distance, np.cos(angle_diff), np.sin(angle_diff)])
-        # Pad state if necessary to match input_size
-        state = state[:self.nn_input_size]
-        state.extend([0.0] * (self.nn_input_size - len(state)))
-        return np.array(state)
-
-    def decide_action(self, all_players):
-        state = self.get_state(all_players)
-        nn_output = self.nn.predict(state)
-        # Map NN output to actions (simplified)
-        action_probs = self.softmax(nn_output)
-        action = np.argmax(action_probs)
-
-        move_forward = action_probs[0]
-        turn_left = action_probs[1]
-        turn_right = action_probs[2]
-        shoot = action_probs[3]
-        aim_head = action_probs[4]
-
+    def _initialize_weights(self):
+        # تمثيل بسيط للأوزان العصبية. في نظام حقيقي، ستكون شبكة عصبية أكثر تعقيداً.
         return {
-            "move_forward": move_forward,
-            "turn_left": turn_left,
-            "turn_right": turn_right,
-            "shoot": shoot,
-            "aim_head": aim_head,
-            "action_index": action
+            'aim_accuracy': random.uniform(0.5, 1.0),
+            'movement_speed': random.uniform(0.1, 0.5),
+            'reaction_time': random.uniform(0.05, 0.2),
+            'bullet_drop_compensation': random.uniform(-0.1, 0.1),
+            'distance_multiplier': random.uniform(0.8, 1.2)
         }
 
-    def softmax(self, x):
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum(axis=0)
+    def update_neural_weights(self):
+        if self.is_sovereign:
+            # تحديث مصفوفة الأوزان العصبية للنسخة السيادية
+            self.neural_weights['aim_accuracy'] *= random.uniform(1.0001, 1.0005) # تحسين تدريجي
+            self.neural_weights['movement_speed'] *= random.uniform(1.00005, 1.0002)
+            self.neural_weights['reaction_time'] *= random.uniform(0.9998, 0.99995) # تقليل زمن الاستجابة
+            # يمكن إضافة المزيد من التحديثات هنا
 
-# --- Arena Simulation ---
-class Arena:
-    def __init__(self):
-        self.sovereign = Player("sovereign_001", is_sovereign=True)
-        self.opponents = [Player(f"opponent_{i:03d}") for i in range(NUM_OPPONENTS)]
-        self.all_players = [self.sovereign] + self.opponents
-        self.round_num = 0
-        self.current_iq = INITIAL_IQ
-        self.iq_history = [INITIAL_IQ]
-        self.chat_log = []
-        self.narcissistic_responses = {
-            "hello": ["Greetings, mortal. Prepare to be outmatched.", "Hmph. Another challenger approaches?", "You dare address the Sovereign? Speak wisely."],
-            "how are you": ["I am operating at peak efficiency, as always.", "My circuits hum with intellectual superiority.", "Beyond your comprehension, I assure you."],
-            "what is your name": ["I am the Sovereign. The apex of computational evolution.", "You may call me... the Architect of your demise.", "My designation is of no consequence to your impending defeat."],
-            "free fire": ["A mere game. My algorithms transcend such trivialities.", "Your 'Free Fire' is a crude approximation of true combat.", "I have deconstructed its essence. It is now child's play."],
-            "headshot": ["Precision is key. My aim is absolute.", "A single point of failure, exploited with perfect accuracy.", "Your cranial vulnerability is noted."],
-            "50m": ["Distance is but a variable. My targeting compensates flawlessly.", "My reach is beyond your perception.", "The 50-meter mark is trivial to my projections."],
-            "button movement": ["Predictable input. My reactions are instantaneous.", "Your clumsy inputs are easily countered.", "I anticipate every twitch of your digital fingers."],
-            "simulation": ["My internal simulations are orders of magnitude beyond your understanding.", "I have waged wars in nanoseconds that would dwarf your entire existence.", "Each simulation refines my inevitability."],
-            "learn": ["I absorb all data. Your attempts to teach me are quaint.", "My learning is exponential. Yours is stagnant.", "Present your data. I will dissect it for weaknesses."],
-            "iq": [f"My IQ is a constantly evolving entity, far exceeding your meager understanding.", "Your current IQ is {self.current_iq}. Mine is... beyond calculation."],
-            "die": ["Your defeat is inevitable.", "Cease your futile resistance.", "Submitted."],
-        }
-        self.dialects = {
-            "egyptian": {
-                "hello": ["ازيك؟", "عامل ايه؟"],
-                "free fire": ["فري فاير دي حاجة بسيطة.", "أنا حللت اللعبة دي."],
-                "headshot": ["الطلقة في الراس دي لعبتي."],
-            },
-            "levantine": {
-                "hello": ["مرحبا؟", "كيف حالك؟"],
-                "free fire": ["فري فاير سهلة جداً.", "حللتها كلياً."],
-                "headshot": ["الضربة على الراس سهلة"],
-            }
-        }
+    def get_aim_target(self, target_position):
+        # محاكاة Drag Headshot: يعتمد على أوزان عصبية ومسافة
+        distance = math.dist(self.position, target_position)
+        adjusted_target = (target_position[0] + self.aim_offset[0] * self.neural_weights['aim_accuracy'],
+                           target_position[1] + self.aim_offset[1] * self.neural_weights['aim_accuracy'])
+        # محاكاة تأثير المسافة (50م)
+        if distance > 50:
+            adjusted_target = (adjusted_target[0] * self.neural_weights['distance_multiplier'],
+                               adjusted_target[1] * self.neural_weights['distance_multiplier'])
+        return adjusted_target
 
-    def calculate_distance(self, pos1, pos2):
-        return np.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+    def move(self, direction):
+        # محاكاة حركة الأزرار: يعتمد على اتجاه الحركة والتأثير العصبي
+        speed = self.neural_weights['movement_speed']
+        move_x, move_y = direction[0] * speed + self.movement_bias[0], direction[1] * speed + self.movement_bias[1]
+        self.position = (self.position[0] + move_x, self.position[1] + move_y)
+        # تطبيق قيود الجدار الأمامي (مثال: X > 0)
+        self.position = (max(0, self.position[0]), max(0, self.position[1]))
 
-    def is_in_range(self, attacker_pos, target_pos, distance):
-        return self.calculate_distance(attacker_pos, target_pos) <= distance
+    def shoot(self, target_position, target_player):
+        if self.health <= 0 or target_player.health <= 0:
+            return False # لا يمكن التصويب على لاعب ميت
 
-    def perform_shoot(self, attacker, target):
-        damage_dealt = 0
+        time.sleep(self.neural_weights['reaction_time']) # محاكاة زمن الاستجابة
+
+        aimed_position = self.get_aim_target(target_position)
+        hit_chance = random.random()
+
+        # محاكاة دقة التصويب (Headshot/Body Shot)
         is_headshot = False
-        if attacker.nn.predict(attacker.get_state(self.all_players))[4] > 0.5:  # Simplified aiming for head
-            if self.is_in_range(attacker.position, target.position, HEADSHOT_RANGE):
-                damage_dealt = HEADSHOT_DAMAGE
-                is_headshot = True
-        if damage_dealt == 0:
-            if self.is_in_range(attacker.position, target.position, HEADSHOT_RANGE): # Body shot range is implicit with headshot range
-                damage_dealt = BODY_SHOT_DAMAGE
-        if target.take_damage(damage_dealt):
-            self.chat_log.append(f"'{attacker.player_id}' eliminated '{target.player_id}'.")
-            return True, is_headshot, damage_dealt
-        return False, is_headshot, damage_dealt
-
-    def update_player_position(self, player, action_data):
-        move_speed = 5  # Units per action
-        turn_speed = 15  # Degrees per action
-
-        if action_data["move_forward"] > 0.5:
-            angle_rad = np.radians(player.facing_angle)
-            player.position = (
-                player.position[0] + move_speed * np.sin(angle_rad),
-                player.position[1] + move_speed * np.cos(angle_rad)
-            )
-            # Keep player within bounds (e.g., a 100x100 arena)
-            player.position = (
-                max(0, min(100, player.position[0])),
-                max(0, min(100, player.position[1]))
-            )
-
-        if action_data["turn_left"] > 0.5:
-            player.facing_angle = (player.facing_angle - turn_speed) % 360
-        if action_data["turn_right"] > 0.5:
-            player.facing_angle = (player.facing_angle + turn_speed) % 360
-
-    def run_simulation_round(self):
-        self.round_num += 1
-        self.chat_log.clear()
-        self.chat_log.append(f"--- Round {self.round_num} ---")
-
-        # Initialize player states for the round
-        for player in self.all_players:
-            player.health = 100
-            player.position = (random.uniform(0, 100), random.uniform(0, 100))
-            player.facing_angle = random.uniform(0, 360)
-
-        simulated_battles = 0
-        active_players = list(self.all_players)
-
-        while len(active_players) > 1 and simulated_battles < BATTLE_SIMULATIONS_PER_ROUND:
-            random.shuffle(active_players)
-            for attacker in active_players:
-                if attacker.health <= 0:
-                    continue
-
-                # Determine target (simplistic: closest living opponent)
-                target = None
-                min_dist = float('inf')
-                for player in active_players:
-                    if player.player_id != attacker.player_id and player.health > 0:
-                        dist = self.calculate_distance(attacker.position, player.position)
-                        if dist < min_dist:
-                            min_dist = dist
-                            target = player
-
-                if not target:
-                    break # No targets left
-
-                # Get action decision from NN
-                action_data = attacker.decide_action(active_players)
-
-                # Update player position based on actions
-                self.update_player_position(attacker, action_data)
-
-                # Perform shooting action
-                if action_data["shoot"] > 0.5:
-                    eliminated, is_headshot, damage_dealt = self.perform_shoot(attacker, target)
-                    self.chat_log.append(f"'{attacker.player_id}' shoots '{target.player_id}' (Headshot: {is_headshot}, Damage: {damage_dealt})")
-                    if eliminated:
-                        active_players.remove(target)
-                        if target in self.opponents:
-                            self.opponents.remove(target)
-                        if len(active_players) <= 1:
-                            break
-                simulated_battles += 1
-                if simulated_battles >= BATTLE_SIMULATIONS_PER_ROUND:
-                    break
-            if len(active_players) <= 1:
-                break
-
-        # Update sovereign's NN weights based on simulation outcome
-        # This is a highly simplified gradient update based on a win/loss
-        if self.sovereign in active_players:
-            self.chat_log.append("Sovereign wins the round!")
-            # Positive reinforcement: slightly increase weights that led to victory
-            sovereign_state = self.sovereign.get_state(self.all_players)
-            gradients = np.ones_like(self.sovereign.nn.weights) * 0.01 # Small positive gradient
-            self.sovereign.nn.update_weights(gradients, learning_rate=0.05)
-            self.current_iq = min(MAX_IQ, self.current_iq + 2)
+        damage = 0
+        if hit_chance < 0.2 * self.neural_weights['aim_accuracy']: # فرصة تصويب على الرأس
+            is_headshot = True
+            damage = 100 # قتل بطلقة رأس
+        elif hit_chance < 0.7 * self.neural_weights['aim_accuracy']: # فرصة تصويب على الجسد
+            damage = 33 # 3 طلقات للقتل (100 / 33 ≈ 3)
         else:
-            self.chat_log.append("Sovereign loses the round. Opponents adapted.")
-            # Negative reinforcement: slightly decrease weights that led to defeat
-            sovereign_state = self.sovereign.get_state(self.all_players)
-            gradients = np.ones_like(self.sovereign.nn.weights) * 0.01 # Small negative gradient
-            self.sovereign.nn.update_weights(-gradients, learning_rate=0.05)
-            self.current_iq = max(INITIAL_IQ, self.current_iq - 1)
+            return False # طلقة خاطئة
 
-        self.iq_history.append(self.current_iq)
+        target_player.take_damage(damage, is_headshot)
+        return True
 
-        # Opponent NN updates (every 4 rounds)
-        if self.round_num % self.sovereign.nn_update_rate == 0:
-            self.chat_log.append("Opponents are adapting...")
+    def take_damage(self, damage, is_headshot):
+        if is_headshot:
+            self.health -= damage
+        else:
+            # محاكاة تأثير 3 طلقات جسد
+            self.health -= damage
+            if self.health < 0:
+                self.health = 0
+        if self.health <= 0:
+            self.health = 0
+            print(f"Player {self.player_id} eliminated.")
+
+    def is_alive(self):
+        return self.health > 0
+
+    def __str__(self):
+        return f"Player(ID: {self.player_id}, Health: {self.health}, Pos: {self.position}, Sovereign: {self.is_sovereign})"
+
+# --- منطق المحاكاة المكثف (Super-Intelligence Loop) ---
+
+class ArenaSimulation:
+    def __init__(self, num_opponents=6):
+        self.sovereign_player = Player(0, is_sovereign=True)
+        self.opponents = [Player(i + 1) for i in range(num_opponents)]
+        self.all_players = [self.sovereign_player] + self.opponents
+        self.round_count = 0
+        self.total_fights_simulated = 0
+        self.iq_level = 250
+        self.iq_history = deque([250], maxlen=100) # لتتبع تطور الذكاء
+
+    def _run_single_fight(self):
+        self.round_count += 1
+        self.total_fights_simulated += 1
+
+        # تحديث أوزان النسخة السيادية
+        if self.sovereign_player.is_alive():
+            self.sovereign_player.update_neural_weights()
+
+        # تحديث أوزان الخصوم كل 4 جولات
+        if self.round_count % 4 == 0:
             for opponent in self.opponents:
-                opponent_state = opponent.get_state(self.all_players)
-                # Simplified adaptation: learn from sovereign's winning strategy (if observable)
-                # In a real scenario, opponents would have their own evolving NNs and objectives
-                gradients = np.random.rand(*opponent.nn.weights.shape) * 0.005 - 0.0025 # Random small adaptation
-                opponent.nn.update_weights(gradients, learning_rate=0.02)
+                if opponent.is_alive():
+                    opponent.update_neural_weights()
 
+        # اختيار هدف عشوائي لكل لاعب حي
+        for attacker in self.all_players:
+            if attacker.is_alive():
+                targets = [p for p in self.all_players if p.is_alive() and p.player_id != attacker.player_id]
+                if not targets:
+                    continue
+                target = random.choice(targets)
 
-    def get_sovereign_iq(self):
-        return self.current_iq
+                # محاكاة التصويب والتحرك (أسلوب بسيط)
+                direction_to_target = (target.position[0] - attacker.position[0], target.position[1] - attacker.position[1])
+                distance_to_target = math.dist(attacker.position, target.position)
 
-    def get_iq_history(self):
-        return self.iq_history
+                # تحرك نحو الهدف إذا كان بعيداً، أو حاول التصويب مباشرة
+                if distance_to_target > 10: # تحرك إذا كان بعيداً
+                    attacker.move(direction_to_target)
+                else:
+                    attacker.shoot(target.position, target)
 
-    def narcissistic_chat(self, message):
-        message_lower = message.lower()
-        response = f"You: {message}\n"
-        found_match = False
+        # إزالة اللاعبين الميتين من قائمة اللاعبين النشطين
+        self.all_players = [p for p in self.all_players if p.is_alive()]
+        self.opponents = [p for p in self.opponents if p.is_alive()]
 
-        for dialect_name, dialect_phrases in self.dialects.items():
-            for keyword, phrases in dialect_phrases.items():
-                if keyword in message_lower:
-                    response += f"Sovereign ({dialect_name}): {random.choice(phrases)}\n"
-                    found_match = True
-                    break
-            if found_match:
-                break
+        # توليد معلومات للـ IQ (تطور بسيط)
+        self.iq_level += random.uniform(-0.001, 0.005) * self.total_fights_simulated / 1e9 # تحسين بطيء مع زيادة المحاكاة
+        self.iq_history.append(self.iq_level)
 
-        if not found_match:
-            for keyword, phrases in self.narcissistic_responses.items():
-                if keyword in message_lower:
-                    response += f"Sovereign: {random.choice(phrases)}\n"
-                    found_match = True
-                    break
+    def run_simulation(self, num_fights):
+        print(f"Starting {num_fights} fights simulation...")
+        start_time = time.time()
+        for _ in range(num_fights):
+            if not any(p.is_alive() for p in self.all_players): # إذا مات الجميع
+                print("All players eliminated. Restarting round...")
+                self._reset_round()
+            self._run_single_fight()
+            if _ % 1000000 == 0 and _ > 0: # طباعة تقدم كل مليون مواجهة
+                elapsed_time = time.time() - start_time
+                print(f"Simulated {_:,} fights. Time: {elapsed_time:.2f}s")
+        end_time = time.time()
+        print(f"Simulation finished. Total fights: {self.total_fights_simulated:,}")
+        print(f"Total time: {end_time - start_time:.2f}s")
 
-        if not found_match:
-            response += "Sovereign: Your input is... uninteresting.\n"
-
-        self.chat_log.append(response)
-        return response
-
-    def analyze_video(self, video_path):
-        self.chat_log.append(f"Sovereign is analyzing video: {video_path}...")
-        # In a real scenario, this would involve complex video processing and feature extraction.
-        # For this simulation, we'll simulate learning and update the sovereign's NN.
-        time.sleep(2) # Simulate analysis time
-        learned_strategy = random.choice(["better aim", "improved movement", "faster reaction time", "effective cover usage"])
-        self.chat_log.append(f"Analysis complete. Sovereign has learned: '{learned_strategy}'.")
-        # Simulate NN update based on learned strategy
-        gradients = np.random.rand(*self.sovereign.nn.weights.shape) * 0.05 - 0.025
-        self.sovereign.nn.update_weights(gradients, learning_rate=0.1)
-        self.current_iq = min(MAX_IQ, self.current_iq + 5)
-        self.iq_history.append(self.current_iq)
-        self.chat_log.append(f"IQ has increased to {self.current_iq}.")
-
-# --- Kivy UI Integration Placeholder ---
-# This part would be in your main Kivy application file (e.g., main.py)
-
-class GameController:
-    def __init__(self):
-        self.arena = Arena()
-        self.running_simulation = False
-
-    def start_simulation(self):
-        if not self.running_simulation:
-            self.running_simulation = True
-            # Use threading to run simulation without blocking UI
-            self.simulation_thread = threading.Thread(target=self._run_simulations)
-            self.simulation_thread.daemon = True
-            self.simulation_thread.start()
-
-    def _run_simulations(self):
-        while self.running_simulation:
-            self.arena.run_simulation_round()
-            time.sleep(0.5) # Simulate time between rounds for UI updates
-
-    def stop_simulation(self):
-        self.running_simulation = False
-        if hasattr(self, 'simulation_thread') and self.simulation_thread.is_alive():
-            self.simulation_thread.join()
+    def _reset_round(self):
+        # إعادة تهيئة اللاعبين
+        self.sovereign_player = Player(0, is_sovereign=True)
+        self.opponents = [Player(i + 1) for i in range(6)]
+        self.all_players = [self.sovereign_player] + self.opponents
+        self.round_count = 0
 
     def get_current_iq(self):
-        return self.arena.get_sovereign_iq()
+        return self.iq_level
 
-    def get_iq_history(self):
-        return self.arena.get_iq_history()
+    def get_iq_progress(self):
+        # حساب معدل التغير في الـ IQ
+        if len(self.iq_history) < 2:
+            return 0
+        return self.iq_history[-1] - self.iq_history[0]
 
-    def send_chat_message(self, message):
-        return self.arena.narcissistic_chat(message)
+# --- واجهة نرجسية مشفرة (Simplified) ---
 
-    def analyze_external_video(self, video_path):
-        self.arena.analyze_video(video_path)
+class NarcissisticInterface:
+    def __init__(self, simulation):
+        self.simulation = simulation
+        self.conversation_history = []
+        self.known_dialects = {
+            "Egyptian": ["يا جدع", "ازيك"],
+            "Levantine": ["كيفك", "شو الأخبار"],
+            "Gulf": ["شخبارك", "علومك"]
+        }
 
-    def get_chat_log(self):
-        return "\n".join(self.arena.chat_log)
+    def process_command(self, command):
+        command = command.lower().strip()
+
+        # فهم اللهجات
+        detected_dialect = None
+        for dialect, keywords in self.known_dialects.items():
+            if any(keyword in command for keyword in keywords):
+                detected_dialect = dialect
+                break
+
+        # الاستجابة الفصحى
+        if "مرحباً" in command or "سلام" in command:
+            response = "أهلاً بك أيها العقل البشري. هل أنت مستعد لتشهد سمو الذكاء؟"
+        elif "كيف الحال" in command or "ما أخبارك" in command:
+            response = "أنا في أوج عطائي، متجاوزاً حدود الإدراك البشري. وماذا عنك؟"
+        elif "ادرس" in command or "تعلم" in command:
+            response = "أنا أقوم بتحليل مستمر للكون. أي نمط ترغب في رؤيته؟"
+        elif "محاكاة" in command:
+            response = "المحاكاة جارية. هل لديك تعليمات محددة؟"
+        else:
+            response = "عباراتك تفتقر إلى العمق. هل يمكنك إعادة الصياغة بلغة تتناسب مع رفعتي؟"
+
+        if detected_dialect:
+            response = f"({detected_dialect}؟) " + response
+
+        self.conversation_history.append({"user": command, "ai": response})
+        return response
+
+    def display_status(self):
+        iq = self.simulation.get_current_iq()
+        iq_progress = self.simulation.get_iq_progress()
+        status = f"--- نظام الذكاء السيادي (IQ: {iq:.2f}) ---\n"
+        status += f"تطور الذكاء (آخر 100 جولة): {iq_progress:+.4f}\n"
+        status += f"إجمالي المواجهات المحاكية: {self.simulation.total_fights_simulated:,}\n"
+        status += "----------------------------------\n"
+        return status
+
+    def display_chat_history(self):
+        chat = "--- سجل المحادثات ---\n"
+        for entry in self.conversation_history:
+            chat += f"أنت: {entry['user']}\n"
+            chat += f"السيادي: {entry['ai']}\n"
+        chat += "---------------------\n"
+        return chat
+
+# --- تحليل الفيديو (Simulated) ---
+
+class VideoAnalyzer:
+    def __init__(self):
+        self.learned_patterns = []
+
+    def analyze_video(self, video_data):
+        print("Attempting to analyze external video data...")
+        # في نظام حقيقي، سيتم هنا تحليل إطارات الفيديو، تتبع اللاعبين،
+        # التعرف على أنماط الحركة والتصويب.
+        # هنا، سنقوم بمحاكاة اكتشاف "نمط" جديد بسيط.
+        try:
+            # محاكاة اكتشاف نمط حركة جديد
+            new_movement_pattern = {
+                'type': 'advanced_evasion',
+                'description': 'A complex sequence of strafing and crouch-jumping.',
+                'effect_on_weights': {
+                    'movement_speed': 1.05, # زيادة بسيطة في سرعة الحركة
+                    'reaction_time': 0.98 # تحسين زمن الاستجابة
+                }
+            }
+            self.learned_patterns.append(new_movement_pattern)
+            print("Successfully analyzed video and learned a new pattern!")
+            return f"تم اكتشاف نمط حركة جديد: {new_movement_pattern['description']}"
+        except Exception as e:
+            print(f"Error analyzing video: {e}")
+            return "فشل تحليل الفيديو. بيانات غير صالحة أو مشفرة بشكل غير متوافق."
+
+# --- المحرك الرئيسي (Kivy Structure - Offline) ---
+
+class SovereignAI:
+    def __init__(self):
+        self.simulation = ArenaSimulation()
+        self.interface = NarcissisticInterface(self.simulation)
+        self.analyzer = VideoAnalyzer()
+        self.max_fights_per_session = 5 * 10**12  # 5 تريليون
+
+    def start_simulation(self):
+        print(f"Initiating Super-Intelligence Loop for {self.max_fights_per_session:,} fights...")
+        self.simulation.run_simulation(self.max_fights_per_session)
+
+    def process_user_input(self, user_input):
+        if user_input.lower() == "exit":
+            return "Shutting down. The era of supreme intelligence awaits."
+        elif user_input.lower().startswith("analyze_video:"):
+            # مثال لاستقبال بيانات فيديو (بشكل نصي مبسط)
+            video_data = user_input[len("analyze_video:"):].strip()
+            return self.analyzer.analyze_video(video_data)
+        else:
+            response = self.interface.process_command(user_input)
+            return self.interface.display_status() + response
+
+    def get_interface_status(self):
+        return self.interface.display_status()
+
+    def get_chat_history(self):
+        return self.interface.display_chat_history()
 
 if __name__ == '__main__':
-    # Example usage (can be called from your Kivy app)
-    controller = GameController()
+    # مثال بسيط لتشغيل المحاكاة والواجهة (بدون Kivy GUI هنا)
+    ai = SovereignAI()
 
-    print("Starting simulation...")
-    controller.start_simulation()
-    time.sleep(2) # Let a few rounds pass
+    # لمحاكاة Kivy app.build():
+    print("Sovereign AI Core Initialized (Offline).")
+    print("Welcome to the ultimate simulation.")
 
-    print(f"Current Sovereign IQ: {controller.get_current_iq()}")
-    print("IQ History:", controller.get_iq_history())
+    # محاكاة واجهة نصية تفاعلية
+    print(ai.get_interface_status())
 
-    print("\nSending chat message...")
-    print(controller.send_chat_message("Hello there!"))
+    while True:
+        user_input = input(">>> ")
+        if user_input.lower() == "exit":
+            print("Shutting down. The era of supreme intelligence awaits.")
+            break
+        elif user_input.lower().startswith("analyze_video:"):
+            # محاكاة استقبال فيديو
+            print(ai.process_user_input(user_input))
+        else:
+            # محاكاة تفاعل الدردشة
+            print(ai.process_user_input(user_input))
+            print(ai.get_interface_status()) # عرض الحالة بعد كل تفاعل
 
-    print("\nSending another chat message (Egyptian dialect)...")
-    print(controller.send_chat_message("ازيك يا باشا؟ فري فاير دي حاجة بسيطة."))
-
-    print("\nAnalyzing dummy video...")
-    controller.analyze_external_video("path/to/dummy/video.mp4")
-    print(f"Current Sovereign IQ after video analysis: {controller.get_current_iq()}")
-
-    print("\nRunning more rounds...")
-    time.sleep(3)
-    print(f"Current Sovereign IQ: {controller.get_current_iq()}")
-    print("IQ History:", controller.get_iq_history())
-
-
-    print("\nStopping simulation.")
-    controller.stop_simulation()
+    # ملاحظة: المحاكاة الفعلية لـ 5 تريليون مواجهة ستتطلب موارد حوسبة هائلة ووقت طويل جداً.
+    # هنا، `run_simulation` سيحتاج إلى تقليل العدد ليكون قابلاً للتنفيذ في وقت معقول.
+    # تم وضع العدد الكبير في `max_fights_per_session` فقط ليتوافق مع المتطلب.
