@@ -12,36 +12,39 @@ jobs:
       - name: "Install AI Engine"
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libatlas-base-dev
+          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev
           pip3 install --user --upgrade buildozer cython virtualenv
-          pip3 install opencv-python-headless numpy scipy
 
-      - name: "Sovereign Build"
+      - name: "Verify and Build APK"
         id: build_step
         run: |
-          [ -f buildozer.spec ] || buildozer init
-          sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec
-          yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
-        continue-on-error: true
-
-      - name: "Emergency Call to Physician"
-        if: steps.build_step.outcome == 'failure'
-        env:
-          PAT_TOKEN: ${{ secrets.PAT }}
-          REPO_OWNER: ${{ github.repository_owner }}
-        run: |
-          # إرسال تقرير الفشل إلى مستودع Avatar-template (الطبيب) لإصلاحه
-          git config --global user.name "Patient-Full"
-          git add error_report.txt && git commit -m "Build failed" && git push origin main
+          # التأكد من وجود العقل المولد
+          if [ ! -f core_logic.py ]; then
+            echo "Error: core_logic.py not found! Physician failed to ship the brain."
+            exit 1
+          fi
           
-          P1="https"; P2="api.github.com"; P3="repos"
-          DOC_URL="${P1}://${P2}/${P3}/${REPO_OWNER}/Avatar-template/dispatches"
-          curl -X POST -H "Authorization: token ${PAT_TOKEN}" -H "Accept: application/vnd.github.v3+json" -d '{"event_type": "doctor_needed"}' "${DOC_URL}"
-          exit 1
+          # إنشاء ملف المواصفات إذا لم يكن موجوداً
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          
+          # تعديل الإعدادات لضمان بناء حقيقي
+          sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec
+          
+          # بدء البناء الفعلي (هذا سيستغرق وقت طويل، لا تقلق)
+          yes | buildozer android debug
+          
+          # التأكد من خروج ملف APK
+          if [ -d bin ]; then
+            echo "Success: APK generated."
+          else
+            echo "Error: APK not found in bin directory."
+            exit 1
+          fi
 
-      - name: "Export Sovereign APK"
-        if: steps.build_step.outcome == 'success'
+      - name: "Upload Artifact (APK)"
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Final
+          name: Sovereign-AI-App
           path: bin/*.apk
