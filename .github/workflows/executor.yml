@@ -1,7 +1,7 @@
-name: 2. The Patient Executor (Build Service)
+name: 2. The Smart Executor (Builder)
 on:
   repository_dispatch:
-    types: [start_mission, continue_mission]
+    types: [execute_build]
 
 jobs:
   build:
@@ -9,34 +9,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Prepare Environment
         run: |
           sudo apt update
           sudo apt install -y python3-pip build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
           pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: Build Android APK
+      - name: "Build Execution"
         id: build_step
         run: |
-          # محاولة البناء مع تسجيل كل شيء في ملف log
-          buildozer android debug | tee build_log.txt
+          # محاولة البناء مع قبول التراخيص آلياً وتسجيل السجل
+          yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
 
-      - name: Check Status and Report to Doctor
+      - name: "Monitor & Report (The Hospital)"
         if: steps.build_step.outcome == 'failure'
         run: |
-          echo "REPORT: The build failed. Diagnosing..." > error_report.txt
-          tail -n 100 build_log.txt >> error_report.txt
-          
           git config --global user.name "Patient-Executor"
           git config --global user.email "executor@sovereign.ai"
           git add error_report.txt
-          git commit -m "Emergency: Build failed. Diagnostic report attached."
+          git commit -m "System Failure: Diagnosis sent to Physician."
           git push origin main
           
-          # استدعاء القائد (الطبيب)
+          # استدعاء الطبيب (القائد) فوراً لتحليل الفشل
           curl -X POST -H "Authorization: token ${{ secrets.PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/dispatches \
             -d '{"event_type": "doctor_needed"}'
-          exit 1 # لإنهاء المهمة الحالية كفشل
+          exit 1
+
+      - name: "Success - Delivery"
+        if: steps.build_step.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sovereign-App-Success
+          path: bin/*.apk
