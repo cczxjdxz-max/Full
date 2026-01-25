@@ -1,56 +1,52 @@
-name: 2. The Combat Executor (Sequential Testing)
+name: 2. The Combat Executor (Sequential Field Test)
 on:
   repository_dispatch:
     types: [execute_build]
 
 jobs:
-  sequential_execution:
+  execution:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Setup Tools"
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip build-essential cmake adb
+          pip3 install --user --upgrade buildozer cython
+
       - name: "Task 1: Build APK"
-        id: task_build
+        id: build
         continue-on-error: true
         run: |
-          # محاولة البناء
-          yes | buildozer android debug || echo "TASK_BUILD_FAILED" > task1.log
+          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip && unzip -q android-ndk-r25b-linux.zip
+          export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
+          yes | buildozer android debug
 
-      - name: "Task 2: Guest Login Test"
-        id: task_login
+      - name: "Task 2: Vision Field Test"
+        id: vision
         continue-on-error: true
         run: |
-          # محاولة اختبار الدخول (حتى لو فشل البناء، سنحاول تشغيل المحاكي)
-          echo "Testing Guest Account Login..."
-          # سكريبت الاختبار هنا
-          exit 1 # محاكاة فشل في هذه المهمة
+          # هنا يتم تشغيل سكريبت الاختبار (محاكاة)
+          echo "Testing Red Shots..."
+          exit 1 # محاكاة فشل الاختبار الميداني للتشافي
 
-      - name: "Task 3: All-Red Vision Test"
-        id: task_vision
-        continue-on-error: true
-        run: |
-          echo "Testing Auto-Headshot Vision..."
-          # سكريبت OpenCV
-          echo "SUCCESS" > task3.log
-
-      - name: "Final Report & Auto-Continue"
-        if: always() # ينفذ دائماً حتى لو فشلت كل المهام السابقة
+      - name: "Final Report & Continuous Healing"
+        if: always()
         env:
           PAT_TOKEN: ${{ secrets.PAT }}
         run: |
-          # تجميع النتائج في تقرير واحد
-          REPORT="Task 1 (Build): ${{ steps.task_build.outcome }}, Task 2 (Login): ${{ steps.task_login.outcome }}, Task 3 (Vision): ${{ steps.task_vision.outcome }}"
+          REPORT="Build Status: ${{ steps.build.outcome }}, Vision Test: ${{ steps.vision.outcome }}"
           
-          if [[ "${{ steps.task_build.outcome }}" == "failure" || "${{ steps.task_login.outcome }}" == "failure" ]]; then
-            echo "Some tasks failed. Saving logs and sending to Leader..."
+          if [[ "${{ steps.build.outcome }}" == "failure" || "${{ steps.vision.outcome }}" == "failure" ]]; then
             curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
             -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"$REPORT\"}}" \
             "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
           fi
 
-      - name: "Upload Artifacts (If Build Succeeded)"
-        if: steps.task_build.outcome == 'success'
+      - name: "Victory Artifact"
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-v-Stable
+          name: Sovereign-AI-Latest
           path: bin/*.apk
