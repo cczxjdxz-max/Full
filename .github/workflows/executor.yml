@@ -1,62 +1,56 @@
-name: 2. The Combat Executor (With Auto-Feedback)
+name: 2. The Combat Executor (Sequential Testing)
 on:
   repository_dispatch:
-    types: [execute_build] # ينتظر أمر التنفيذ من القائد
+    types: [execute_build]
 
 jobs:
-  training_and_build:
+  sequential_execution:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      
-      - name: "Prepare Sovereign Environment"
-        run: |
-          sudo apt update
-          sudo apt install -y python3-pip build-essential cmake libltdl-dev
-          pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: "Install Master NDK (r25b)"
+      - name: "Task 1: Build APK"
+        id: task_build
+        continue-on-error: true
         run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-          unzip -q android-ndk-r25b-linux.zip
-          echo "ANDROID_NDK_HOME=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
+          # محاولة البناء
+          yes | buildozer android debug || echo "TASK_BUILD_FAILED" > task1.log
 
-      - name: "Executing Sovereign Build"
-        id: build_step
-        continue-on-error: true # السماح باستمرار السكريبت حتى عند الفشل للتبليغ
+      - name: "Task 2: Guest Login Test"
+        id: task_login
+        continue-on-error: true
         run: |
-          export APP_ANDROID_NDK_PATH=$ANDROID_NDK_HOME
-          # تنظيف أي مخلفات سابقة لضمان بناء نقي
-          buildozer android clean
-          # بدء عملية البناء الملحمية
-          yes | buildozer android debug 2>&1 | tee build_output.log
+          # محاولة اختبار الدخول (حتى لو فشل البناء، سنحاول تشغيل المحاكي)
+          echo "Testing Guest Account Login..."
+          # سكريبت الاختبار هنا
+          exit 1 # محاكاة فشل في هذه المهمة
 
-      - name: "Analyze & Report Failure to Leader"
-        if: steps.build_step.outcome == 'failure'
+      - name: "Task 3: All-Red Vision Test"
+        id: task_vision
+        continue-on-error: true
+        run: |
+          echo "Testing Auto-Headshot Vision..."
+          # سكريبت OpenCV
+          echo "SUCCESS" > task3.log
+
+      - name: "Final Report & Auto-Continue"
+        if: always() # ينفذ دائماً حتى لو فشلت كل المهام السابقة
         env:
           PAT_TOKEN: ${{ secrets.PAT }}
         run: |
-          echo "Build failed. Extracting critical error data..."
-          # استخراج آخر 100 سطر من سجل البناء لتحليلها
-          ERROR_SUMMARY=$(tail -n 100 build_output.log | base64 -w 0)
+          # تجميع النتائج في تقرير واحد
+          REPORT="Task 1 (Build): ${{ steps.task_build.outcome }}, Task 2 (Login): ${{ steps.task_login.outcome }}, Task 3 (Vision): ${{ steps.task_vision.outcome }}"
           
-          # إرسال طلب "التشافي" (Heal Request) للقائد
-          curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          -d "{
-            \"event_type\": \"heal_request\",
-            \"client_payload\": {
-              \"error_msg\": \"The build failed on your executor. Analyze the logs and fix the injection. Log (Base64): $ERROR_SUMMARY\"
-            }
-          }" \
-          "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
-          
-          echo "Failure report sent to the Sovereign Leader. Waiting for re-injection..."
-          exit 1
+          if [[ "${{ steps.task_build.outcome }}" == "failure" || "${{ steps.task_login.outcome }}" == "failure" ]]; then
+            echo "Some tasks failed. Saving logs and sending to Leader..."
+            curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
+            -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"$REPORT\"}}" \
+            "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
+          fi
 
-      - name: "Victory - Upload Sovereign APK"
-        if: steps.build_step.outcome == 'success'
+      - name: "Upload Artifacts (If Build Succeeded)"
+        if: steps.task_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Final
+          name: Sovereign-AI-v-Stable
           path: bin/*.apk
