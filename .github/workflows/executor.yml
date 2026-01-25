@@ -1,41 +1,23 @@
-name: 2. The Combat Executor (Final Build)
+name: 2. Combat Executor
 on:
-  workflow_dispatch:
   repository_dispatch:
     types: [execute_build]
-
 jobs:
   execution:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: "Setup Build Environment (Safe Versions)"
+      - name: Setup
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip build-essential cmake adb zip unzip
-          # السر هنا: تثبيت Cython بإصدار قديم لحل مشكلة 'long'
+          sudo apt update && sudo apt install -y python3-pip zip unzip build-essential cmake
           pip3 install --user --upgrade "Cython<3.0" buildozer virtualenv
-
-      - name: "Build Sovereign APK"
-        id: build
+      - name: Build
         run: |
-          # تحميل NDK r25b إذا لم يكن موجوداً
-          if [ ! -d "android-ndk-r25b" ]; then
-            wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-            unzip -q android-ndk-r25b-linux.zip
-          fi
+          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+          unzip -q android-ndk-r25b-linux.zip
           export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
-          
-          # تنظيف البناء القديم الفاشل لضمان عدم تداخل الملفات
-          buildozer android clean
-          
-          # بدء البناء الفعلي
           yes | buildozer android debug
-
-      - name: "Upload APK"
-        if: success()
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Final-Build
+          name: Kajitan-Final-APK
           path: bin/*.apk
