@@ -7,11 +7,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Setup
+      - name: Build System Setup
         run: |
-          sudo apt update && sudo apt install -y python3-pip zip unzip build-essential cmake
+          sudo apt update && sudo apt install -y python3-pip zip unzip build-essential
           pip3 install --user --upgrade "Cython<3.0" buildozer virtualenv
-      - name: Build
+      - name: Build APK
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
@@ -19,5 +19,5 @@ jobs:
           yes | buildozer android debug
       - uses: actions/upload-artifact@v4
         with:
-          name: Kajitan-Final-APK
+          name: Final-Kajitan-APK
           path: bin/*.apk
