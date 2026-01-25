@@ -6,7 +6,7 @@ on:
 jobs:
   execute_12_trillion:
     runs-on: ubuntu-latest
-    timeout-minutes: 350 # إغلاق قبل حاجز الـ 6 ساعات
+    timeout-minutes: 350
     permissions:
       contents: write
     steps:
@@ -16,23 +16,19 @@ jobs:
           token: ${{ secrets.PAT }}
 
       - name: "2. Engine-Twin Simulation & Training"
-        id: training
         run: |
-          # التأكد من وجود ملف الحفظ
           if [ ! -f "checkpoint.json" ]; then
              echo '{"cycle": 0, "accuracy": 0}' > checkpoint.json
           fi
-          # تشغيل المحاكاة المبنية على الهندسة العكسية
           python3 core_logic.py --cycles 12000000000000 --checkpoint "checkpoint.json"
 
-      - name: "3. Verify & Build Sovereign APK"
+      - name: "3. Build Sovereign APK"
         if: success()
         run: |
           mkdir -p build
-          # بناء التطبيق بناءً على نتائج الهندسة العكسية واختبار المحاكي
           echo "Lelouch_Final_Sovereign.apk" > build/Lelouch_Final.apk
 
-      - name: "4. Secure Progress & Dispatch Boss"
+      - name: "4. Secure Progress & Signal Boss"
         if: always()
         env:
           PAT: ${{ secrets.PAT }}
@@ -40,24 +36,29 @@ jobs:
           git config --global user.name "Executor-Bot"
           git config --global user.email "executor@britannia.ai"
           git add checkpoint.json
-          git commit -m "Checkpoint Saved: Total Cycles Updated" || echo "No changes"
-          git push origin main
+          # إضافة ملفات الـ build أيضاً إذا أردت تتبعها
+          git add build/ || echo "No build folder"
+          git commit -m "Progress Saved" || echo "No changes to commit"
+          git push origin main || echo "Already up to date"
           
-          # تحديد نوع الإشارة للقائد بناءً على الحالة
+          # حماية الرابط من التنسيق التلقائي
+          PROTO="https://"
+          HOST="api.github.com"
+          REPO_PATH="/repos/cczxjdxz-max/avatar-template/dispatches"
+          FINAL_URL="${PROTO}${HOST}${REPO_PATH}"
+          
           if [ "${{ job.status }}" == "failure" ]; then
              EVENT="executor_failed"
-             MSG="Critical Logic Failure"
           else
              EVENT="wake_up_call"
-             MSG="Cycle Complete: Ready for Next Phase"
           fi
           
-          curl -X POST -H "Authorization: Bearer $PAT" \
+          curl -X POST "$FINAL_URL" \
+               -H "Authorization: Bearer $PAT" \
                -H "Accept: application/vnd.github+json" \
-               [https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches](https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches) \
-               -d "{\"event_type\": \"$EVENT\", \"client_payload\": {\"error\": \"$MSG\"}}"
+               -d "{\"event_type\": \"$EVENT\"}"
 
-      - name: "5. Upload Final Artifact"
+      - name: "5. Upload Artifact"
         if: success()
         uses: actions/upload-artifact@v4
         with:
