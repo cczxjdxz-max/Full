@@ -12,6 +12,14 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
 
+      - name: "Restore Build Cache"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-cache-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+
       - name: "Setup Persistence & Build Environment"
         run: |
           sudo apt update && sudo apt install -y python3-pip zip unzip openjdk-17-jdk
@@ -20,32 +28,39 @@ jobs:
 
       - name: "Forging The Sovereign APK"
         run: |
-          # بناء ملف المواصفات ليدعم الفيديو والدردشة والوصول
+          # التأكد من وجود ملف المواصفات
           cat <<EOF > buildozer.spec
           [app]
           title = Sovereign IQ 250
           package.name = sovereign.ai.god
+          package.domain = org.lelouch
+          source.dir = .
+          version = 1.0
           requirements = python3,kivy,android,requests,opencv-python,numpy
           android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, RECORD_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
           android.api = 33
           android.archs = arm64-v8a
           EOF
           
+          # بدء البناء
           ~/.local/bin/buildozer -v android debug || (echo "Failed at Build" > current_status.txt && exit 1)
           
-          mkdir -p output && cp bin/*.apk output/Sovereign_FF_God.apk
+          mkdir -p output
+          cp bin/*.apk output/Sovereign_FF_God.apk
           echo "Mission Accomplished: Top 1 AI Ready" > current_status.txt
 
       - name: "Check-in Progress"
         if: always()
         run: |
           git config --global user.name "Executor-Bot"
+          git config --global user.email "executor@sovereign.ai"
           git add current_status.txt
           git commit -m "Progress Update: $(cat current_status.txt)" || exit 0
           git push origin main --force
 
       - name: "Artifact Delivery"
-        uses: upload-artifact@v4
+        if: success()
+        uses: actions/upload-artifact@v4 # هنا تم الإصلاح بإضافة actions/
         with:
           name: Sovereign-IQ250-APK
           path: output/*.apk
