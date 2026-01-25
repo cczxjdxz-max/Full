@@ -1,6 +1,6 @@
 name: 2. The Combat Executor (Final Build)
 on:
-  workflow_dispatch: # زر التشغيل اليدوي للبناء المباشر
+  workflow_dispatch:
   repository_dispatch:
     types: [execute_build]
 
@@ -10,6 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Verification"
+        run: |
+          if [ ! -f "main.py" ]; then
+            echo "Critical Error: main.py not found! The Leader has not sent the code yet."
+            exit 1
+          fi
+
       - name: "Environment Injection"
         run: |
           sudo apt update && sudo apt install -y python3-pip build-essential cmake adb
@@ -17,25 +24,22 @@ jobs:
 
       - name: "Build Sovereign APK"
         id: build
-        continue-on-error: true
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip && unzip -q android-ndk-r25b-linux.zip
           export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
+          # البناء الفعلي (سيستغرق وقت)
           yes | buildozer android debug
 
-      - name: "Reporting Cycle"
-        if: always()
-        env:
-          PAT_TOKEN: ${{ secrets.PAT }}
+      - name: "Check APK Generation"
         run: |
-          if [[ "${{ steps.build.outcome }}" == "failure" ]]; then
-            curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
-            -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"Build Failed\"}}" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
+          if ls bin/*.apk 1> /dev/null 2>&1; then
+            echo "Victory! APK created."
+          else
+            echo "Failure: APK was not generated."
+            exit 1
           fi
 
       - name: "Victory Artifact"
-        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: Sovereign-AI-Final
