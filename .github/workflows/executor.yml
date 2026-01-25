@@ -28,12 +28,14 @@ jobs:
 
       - name: "Forging The Sovereign APK"
         run: |
+          # إنشاء ملف المواصفات مع تحديد النسخة (Version) لحل خطأ البناء
           cat <<EOF > buildozer.spec
           [app]
           title = Sovereign IQ 250
           package.name = sovereign.ai.god
           package.domain = org.lelouch
           source.dir = .
+          version = 1.0.0
           requirements = python3,kivy,android,requests,opencv-python,numpy
           android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, RECORD_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
           android.api = 33
