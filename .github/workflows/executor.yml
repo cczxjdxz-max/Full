@@ -1,64 +1,42 @@
-name: 2. The Immortal Executor (Persistent Build)
+name: 2. The Patient Executor (Build Service)
 on:
   repository_dispatch:
-    types: [continue_mission]
+    types: [start_mission, continue_mission]
 
 jobs:
-  build_entity:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
     steps:
-      - name: "Pulling Logic"
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT }}
+      - uses: actions/checkout@v4
 
-      - name: "Restore Build Cache"
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            .buildozer
-          key: buildozer-cache-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-
-      - name: "Setup Build Factory"
+      - name: Install Dependencies
         run: |
-          sudo apt update && sudo apt install -y python3-pip zip unzip openjdk-17-jdk
-          pip install --user buildozer cython virtualenv
-          echo "Status: Forging 11-button mapping with Video Analysis Module" > current_status.txt
+          sudo apt update
+          sudo apt install -y python3-pip build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+          pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: "Forging The Sovereign APK"
+      - name: Build Android APK
+        id: build_step
         run: |
-          # إنشاء ملف المواصفات مع تحديد النسخة (Version) لحل خطأ البناء
-          cat <<EOF > buildozer.spec
-          [app]
-          title = Sovereign IQ 250
-          package.name = sovereign.ai.god
-          package.domain = org.lelouch
-          source.dir = .
-          version = 1.0.0
-          requirements = python3,kivy,android,requests,opencv-python,numpy
-          android.permissions = INTERNET, SYSTEM_ALERT_WINDOW, BIND_ACCESSIBILITY_SERVICE, RECORD_AUDIO, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
-          android.api = 33
-          android.archs = arm64-v8a
-          EOF
+          # محاولة البناء مع تسجيل كل شيء في ملف log
+          buildozer android debug | tee build_log.txt
+        continue-on-error: true
+
+      - name: Check Status and Report to Doctor
+        if: steps.build_step.outcome == 'failure'
+        run: |
+          echo "REPORT: The build failed. Diagnosing..." > error_report.txt
+          tail -n 100 build_log.txt >> error_report.txt
           
-          ~/.local/bin/buildozer -v android debug || (echo "Failed at Compilation" > current_status.txt && exit 1)
-          
-          mkdir -p output && cp bin/*.apk output/Sovereign_Final_AI.apk
-          echo "Status: Mission Accomplished. Top 1 Entity Ready." > current_status.txt
-
-      - name: "Checkpoint Save"
-        if: always()
-        run: |
-          git config --global user.name "Executor-Bot"
+          git config --global user.name "Patient-Executor"
           git config --global user.email "executor@sovereign.ai"
-          git add current_status.txt
-          git commit -m "Progress: $(cat current_status.txt)" || exit 0
-          git push origin main --force
-
-      - name: "Deliver The Sovereign"
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Sovereign-IQ250-Final-APK
-          path: output/*.apk
+          git add error_report.txt
+          git commit -m "Emergency: Build failed. Diagnostic report attached."
+          git push origin main
+          
+          # استدعاء القائد (الطبيب)
+          curl -X POST -H "Authorization: token ${{ secrets.PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type": "doctor_needed"}'
+          exit 1 # لإنهاء المهمة الحالية كفشل
