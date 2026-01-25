@@ -1,7 +1,7 @@
-name: 2. The Combat Executor (Full)
+name: 2. The Combat Executor (With Auto-Feedback)
 on:
   repository_dispatch:
-    types: [execute_build]
+    types: [execute_build] # ينتظر أمر التنفيذ من القائد
 
 jobs:
   training_and_build:
@@ -9,33 +9,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: "Set up Environment"
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: "Install Build Tools"
+      - name: "Prepare Sovereign Environment"
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev autoconf automake libtool pkg-config zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev tk-dev libgdbm-compat-dev liblzma-dev uuid-dev
+          sudo apt install -y python3-pip build-essential cmake libltdl-dev
           pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: "Download Legacy NDK (Required for Scipy/Numpy)"
+      - name: "Install Master NDK (r25b)"
         run: |
-          wget -q https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
-          unzip -q android-ndk-r21e-linux-x86_64.zip
-          echo "ANDROID_NDK_HOME=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
-          echo "LEGACY_NDK=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
+          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+          unzip -q android-ndk-r25b-linux.zip
+          echo "ANDROID_NDK_HOME=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
 
-      - name: "Sovereign APK Build"
+      - name: "Executing Sovereign Build"
+        id: build_step
+        continue-on-error: true # السماح باستمرار السكريبت حتى عند الفشل للتبليغ
         run: |
           export APP_ANDROID_NDK_PATH=$ANDROID_NDK_HOME
-          # سيبدأ الآن بناء الـ APK الفعلي (قد يستغرق 20-30 دقيقة)
-          yes | buildozer android debug
+          # تنظيف أي مخلفات سابقة لضمان بناء نقي
+          buildozer android clean
+          # بدء عملية البناء الملحمية
+          yes | buildozer android debug 2>&1 | tee build_output.log
 
-      - name: "Upload APK Artifact"
+      - name: "Analyze & Report Failure to Leader"
+        if: steps.build_step.outcome == 'failure'
+        env:
+          PAT_TOKEN: ${{ secrets.PAT }}
+        run: |
+          echo "Build failed. Extracting critical error data..."
+          # استخراج آخر 100 سطر من سجل البناء لتحليلها
+          ERROR_SUMMARY=$(tail -n 100 build_output.log | base64 -w 0)
+          
+          # إرسال طلب "التشافي" (Heal Request) للقائد
+          curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -d "{
+            \"event_type\": \"heal_request\",
+            \"client_payload\": {
+              \"error_msg\": \"The build failed on your executor. Analyze the logs and fix the injection. Log (Base64): $ERROR_SUMMARY\"
+            }
+          }" \
+          "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
+          
+          echo "Failure report sent to the Sovereign Leader. Waiting for re-injection..."
+          exit 1
+
+      - name: "Victory - Upload Sovereign APK"
+        if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-Final-App
+          name: Sovereign-AI-Final
           path: bin/*.apk
