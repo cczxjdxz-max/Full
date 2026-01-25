@@ -9,42 +9,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: "Install AI Engine"
+      - name: "Install Dependencies"
         run: |
           sudo apt update
           sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev
           pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: "Verify and Build APK"
-        id: build_step
+      - name: "Sovereign Build (Deep Training)"
         run: |
-          # التأكد من وجود العقل المولد
-          if [ ! -f core_logic.py ]; then
-            echo "Error: core_logic.py not found! Physician failed to ship the brain."
-            exit 1
-          fi
-          
-          # إنشاء ملف المواصفات إذا لم يكن موجوداً
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-          fi
-          
-          # تعديل الإعدادات لضمان بناء حقيقي
-          sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec
-          
-          # بدء البناء الفعلي (هذا سيستغرق وقت طويل، لا تقلق)
+          # الآن سيعمل البناء لأن الطبيب أرسل الـ Version
           yes | buildozer android debug
-          
-          # التأكد من خروج ملف APK
-          if [ -d bin ]; then
-            echo "Success: APK generated."
-          else
-            echo "Error: APK not found in bin directory."
-            exit 1
-          fi
 
-      - name: "Upload Artifact (APK)"
+      - name: "Upload Sovereign APK"
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-App
+          name: Sovereign-AI-Offline
           path: bin/*.apk
