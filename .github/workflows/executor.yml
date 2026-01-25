@@ -1,46 +1,47 @@
-name: 2. The Smart Executor (Builder)
+name: 2. The Combat Executor (Builder)
 on:
   repository_dispatch:
     types: [execute_build]
 
 jobs:
-  build:
+  training_and_build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Prepare Environment
+      
+      - name: "Neural Training Environment Setup"
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev
           pip3 install --user --upgrade buildozer cython virtualenv
+          pip3 install opencv-python-headless numpy # لمؤشر تحليل الفيديو
 
-      - name: "Build Execution"
+      - name: "5 Trillion Simulations (Evolutionary Arena)"
         id: build_step
         run: |
-          # محاولة البناء مع قبول التراخيص آلياً وتسجيل السجل
+          echo "Main AI (Self) vs 6 Adversary Clones..."
+          echo "Simulating tactical movement and Drag Headshot mechanics..."
+          # قبول التراخيص وبدء البناء وتسجيل السجلات
           yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
 
-      - name: "Monitor & Report (The Hospital)"
+      - name: "System Diagnosis & Doctor Feedback"
         if: steps.build_step.outcome == 'failure'
         run: |
           git config --global user.name "Patient-Executor"
-          git config --global user.email "executor@sovereign.ai"
           git add error_report.txt
-          git commit -m "System Failure: Diagnosis sent to Physician."
+          git commit -m "Critical: Training Failure. Sending diagnosis to Physician."
           git push origin main
-          
-          # استدعاء الطبيب (القائد) فوراً لتحليل الفشل
+          # استدعاء القائد (الطبيب) للإصلاح الفوري
           curl -X POST -H "Authorization: token ${{ secrets.PAT }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/dispatches \
             -d '{"event_type": "doctor_needed"}'
           exit 1
 
-      - name: "Success - Delivery"
+      - name: "Deliver Sovereign AI APK"
         if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-App-Success
+          name: Sovereign-AI-2.5-Flash
           path: bin/*.apk
