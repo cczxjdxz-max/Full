@@ -19,26 +19,33 @@ jobs:
       - name: "Sovereign Build (Offline Engine)"
         id: build_step
         run: |
-          echo "Packaging Local IQ 250..."
-          # إجبار المتطلبات المحلية في ملف البناء
+          echo "Packaging Local IQ 250 into APK..."
           sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec || true
           yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
 
       - name: "Failure Feedback Loop"
+        if: steps.build_step.outcome == 'failure'
         env:
-          REPO: ${{ github.repository }}
+          REPO_NAME: ${{ github.repository }}
           PAT_TOKEN: ${{ secrets.PAT }}
         run: |
-          if [ "${{ steps.build_step.outcome }}" == "failure" ]; then
-            git config --global user.name "Patient-Executor"
-            git add error_report.txt
-            git commit -m "Failure: Reporting logs."
-            git push origin main
-            API_URL="[https://api.github.com/repos/$REPO/dispatches](https://api.github.com/repos/$REPO/dispatches)"
-            curl -X POST -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3+json" "$API_URL" -d '{"event_type": "doctor_needed"}'
-            exit 1
-          fi
+          git config --global user.name "Patient-Executor"
+          git add error_report.txt
+          git commit -m "Failure: Reporting logs."
+          git push origin main
+          
+          P1="https"
+          P2="api.github.com"
+          P3="repos"
+          CLEAN_URL="${P1}://${P2}/${P3}/${REPO_NAME}/dispatches"
+          
+          curl -X POST \
+               -H "Authorization: token ${PAT_TOKEN}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               -d '{"event_type": "doctor_needed"}' \
+               "${CLEAN_URL}"
+          exit 1
 
       - name: "Deploy Local AI APK"
         if: steps.build_step.outcome == 'success'
