@@ -1,1 +1,7 @@
-[app]\ntitle=Sovereign AI\npackage.name=sovereign.ai\nrequirements=python3,kivy,opencv,numpy,android\nandroid.api=33\nandroid.ndk=25b\nandroid.arch=arm64-v8a
+[app]
+title=Sovereign AI
+package.name=sovereign.ai
+requirements=python3,kivy,opencv,numpy,android
+android.api=33
+android.ndk=25b
+android.arch=arm64-v8a
