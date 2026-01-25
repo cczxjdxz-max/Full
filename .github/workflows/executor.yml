@@ -1,4 +1,4 @@
-name: 2. The Combat Executor (Sequential Field Test)
+name: 2. The Combat Executor (Field Testing)
 on:
   repository_dispatch:
     types: [execute_build]
@@ -9,13 +9,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Setup Tools"
+      - name: "System Setup"
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip build-essential cmake adb
+          sudo apt update && sudo apt install -y python3-pip build-essential cmake adb
           pip3 install --user --upgrade buildozer cython
 
-      - name: "Task 1: Build APK"
+      - name: "Task: Build APK"
         id: build
         continue-on-error: true
         run: |
@@ -23,30 +22,29 @@ jobs:
           export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
           yes | buildozer android debug
 
-      - name: "Task 2: Vision Field Test"
-        id: vision
+      - name: "Task: Field Analysis"
+        id: field
         continue-on-error: true
         run: |
-          # هنا يتم تشغيل سكريبت الاختبار (محاكاة)
-          echo "Testing Red Shots..."
-          exit 1 # محاكاة فشل الاختبار الميداني للتشافي
+          echo "Simulating Field Test: Aiming for Red..."
+          # هنا يوضع سكريبت الاختبار الميداني
+          exit 1 # محاكاة فشل البداية لتحفيز الذكاء على التطوير
 
-      - name: "Final Report & Continuous Healing"
+      - name: "Healing Cycle"
         if: always()
         env:
           PAT_TOKEN: ${{ secrets.PAT }}
         run: |
-          REPORT="Build Status: ${{ steps.build.outcome }}, Vision Test: ${{ steps.vision.outcome }}"
-          
-          if [[ "${{ steps.build.outcome }}" == "failure" || "${{ steps.vision.outcome }}" == "failure" ]]; then
+          if [[ "${{ steps.build.outcome }}" == "failure" || "${{ steps.field.outcome }}" == "failure" ]]; then
+            REPORT="Build: ${{ steps.build.outcome }}, Test: ${{ steps.field.outcome }}"
             curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
             -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"$REPORT\"}}" \
             "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
           fi
 
-      - name: "Victory Artifact"
+      - name: "Victory"
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Latest
+          name: Sovereign-AI-2.5-Final
           path: bin/*.apk
