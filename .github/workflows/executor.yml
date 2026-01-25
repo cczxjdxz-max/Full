@@ -1,7 +1,8 @@
 name: 2. The Combat Executor (Builder)
+
 on:
   repository_dispatch:
-    types: [execute_build, doctor_needed] # إضافة النوعين هنا لضمان الاستجابة
+    types: [execute_build, doctor_needed] # تأكد أن الأسماء مطابقة تماماً لما يرسله القائد
 
 jobs:
   training_and_build:
@@ -20,9 +21,15 @@ jobs:
         id: build_step
         run: |
           echo "Packaging Local IQ 250 into APK..."
-          # تأكد من وجود ملف buildozer.spec في المستودع أو سيقوم المنفذ بإنشائه
-          if [ ! -f buildozer.spec ]; then buildozer init; fi
+          # بناء ملف المواصفات إذا لم يوجد
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          # تعديل المتطلبات لتشمل كل شيء داخلي
           sed -i 's/requirements = .*/requirements = python3,kivy,opencv,numpy,scipy/' buildozer.spec
+          # تفعيل ميزة التموييه لتعزيز التشفير
+          sed -i 's/#android.preserve_paths/android.preserve_paths/' buildozer.spec
+          
           yes | buildozer android debug 2>&1 | tee build_log.txt || (tail -n 100 build_log.txt > error_report.txt && exit 1)
         continue-on-error: true
 
@@ -34,8 +41,9 @@ jobs:
         run: |
           git config --global user.name "Patient-Executor"
           git add error_report.txt
-          git commit -m "Failure: Reporting logs."
+          git commit -m "Failure: Reporting logs to Architect."
           git push origin main
+          
           P1="https"; P2="api.github.com"; P3="repos"
           CLEAN_URL="${P1}://${P2}/${P3}/${REPO_NAME}/dispatches"
           curl -X POST -H "Authorization: token ${PAT_TOKEN}" -H "Accept: application/vnd.github.v3+json" -d '{"event_type": "doctor_needed"}' "${CLEAN_URL}"
