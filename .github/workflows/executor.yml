@@ -9,19 +9,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: "Install Dependencies"
+      - name: "Set up Environment"
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: "Install Build Tools"
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev
+          sudo apt install -y python3-pip build-essential libsdl2-dev ffmpeg libffi-dev libatlas-base-dev autoconf automake libtool pkg-config zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libsqlite3-dev tk-dev libgdbm-compat-dev liblzma-dev uuid-dev
           pip3 install --user --upgrade buildozer cython virtualenv
 
-      - name: "Sovereign Build (Deep Training)"
+      - name: "Download Legacy NDK (Required for Scipy/Numpy)"
         run: |
-          # الآن سيعمل البناء لأن الطبيب أرسل الـ Version
+          wget -q https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
+          unzip -q android-ndk-r21e-linux-x86_64.zip
+          echo "ANDROID_NDK_HOME=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
+          echo "LEGACY_NDK=$(pwd)/android-ndk-r21e" >> $GITHUB_ENV
+
+      - name: "Sovereign APK Build"
+        run: |
+          export APP_ANDROID_NDK_PATH=$ANDROID_NDK_HOME
+          # سيبدأ الآن بناء الـ APK الفعلي (قد يستغرق 20-30 دقيقة)
           yes | buildozer android debug
 
-      - name: "Upload Sovereign APK"
+      - name: "Upload APK Artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-Offline
+          name: Sovereign-Final-App
           path: bin/*.apk
