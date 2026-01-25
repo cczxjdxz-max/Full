@@ -1,5 +1,6 @@
-name: 2. The Combat Executor (Field Testing)
+name: 2. The Combat Executor (Final Build)
 on:
+  workflow_dispatch: # زر التشغيل اليدوي للبناء المباشر
   repository_dispatch:
     types: [execute_build]
 
@@ -9,12 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "System Setup"
+      - name: "Environment Injection"
         run: |
           sudo apt update && sudo apt install -y python3-pip build-essential cmake adb
           pip3 install --user --upgrade buildozer cython
 
-      - name: "Task: Build APK"
+      - name: "Build Sovereign APK"
         id: build
         continue-on-error: true
         run: |
@@ -22,29 +23,20 @@ jobs:
           export APP_ANDROID_NDK_PATH=$(pwd)/android-ndk-r25b
           yes | buildozer android debug
 
-      - name: "Task: Field Analysis"
-        id: field
-        continue-on-error: true
-        run: |
-          echo "Simulating Field Test: Aiming for Red..."
-          # هنا يوضع سكريبت الاختبار الميداني
-          exit 1 # محاكاة فشل البداية لتحفيز الذكاء على التطوير
-
-      - name: "Healing Cycle"
+      - name: "Reporting Cycle"
         if: always()
         env:
           PAT_TOKEN: ${{ secrets.PAT }}
         run: |
-          if [[ "${{ steps.build.outcome }}" == "failure" || "${{ steps.field.outcome }}" == "failure" ]]; then
-            REPORT="Build: ${{ steps.build.outcome }}, Test: ${{ steps.field.outcome }}"
+          if [[ "${{ steps.build.outcome }}" == "failure" ]]; then
             curl -X POST -H "Authorization: token ${PAT_TOKEN}" \
-            -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"$REPORT\"}}" \
+            -d "{\"event_type\": \"sequential_heal_request\", \"client_payload\": {\"task_reports\": \"Build Failed\"}}" \
             "https://api.github.com/repos/${{ github.repository_owner }}/Avatar-template/dispatches"
           fi
 
-      - name: "Victory"
+      - name: "Victory Artifact"
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Sovereign-AI-2.5-Final
+          name: Sovereign-AI-Final
           path: bin/*.apk
