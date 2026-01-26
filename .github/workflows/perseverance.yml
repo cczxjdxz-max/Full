@@ -1,19 +1,19 @@
-name: The Perseverance Engine
+name: The Perseverance Engine v1.1
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: write # صلاحية ضرورية لإعادة تشغيل نفسه
+  actions: write
 
 jobs:
   main_loop:
     runs-on: ubuntu-latest
-    # استراتيجية للتحكم في عدد المحاولات لمنع حلقة لا نهائية
     strategy:
       matrix:
-        attempt: [1, 2, 3, 4, 5] # سنحاول 5 مرات كحد أقصى
+        attempt: [1, 2, 3, 4, 5]
+      fail-fast: false # مهم: لا توقف المحاولات الأخرى عند فشل واحدة
 
     steps:
       - name: "Attempt #${{ matrix.attempt }}: Design & Execute"
@@ -21,88 +21,75 @@ jobs:
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GAME_DOWNLOAD_URL: "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          # سنمرر تقرير الفشل من المحاولة السابقة (إن وجد)
-          PREVIOUS_ATTEMPT_LOG: ${{ steps.previous_attempt.outputs.log || 'This is the first attempt.' }}
+          # استرداد سجل المحاولة السابقة (إذا فشلت)
+          PREVIOUS_ATTEMPT_LOG: ${{ needs.main_loop.outputs.attempt_log || 'This is the first attempt.' }}
         run: |
           # ----------------- BEGIN IN-LINE PYTHON SCRIPT -----------------
           python3 << 'EOF'
-          import os, subprocess, json
+          import os, subprocess, json, sys
 
+          # --- الجزء الأول: التصميم (استدعاء Gemini) ---
+          print("--- DESIGNING SCRIPT ---")
           api_key = os.getenv("GOOGLE_API_KEY")
           download_url = os.getenv("GAME_DOWNLOAD_URL")
           previous_log = os.getenv("PREVIOUS_ATTEMPT_LOG")
           
-          # --- برومبت متطور يتعلم من الأخطاء ---
           prompt_text = f"""
-          You are a world-class reverse engineering expert in a self-correcting loop.
-          Your goal is to generate a Python script that extracts data from {download_url}.
-
-          **Analysis of Previous Attempt:**
-          {previous_log}
-
-          **Your Task:**
-          Based on the previous failure, generate a NEW, IMPROVED Python script.
-          - If the previous attempt failed with 'zipfile', try using a command-line 'unzip' binary.
-          - If 'unzip' failed, try 'AssetRipper'.
-          - If all failed, try to analyze the file structure and suggest a new approach.
-          - The script MUST log all its actions and errors to stdout.
-          - The script MUST create a 'CORE_DATA' directory.
-          - The final step of the script MUST be to check if 'CORE_DATA' is empty. If it is, the script must exit with a non-zero status code (e.g., `sys.exit(1)`).
-
+          You are a reverse engineering expert in a self-correcting loop. Goal: Generate a Python script to extract data from {download_url}.
+          Previous Attempt Analysis: {previous_log}
+          Your Task: Generate a NEW, IMPROVED Python script based on the failure. Use 'zipfile', then 'unzip', then 'AssetRipper'. Log everything to stdout. The script MUST create 'CORE_DATA' and exit with status 1 if it's empty.
           Generate ONLY the Python code inside ```python ... ```.
           """
           
-          # ... (نفس كود استدعاء Gemini باستخدام curl) ...
-          # ... (مع حفظ السكربت الناتج في ملف 'miner_script.py') ...
-          
-          # --- تنفيذ السكربت الذي تم توليده للتو ---
+          payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+          curl_cmd = ["curl", "-s", "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", "-H", "Content-Type: application/json", "-H", f"x-goog-api-key: {api_key}", "-X", "POST", "-d", json.dumps(payload)]
+
+          try:
+              result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True, timeout=90)
+              response = json.loads(result.stdout)
+              content = response["candidates"][0]["content"]["parts"][0]["text"]
+              script_code = content.split("```python").split("```")[0].strip() if "```python" in content else content.strip()
+              with open("miner_script.py", "w") as f:
+                  f.write(script_code)
+              print("Script 'miner_script.py' generated successfully.")
+          except Exception as e:
+              print(f"FATAL: Gemini call failed: {e}")
+              # إذا فشل Gemini، لا يمكننا المتابعة. ننشئ سجل خطأ ونخرج.
+              with open("attempt_log.txt", "w") as f:
+                  f.write(f"Gemini API call failed. Cannot generate script. Error: {e}")
+              sys.exit(1) # خروج بفشل
+
+          # --- الجزء الثاني: التنفيذ ---
           print("\n--- EXECUTING GENERATED SCRIPT ---")
           try:
-              # نعطي السكربت صلاحية التنفيذ
               subprocess.run(["chmod", "+x", "miner_script.py"], check=True)
-              # ننفذ السكربت ونلتقط كل المخرجات (القياسية والخطأ)
-              result = subprocess.run(
-                  ["./miner_script.py"], 
-                  capture_output=True, text=True, check=True
-              )
+              result = subprocess.run(["./miner_script.py"], capture_output=True, text=True, check=True)
               print("--- SCRIPT EXECUTED SUCCESSFULLY ---")
-              # حفظ المخرجات الناجحة كـ log
               with open("attempt_log.txt", "w") as f:
                   f.write(result.stdout)
+              # بما أن السكربت نجح، نخرج من كود البايثون بنجاح (exit 0)
               
           except subprocess.CalledProcessError as e:
-              print("--- SCRIPT FAILED AS EXPECTED ---")
-              # السكربت فشل (لأن CORE_DATA فارغ)، وهذا هو التقرير الذي سنرسله لـ Gemini
-              # نجمع كل المخرجات (القياسية والخطأ) في سجل واحد
-              error_log = "STDOUT:\n" + e.stdout + "\n\nSTDERR:\n" + e.stderr
+              print("--- SCRIPT FAILED AS EXPECTED (CORE_DATA likely empty) ---")
+              # هذا هو الفشل "الجيد" الذي نريده. نجمع كل المعلومات لـ Gemini.
+              error_log = f"STDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}"
               with open("attempt_log.txt", "w") as f:
                   f.write(error_log)
-              # نخرج من هذه الخطوة بفشل للسماح للـ workflow بالتعامل معها
-              exit(1)
+              sys.exit(1) # خروج بفشل لتشغيل المحاولة التالية
+              
+          except Exception as e:
+              print(f"--- UNEXPECTED EXECUTION FAILURE ---")
+              # فشل غير متوقع (مثل فشل chmod)
+              with open("attempt_log.txt", "w") as f:
+                  f.write(f"An unexpected error occurred during execution: {e}")
+              sys.exit(1) # خروج بفشل
           EOF
 
-      - name: "Check for Success"
-        # هذه الخطوة تعمل فقط إذا نجحت الخطوة السابقة
-        if: success()
+      - name: "Store Attempt Log"
+        # هذه الخطوة تعمل دائمًا لالتقاط سجل المحاولة
+        if: always()
+        id: store_log
         run: |
-          echo "SUCCESS! Assets extracted. Breaking the loop."
-          # يمكننا هنا إيقاف الحلقة (على الرغم من أن success() ستفعل ذلك ضمنيًا)
-
-      - name: "Package and Upload Final Report"
-        # هذه الخطوة تعمل دائمًا في المحاولة الأخيرة، أو عند النجاح
-        if: always() && (success() || matrix.attempt == 5)
-        run: |
-          zip -r final_report.zip CORE_DATA attempt_log.txt || true
-      
-      - name: "Create Final Release"
-        if: always() && (success() || matrix.attempt == 5)
-        uses: softprops/action-gh-release@v1
-        with:
-          files: final_report.zip
-          name: "Perseverance-Report-${{ github.run_id }}"
-          tag_name: "v${{ github.run_id }}"
-          body: |
-            Perseverance Engine Report.
-            **Final Status:** ${{ job.status }}
-            **Attempts:** ${{ matrix.attempt }}
-
+          # نقرأ محتويات السجل ونخرجها ليتم استخدامها في المحاولة التالية
+          log_content=$(cat attempt_log.txt || echo "Log file not found.")
+          echo "attempt_log=${log_content}" >> $GITHUB_OUTPUT
