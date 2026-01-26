@@ -1,4 +1,4 @@
-name: 2. The Executor (BODY) - State-Aware & Strict
+name: 2. The Executor (BODY) - Surgical Reporter
 
 on:
   repository_dispatch:
@@ -11,9 +11,9 @@ jobs:
   execute_evolutionary_plan:
     runs-on: ubuntu-latest
     steps:
+      # ... (نفس خطوات الاستعادة، الاستقبال، التنفيذ، التحميل) ...
       - name: "Restore Previous State"
         uses: actions/cache/restore@v4
-        id: cache-restore
         with:
           path: .
           key: state-${{ github.run_id }}
@@ -27,22 +27,20 @@ jobs:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
 
       - name: "Execute the Manager's Plan"
-        id: execution
         run: |
           echo "Executing the plan designed by The Manager..."
           chmod +x plan_script.py
+          # تنفيذ السكربت والتقاط كل المخرجات
           ./plan_script.py > execution_log.txt 2>&1 || true
           echo "Plan execution finished."
 
-      - name: "Upload Log for Analysis"
-        if: always()
+      - name: "Archive Execution Log"
         uses: actions/upload-artifact@v4
         with:
           name: execution-log-for-${{ github.run_id }}
           path: execution_log.txt
 
       - name: "Verify Goal Achievement"
-        id: verify_goal
         run: |
           echo "Verifying if assets were extracted into CORE_DATA..."
           if [ -d "CORE_DATA" ] && [ -n "$(ls -A CORE_DATA)" ]; then
@@ -51,18 +49,9 @@ jobs:
             echo "FAILURE: CORE_DATA is empty or does not exist."
             exit 1
           fi
+      # ... (نفس خطوات إنشاء الـ Release عند النجاح) ...
 
-      - name: "Package and Release Final Assets"
-        if: success()
-        run: |
-          zip -r final_assets.zip CORE_DATA execution_log.txt
-      - uses: softprops/action-gh-release@v1
-        if: success()
-        with:
-          files: final_assets.zip
-          name: "MISSION-ACCOMPLISHED-${{ github.run_id }}"
-          tag_name: "success-v${{ github.run_id }}"
-
+  # --- مهمة إرسال التقرير الجراحي ---
   report_failure:
     runs-on: ubuntu-latest
     needs: [execute_evolutionary_plan]
@@ -74,11 +63,22 @@ jobs:
         with:
           name: execution-log-for-${{ github.run_id }}
 
-      - name: "Read Log File"
-        id: read_log
+      # --- الخطوة الجديدة: التحليل الجراحي للسجل ---
+      - name: "Surgical Log Analysis"
+        id: surgical_analysis
         run: |
-          log_content=$(cat execution_log.txt | base64 -w 0)
-          echo "log_data=${log_content}" >> $GITHUB_OUTPUT
+          # نقرأ السجل ونستخرج منه فقط الأسطر التي تحتوي على كلمات مثل ERROR, FATAL, Traceback
+          # أو نأخذ آخر 20 سطرًا إذا لم نجد شيئًا، لضمان وجود سياق
+          error_report=$(grep -iE 'error|fatal|traceback|fail' execution_log.txt || tail -n 20 execution_log.txt)
+          
+          # إذا كان التقرير فارغًا، نرسل رسالة واضحة
+          if [ -z "$error_report" ]; then
+            error_report="Execution finished, but the CORE_DATA directory was empty. The script produced no errors but also no results."
+          fi
+          
+          # ترميز التقرير الجراحي فقط
+          encoded_report=$(echo "$error_report" | base64 -w 0)
+          echo "report_data=${encoded_report}" >> $GITHUB_OUTPUT
 
       - name: "Save State for Next Attempt"
         uses: actions/cache/save@v4
@@ -86,10 +86,11 @@ jobs:
           path: .
           key: state-${{ github.run_id }}
 
-      - name: "Report Detailed Failure to Manager"
+      - name: "Report Surgical Failure to Manager"
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT }}
           repository: cczxjdxz-max/avatar-template
           event-type: analyze_failure
-          client-payload: '{"execution_log": "${{ steps.read_log.outputs.log_data }}" }'
+          # نرسل التقرير الجراحي المركز
+          client-payload: '{"execution_log": "${{ steps.surgical_analysis.outputs.report_data }}" }'
