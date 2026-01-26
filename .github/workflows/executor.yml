@@ -1,59 +1,83 @@
-name: 2. The Executor (BODY)
+name: 2. The Executor (BODY) - State-Aware
 
 on:
   repository_dispatch:
-    types: [execute_extraction_plan]
+    types: [evolve_and_execute]
 
 permissions:
   contents: write
 
 jobs:
-  execute_the_plan:
+  execute_evolutionary_plan:
     runs-on: ubuntu-latest
     steps:
+      # --- الخطوة 1: استعادة الحالة السابقة ---
+      - name: "Restore Previous State"
+        uses: actions/cache/restore@v4
+        id: cache-restore
+        with:
+          path: .
+          key: state-${{ github.run_id }} # مفتاح فريد لمحاولة الاستعادة
+          restore-keys: |
+            state- # استعادة أحدث حالة متوفرة
+
+      # --- الخطوة 2: استقبال الخطة الجديدة من القائد ---
       - name: "Receive and Write Plan"
         run: |
-          python3 -c "import os, json; open('miner_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['plan'])"
+          # كتابة السكربت الذي أرسله القائد
+          python3 -c "import os, json; open('plan_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['script'])"
         env:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
 
-      - name: "Execute the Manager's plan"
+      # --- الخطوة 3: تنفيذ الخطة ---
+      - name: "Execute the Manager's Plan"
+        id: execution
         run: |
           echo "Executing the plan designed by The Manager..."
-          chmod +x miner_script.py
-          python3 miner_script.py || echo "Script finished, possibly with non-fatal errors."
+          chmod +x plan_script.py
+          # ننفذ السكربت ونلتقط كل المخرجات في ملف سجل
+          ./plan_script.py > execution_log.txt 2>&1 || true
+          echo "Plan execution finished."
 
-      - name: "Secure Data with Final Sweep"
+      # --- الخطوة 4: التحقق من النجاح ---
+      - name: "Check for Success (Goal Achieved?)"
+        id: check_goal
         run: |
-          echo "Performing a final sweep to secure all valuable assets..."
-          mkdir -p CORE_DATA
-          find . -type f \( -name "*.json" -o -name "*.xml" -o -name "*.lua" \) -exec cp --parents {} CORE_DATA/ \; || echo "No extra files found."
-
-      # --- خطوة التحقق الجديدة ---
-      - name: "Check if CORE_DATA is empty"
-        id: check_files
-        run: |
-          # التحقق مما إذا كان المجلد يحتوي على أي ملفات
-          if [ -z "$(ls -A CORE_DATA)" ]; then
-            echo "CORE_DATA directory is empty. No assets were extracted."
-            # تعيين متغير إخراج للإشارة إلى أن المجلد فارغ
-            echo "is_empty=true" >> $GITHUB_ENV
+          # الهدف هو وجود ملفات في CORE_DATA
+          if [ -n "$(ls -A CORE_DATA 2>/dev/null)" ]; then
+            echo "GOAL ACHIEVED! Assets found in CORE_DATA."
+            echo "goal_achieved=true" >> $GITHUB_ENV
           else
-            echo "Assets found in CORE_DATA. Proceeding to zip."
-            echo "is_empty=false" >> $GITHUB_ENV
-            # ضغط المجلد فقط إذا كان يحتوي على ملفات
-            zip -r core_data.zip CORE_DATA
+            echo "Goal not achieved. Reporting failure to Manager."
+            echo "goal_achieved=false" >> $GITHUB_ENV
           fi
 
-      - name: "Report Mission Status by Creating a Release"
-        uses: softprops/action-gh-release@v1
-        if: always() # سيتم تشغيل هذه الخطوة دائمًا
+      # --- الخطوة 5: حفظ الحالة للمهمة التالية (إذا لم ننجح) ---
+      - name: "Save Current State for Next Attempt"
+        if: env.goal_achieved == 'false'
+        uses: actions/cache/save@v4
         with:
-          # رفع الملف فقط إذا لم يكن المجلد فارغًا
-          files: ${{ env.is_empty == 'false' && 'core_data.zip' || '' }}
-          name: "Extraction-Report-${{ github.run_id }}"
-          tag_name: "v${{ github.run_id }}"
-          # تعديل نص التقرير ليعكس الحالة
-          body: |
-            Extraction mission completed.
-            **Status:** ${{ env.is_empty == 'false' && 'SUCCESS: Assets found and attached.' || 'FAILURE: No assets were extracted.' }}
+          path: .
+          key: state-${{ github.run_id }} # حفظ الحالة بمفتاح فريد
+
+      # --- الخطوة 6: إرسال التقرير إلى القائد (إذا لم ننجح) ---
+      - name: "Report Detailed Failure to Manager"
+        if: env.goal_achieved == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT }}
+          repository: cczxjdxz-max/avatar-template # العودة إلى القائد
+          event-type: analyze_failure
+          client-payload: '{"execution_log": ${{ toJSON(steps.execution.outputs.log) }} }'
+
+      # --- الخطوة 7: أرشفة النتيجة النهائية (إذا نجحنا) ---
+      - name: "Package and Release Final Assets"
+        if: env.goal_achieved == 'true'
+        run: |
+          zip -r final_assets.zip CORE_DATA execution_log.txt
+      - uses: softprops/action-gh-release@v1
+        if: env.goal_achieved == 'true'
+        with:
+          files: final_assets.zip
+          name: "MISSION-ACCOMPLISHED-${{ github.run_id }}"
+          tag_name: "success-v${{ github.run_id }}"
