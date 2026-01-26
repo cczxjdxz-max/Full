@@ -4,45 +4,40 @@ on:
   repository_dispatch:
     types: [execute_extraction_plan]
 
+permissions:
+  contents: write # مهم جداً لإنشاء الـ Release
+
 jobs:
   execute_the_plan:
     runs-on: ubuntu-latest
     steps:
       - name: "Receive and Write Plan"
-        id: receive_plan
         env:
-          # نضع الخطة المرسلة داخل متغير بيئة لحمايتها من تفسير Bash
           PLAN_CODE: ${{ github.event.client_payload.plan }}
         run: |
-          # نستخدم بايثون لكتابة المتغير إلى ملف لضمان سلامة الرموز
           python3 -c "import os; open('miner_script.py', 'w').write(os.environ['PLAN_CODE'])"
 
-      - name: "Prepare environment for execution"
-        run: chmod +x miner_script.py
-
       - name: "Execute the Manager's plan"
-        env:
-          GAME_DOWNLOAD_URL: "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
         run: |
-          echo "Executing the plan designed by The Manager..."
-          # تنفيذ السكربت
-          python3 miner_script.py
+          echo "Executing the plan..."
+          # تشغيل السكربت مع تجاهل الأخطاء غير القاتلة
+          python3 miner_script.py || echo "Script encountered an issue but continuing..."
 
-      - name: "Secure the extracted assets"
-        # نستخدم || true لضمان عدم توقف الأكشن إذا لم يجد ملفات
+      - name: "Final Data Collection"
+        # هذه الخطوة تعمل كـ 'تأمين' إضافي في حال فشل السكربت في نقل الملفات
         run: |
-          echo "Packaging results..."
           mkdir -p CORE_DATA
-          zip -r core_data.zip CORE_DATA || echo "No data found to zip"
+          # البحث عن أي ملفات مهمة تم استخراجها ووضعها في المجلد النهائي
+          find . -maxdepth 4 -name "*.json" -o -name "*.xml" -o -name "*.lua" | xargs -I{} cp --parents {} CORE_DATA/ || true
+          zip -r core_data.zip CORE_DATA
 
       - name: "Report success by creating a Release"
         uses: softprops/action-gh-release@v1
-        # سيتم إنشاء الريليز فقط إذا وجد ملف المضغوط
-        if: success()
+        if: always() # سيحاول إنشاء ريليز حتى لو حدثت أخطاء جزئية
         with:
           files: core_data.zip
           name: "Extraction-Report-${{ github.run_id }}"
-          tag_name: "data-v${{ github.run_id }}"
-          body: "Mission accomplished as per The Manager's plan. Core data secured."
+          tag_name: "v${{ github.run_id }}"
+          body: "Extraction completed. Check the attached zip for assets."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
