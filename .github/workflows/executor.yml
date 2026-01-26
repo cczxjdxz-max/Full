@@ -1,4 +1,4 @@
-name: 2. The Executor (BODY) - State-Aware
+name: 2. The Executor (BODY) - State-Aware & Strict
 
 on:
   repository_dispatch:
@@ -11,73 +11,85 @@ jobs:
   execute_evolutionary_plan:
     runs-on: ubuntu-latest
     steps:
-      # --- الخطوة 1: استعادة الحالة السابقة ---
       - name: "Restore Previous State"
         uses: actions/cache/restore@v4
         id: cache-restore
         with:
           path: .
-          key: state-${{ github.run_id }} # مفتاح فريد لمحاولة الاستعادة
+          key: state-${{ github.run_id }}
           restore-keys: |
-            state- # استعادة أحدث حالة متوفرة
+            state-
 
-      # --- الخطوة 2: استقبال الخطة الجديدة من القائد ---
       - name: "Receive and Write Plan"
         run: |
-          # كتابة السكربت الذي أرسله القائد
-          python3 -c "import os, json; open('plan_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['script'])"
+          python3 -c "import os, json; open('plan_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['plan'])"
         env:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
 
-      # --- الخطوة 3: تنفيذ الخطة ---
       - name: "Execute the Manager's Plan"
         id: execution
         run: |
           echo "Executing the plan designed by The Manager..."
           chmod +x plan_script.py
-          # ننفذ السكربت ونلتقط كل المخرجات في ملف سجل
+          # السجل سيلتقط كل شيء، النجاح أو الفشل
           ./plan_script.py > execution_log.txt 2>&1 || true
           echo "Plan execution finished."
 
-      # --- الخطوة 4: التحقق من النجاح ---
-      - name: "Check for Success (Goal Achieved?)"
-        id: check_goal
+      # --- خطوة التحقق الجديدة والمحسّنة ---
+      - name: "Verify Goal Achievement"
+        id: verify_goal
         run: |
-          # الهدف هو وجود ملفات في CORE_DATA
-          if [ -n "$(ls -A CORE_DATA 2>/dev/null)" ]; then
-            echo "GOAL ACHIEVED! Assets found in CORE_DATA."
-            echo "goal_achieved=true" >> $GITHUB_ENV
+          echo "Verifying if assets were extracted into CORE_DATA..."
+          # التحقق مما إذا كان المجلد موجودًا ويحتوي على ملفات
+          if [ -d "CORE_DATA" ] && [ -n "$(ls -A CORE_DATA)" ]; then
+            echo "SUCCESS: Assets found. Mission accomplished."
+            # ننشئ ملفًا مؤقتًا للإشارة إلى النجاح للخطوات التالية
+            touch .SUCCESS
           else
-            echo "Goal not achieved. Reporting failure to Manager."
-            echo "goal_achieved=false" >> $GITHUB_ENV
+            echo "FAILURE: CORE_DATA is empty or does not exist."
+            # الأهم: الخروج بحالة فشل (exit 1) لإيقاف النجاح الكاذب
+            exit 1
           fi
 
-      # --- الخطوة 5: حفظ الحالة للمهمة التالية (إذا لم ننجح) ---
-      - name: "Save Current State for Next Attempt"
-        if: env.goal_achieved == 'false'
-        uses: actions/cache/save@v4
-        with:
-          path: .
-          key: state-${{ github.run_id }} # حفظ الحالة بمفتاح فريد
-
-      # --- الخطوة 6: إرسال التقرير إلى القائد (إذا لم ننجح) ---
-      - name: "Report Detailed Failure to Manager"
-        if: env.goal_achieved == 'false'
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.PAT }}
-          repository: cczxjdxz-max/avatar-template # العودة إلى القائد
-          event-type: analyze_failure
-          client-payload: '{"execution_log": ${{ toJSON(steps.execution.outputs.log) }} }'
-
-      # --- الخطوة 7: أرشفة النتيجة النهائية (إذا نجحنا) ---
+      # --- الخطوات التالية تعمل فقط عند النجاح ---
       - name: "Package and Release Final Assets"
-        if: env.goal_achieved == 'true'
+        if: success() # لن تعمل هذه الخطوة إلا إذا نجحت الخطوة السابقة
         run: |
           zip -r final_assets.zip CORE_DATA execution_log.txt
       - uses: softprops/action-gh-release@v1
-        if: env.goal_achieved == 'true'
+        if: success()
         with:
           files: final_assets.zip
           name: "MISSION-ACCOMPLISHED-${{ github.run_id }}"
           tag_name: "success-v${{ github.run_id }}"
+
+    # --- مهمة منفصلة لإرسال تقرير الفشل ---
+    # هذه المهمة تعمل فقط إذا فشلت المهمة السابقة
+    report_failure:
+      runs-on: ubuntu-latest
+      needs: [execute_evolutionary_plan]
+      if: failure() # تعمل فقط عند الفشل
+
+      steps:
+        # نحتاج إلى استعادة الحالة مرة أخرى للوصول إلى سجل الأخطاء
+        - name: "Restore State to Access Log"
+          uses: actions/cache/restore@v4
+          with:
+            path: .
+            key: state-${{ github.run_id }}
+            restore-keys: |
+              state-
+
+        - name: "Save State for Next Attempt"
+          uses: actions/cache/save@v4
+          with:
+            path: .
+            key: state-${{ github.run_id }}
+
+        - name: "Report Detailed Failure to Manager"
+          uses: peter-evans/repository-dispatch@v3
+          with:
+            token: ${{ secrets.PAT }}
+            repository: cczxjdxz-max/avatar-template
+            event-type: analyze_failure
+            client-payload: '{"execution_log": ${{ toJSON(steps.execution.outputs.log) }} }'
