@@ -27,3 +27,69 @@ jobs:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
 
       - name: "Execute the Manager's Plan"
+        id: execution
+        run: |
+          echo "Executing the plan designed by The Manager..."
+          chmod +x plan_script.py
+          ./plan_script.py > execution_log.txt 2>&1 || true
+          echo "Plan execution finished."
+
+      - name: "Upload Log for Analysis"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: execution-log-for-${{ github.run_id }}
+          path: execution_log.txt
+
+      - name: "Verify Goal Achievement"
+        id: verify_goal
+        run: |
+          echo "Verifying if assets were extracted into CORE_DATA..."
+          if [ -d "CORE_DATA" ] && [ -n "$(ls -A CORE_DATA)" ]; then
+            echo "SUCCESS: Assets found. Mission accomplished."
+          else
+            echo "FAILURE: CORE_DATA is empty or does not exist."
+            exit 1
+          fi
+
+      - name: "Package and Release Final Assets"
+        if: success()
+        run: |
+          zip -r final_assets.zip CORE_DATA execution_log.txt
+      - uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          files: final_assets.zip
+          name: "MISSION-ACCOMPLISHED-${{ github.run_id }}"
+          tag_name: "success-v${{ github.run_id }}"
+
+  report_failure:
+    runs-on: ubuntu-latest
+    needs: [execute_evolutionary_plan]
+    if: failure()
+
+    steps:
+      - name: "Download Log from Failed Job"
+        uses: actions/download-artifact@v4
+        with:
+          name: execution-log-for-${{ github.run_id }}
+
+      - name: "Read Log File"
+        id: read_log
+        run: |
+          log_content=$(cat execution_log.txt | base64 -w 0)
+          echo "log_data=${log_content}" >> $GITHUB_OUTPUT
+
+      - name: "Save State for Next Attempt"
+        uses: actions/cache/save@v4
+        with:
+          path: .
+          key: state-${{ github.run_id }}
+
+      - name: "Report Detailed Failure to Manager"
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT }}
+          repository: cczxjdxz-max/avatar-template
+          event-type: analyze_failure
+          client-payload: '{"execution_log": "${{ steps.read_log.outputs.log_data }}" }'
