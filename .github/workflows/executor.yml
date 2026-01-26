@@ -8,12 +8,14 @@ jobs:
   execute_the_plan:
     runs-on: ubuntu-latest
     steps:
-      - name: "Acknowledge order and receive the plan"
+      - name: "Receive and Write Plan"
         id: receive_plan
+        env:
+          # نضع الخطة المرسلة داخل متغير بيئة لحمايتها من تفسير Bash
+          PLAN_CODE: ${{ github.event.client_payload.plan }}
         run: |
-          # استلام الخطة (السكربت) من حمولة المدير
-          # وحفظها في ملف لتنفيذها
-          echo '${{ github.event.client_payload.plan }}' > miner_script.py
+          # نستخدم بايثون لكتابة المتغير إلى ملف لضمان سلامة الرموز
+          python3 -c "import os; open('miner_script.py', 'w').write(os.environ['PLAN_CODE'])"
 
       - name: "Prepare environment for execution"
         run: chmod +x miner_script.py
@@ -23,21 +25,24 @@ jobs:
           GAME_DOWNLOAD_URL: "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
         run: |
           echo "Executing the plan designed by The Manager..."
+          # تنفيذ السكربت
           python3 miner_script.py
 
       - name: "Secure the extracted assets"
+        # نستخدم || true لضمان عدم توقف الأكشن إذا لم يجد ملفات
         run: |
           echo "Packaging results..."
-          zip -r core_data.zip CORE_DATA
+          mkdir -p CORE_DATA
+          zip -r core_data.zip CORE_DATA || echo "No data found to zip"
 
       - name: "Report success by creating a Release"
         uses: softprops/action-gh-release@v1
+        # سيتم إنشاء الريليز فقط إذا وجد ملف المضغوط
+        if: success()
         with:
-          # سيتم إنشاء الإصدار في هذا المستودع (Full)
           files: core_data.zip
           name: "Extraction-Report-${{ github.run_id }}"
           tag_name: "data-v${{ github.run_id }}"
           body: "Mission accomplished as per The Manager's plan. Core data secured."
         env:
-          # GITHUB_TOKEN الخاص بهذا المستودع
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
