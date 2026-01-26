@@ -11,7 +11,6 @@ jobs:
   execute_evolutionary_plan:
     runs-on: ubuntu-latest
     steps:
-      # ... (نفس خطوات الاستعادة، الاستقبال، التنفيذ، التحميل) ...
       - name: "Restore Previous State"
         uses: actions/cache/restore@v4
         with:
@@ -30,7 +29,6 @@ jobs:
         run: |
           echo "Executing the plan designed by The Manager..."
           chmod +x plan_script.py
-          # تنفيذ السكربت والتقاط كل المخرجات
           ./plan_script.py > execution_log.txt 2>&1 || true
           echo "Plan execution finished."
 
@@ -49,7 +47,17 @@ jobs:
             echo "FAILURE: CORE_DATA is empty or does not exist."
             exit 1
           fi
-      # ... (نفس خطوات إنشاء الـ Release عند النجاح) ...
+
+      - name: "Package and Release Final Assets"
+        if: success()
+        run: |
+          zip -r final_assets.zip CORE_DATA execution_log.txt
+      - uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          files: final_assets.zip
+          name: "MISSION-ACCOMPLISHED-${{ github.run_id }}"
+          tag_name: "success-v${{ github.run_id }}"
 
   # --- مهمة إرسال التقرير الجراحي ---
   report_failure:
@@ -63,20 +71,17 @@ jobs:
         with:
           name: execution-log-for-${{ github.run_id }}
 
-      # --- الخطوة الجديدة: التحليل الجراحي للسجل ---
       - name: "Surgical Log Analysis"
         id: surgical_analysis
         run: |
-          # نقرأ السجل ونستخرج منه فقط الأسطر التي تحتوي على كلمات مثل ERROR, FATAL, Traceback
-          # أو نأخذ آخر 20 سطرًا إذا لم نجد شيئًا، لضمان وجود سياق
+          # استخراج الأسطر التي تحتوي على كلمات الخطأ، أو آخر 20 سطرًا كبديل
           error_report=$(grep -iE 'error|fatal|traceback|fail' execution_log.txt || tail -n 20 execution_log.txt)
           
-          # إذا كان التقرير فارغًا، نرسل رسالة واضحة
           if [ -z "$error_report" ]; then
             error_report="Execution finished, but the CORE_DATA directory was empty. The script produced no errors but also no results."
           fi
           
-          # ترميز التقرير الجراحي فقط
+          # ترميز التقرير الجراحي لضمان النقل الآمن
           encoded_report=$(echo "$error_report" | base64 -w 0)
           echo "report_data=${encoded_report}" >> $GITHUB_OUTPUT
 
@@ -92,5 +97,4 @@ jobs:
           token: ${{ secrets.PAT }}
           repository: cczxjdxz-max/avatar-template
           event-type: analyze_failure
-          # نرسل التقرير الجراحي المركز
           client-payload: '{"execution_log": "${{ steps.surgical_analysis.outputs.report_data }}" }'
