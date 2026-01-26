@@ -5,39 +5,39 @@ on:
     types: [execute_extraction_plan]
 
 permissions:
-  contents: write # مهم جداً لإنشاء الـ Release
+  contents: write # صلاحية ضرورية لإنشاء الـ Release
 
 jobs:
   execute_the_plan:
     runs-on: ubuntu-latest
     steps:
       - name: "Receive and Write Plan"
-        env:
-          PLAN_CODE: ${{ github.event.client_payload.plan }}
         run: |
-          python3 -c "import os; open('miner_script.py', 'w').write(os.environ['PLAN_CODE'])"
+          # طريقة آمنة ومباشرة لكتابة الخطة المستلمة في ملف
+          python3 -c "import os, json; open('miner_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['plan'])"
+        env:
+          PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
 
       - name: "Execute the Manager's plan"
         run: |
-          echo "Executing the plan..."
-          # تشغيل السكربت مع تجاهل الأخطاء غير القاتلة
-          python3 miner_script.py || echo "Script encountered an issue but continuing..."
+          echo "Executing the plan designed by The Manager..."
+          chmod +x miner_script.py
+          python3 miner_script.py || echo "Script finished, possibly with non-fatal errors."
 
-      - name: "Final Data Collection"
-        # هذه الخطوة تعمل كـ 'تأمين' إضافي في حال فشل السكربت في نقل الملفات
+      - name: "Secure Data with Final Sweep"
         run: |
+          echo "Performing a final sweep to secure all valuable assets..."
           mkdir -p CORE_DATA
-          # البحث عن أي ملفات مهمة تم استخراجها ووضعها في المجلد النهائي
-          find . -maxdepth 4 -name "*.json" -o -name "*.xml" -o -name "*.lua" | xargs -I{} cp --parents {} CORE_DATA/ || true
+          find . -type f \( -name "*.json" -o -name "*.xml" -o -name "*.lua" \) -exec cp --parents {} CORE_DATA/ \; || echo "No extra files found."
           zip -r core_data.zip CORE_DATA
 
-      - name: "Report success by creating a Release"
+      - name: "Report Mission Status by Creating a Release"
         uses: softprops/action-gh-release@v1
-        if: always() # سيحاول إنشاء ريليز حتى لو حدثت أخطاء جزئية
+        if: always() # سيحاول دائمًا رفع تقرير
         with:
           files: core_data.zip
           name: "Extraction-Report-${{ github.run_id }}"
           tag_name: "v${{ github.run_id }}"
-          body: "Extraction completed. Check the attached zip for assets."
+          body: "Extraction mission completed. Review attached zip for extracted assets."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
