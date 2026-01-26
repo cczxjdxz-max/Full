@@ -5,7 +5,7 @@ on:
     types: [execute_extraction_plan]
 
 permissions:
-  contents: write # صلاحية ضرورية لإنشاء الـ Release
+  contents: write
 
 jobs:
   execute_the_plan:
@@ -13,7 +13,6 @@ jobs:
     steps:
       - name: "Receive and Write Plan"
         run: |
-          # طريقة آمنة ومباشرة لكتابة الخطة المستلمة في ملف
           python3 -c "import os, json; open('miner_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['plan'])"
         env:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
@@ -29,15 +28,32 @@ jobs:
           echo "Performing a final sweep to secure all valuable assets..."
           mkdir -p CORE_DATA
           find . -type f \( -name "*.json" -o -name "*.xml" -o -name "*.lua" \) -exec cp --parents {} CORE_DATA/ \; || echo "No extra files found."
-          zip -r core_data.zip CORE_DATA
+
+      # --- خطوة التحقق الجديدة ---
+      - name: "Check if CORE_DATA is empty"
+        id: check_files
+        run: |
+          # التحقق مما إذا كان المجلد يحتوي على أي ملفات
+          if [ -z "$(ls -A CORE_DATA)" ]; then
+            echo "CORE_DATA directory is empty. No assets were extracted."
+            # تعيين متغير إخراج للإشارة إلى أن المجلد فارغ
+            echo "is_empty=true" >> $GITHUB_ENV
+          else
+            echo "Assets found in CORE_DATA. Proceeding to zip."
+            echo "is_empty=false" >> $GITHUB_ENV
+            # ضغط المجلد فقط إذا كان يحتوي على ملفات
+            zip -r core_data.zip CORE_DATA
+          fi
 
       - name: "Report Mission Status by Creating a Release"
         uses: softprops/action-gh-release@v1
-        if: always() # سيحاول دائمًا رفع تقرير
+        if: always() # سيتم تشغيل هذه الخطوة دائمًا
         with:
-          files: core_data.zip
+          # رفع الملف فقط إذا لم يكن المجلد فارغًا
+          files: ${{ env.is_empty == 'false' && 'core_data.zip' || '' }}
           name: "Extraction-Report-${{ github.run_id }}"
           tag_name: "v${{ github.run_id }}"
-          body: "Extraction mission completed. Review attached zip for extracted assets."
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # تعديل نص التقرير ليعكس الحالة
+          body: |
+            Extraction mission completed.
+            **Status:** ${{ env.is_empty == 'false' && 'SUCCESS: Assets found and attached.' || 'FAILURE: No assets were extracted.' }}
