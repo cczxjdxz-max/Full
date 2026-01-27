@@ -19,43 +19,34 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Structure (Pure Minimalist)
+      - name: 🏗️ Create Android Structure
         run: |
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. ملف الإعدادات
+          # 1. settings.gradle.kts
           cat <<EOF > settings.gradle.kts
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
           rootProject.name = "DecapitatorAI"
           include(":app")
           EOF
 
-          # 2. ملف Gradle الرئيسي
+          # 2. build.gradle.kts (Root)
           cat <<EOF > build.gradle.kts
           plugins {
               id("com.android.application") version "8.1.1" apply false
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق - النسخة الأكثر أماناً لـ Gradle 9
+          # 3. app/build.gradle.kts (The Fix)
           cat <<EOF > app/build.gradle.kts
-          plugins {
-              id("com.android.application")
-          }
+          plugins { id("com.android.application") }
           android {
               namespace = "com.decapitator.ai"
               compileSdk = 33
@@ -69,11 +60,10 @@ jobs:
           }
           dependencies {
               "implementation"("androidx.appcompat:appcompat:1.6.1")
-              "implementation"("com.google.android.material:material:1.9.0")
           }
           EOF
 
-          # 4. ملف الـ Manifest
+          # 4. Manifest & Activity
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application android:label="Decapitator AI">
@@ -87,20 +77,16 @@ jobs:
           </manifest>
           EOF
 
-          # 5. الكود البرمجي
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
           import android.widget.TextView;
           import androidx.appcompat.app.AppCompatActivity;
-
           public class MainActivity extends AppCompatActivity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
+              @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
-                  tv.setText("THE DECAPITATOR AI\nSTATUS: ONLINE\nREADY FOR BRAIN INJECTION");
-                  tv.setTextSize(24);
+                  tv.setText("DECAPITATOR ONLINE");
                   setContentView(tv);
               }
           }
@@ -108,15 +94,14 @@ jobs:
 
       - name: 🔨 Build Debug APK
         run: |
-          # نستخدم علامة الفلاج --no-daemon لتقليل استهلاك الذاكرة في GitHub Actions
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          # هنا التعديل: نستخدم gradle مباشرة
+          gradle :app:assembleDebug --no-daemon
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Decapitator Body v1.7"
-          tag_name: "v1.7-rescue"
-          body: "تم إصلاح خطأ DependencyHandler بنجاح باستخدام صيغة String-Literal."
+          name: "Decapitator Body v1.8"
+          tag_name: "v1.8-final"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
