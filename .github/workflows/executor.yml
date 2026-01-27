@@ -1,4 +1,4 @@
-name: 2. The Executor - Final Kotlin Victory
+name: 2. The Executor - Kotlin DSL Stable Build
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -24,7 +24,7 @@ jobs:
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. ملف الإعدادات (Modern Kotlin DSL)
+          # 1. إعدادات المشروع (Modern Kotlin DSL)
           cat <<EOF > settings.gradle.kts
           rootProject.name = "DecapitatorAI"
           include(":app")
@@ -37,7 +37,7 @@ jobs:
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق (الصيغة الصارمة)
+          # 3. ملف Gradle الخاص بالتطبيق (الصيغة الصارمة لـ Gradle 9)
           cat <<EOF > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -53,13 +53,12 @@ jobs:
                   versionName = "1.0"
               }
           }
-          // لا توجد تبعيات معقدة لضمان نجاح البناء الأول
           dependencies {
               implementation("androidx.appcompat:appcompat:1.6.1")
           }
           EOF
 
-          # 4. ملف الـ Manifest
+          # 4. ملف الـ Manifest (بدون ثيمات معقدة لضمان البناء)
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application android:label="Decapitator AI">
@@ -73,11 +72,13 @@ jobs:
           </manifest>
           EOF
 
-          # 5. كود الجافا
+          # 5. كود الجافا (واجهة نرجسية أولية)
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
           import android.widget.TextView;
+          import android.graphics.Color;
+          import android.view.Gravity;
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
@@ -86,7 +87,10 @@ jobs:
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
                   tv.setText("THE DECAPITATOR AI\nSTATUS: ONLINE\nREADY FOR BRAIN INJECTION");
-                  tv.setTextSize(30);
+                  tv.setTextColor(Color.RED);
+                  tv.setTextSize(24);
+                  tv.setGravity(Gravity.CENTER);
+                  tv.setBackgroundColor(Color.BLACK);
                   setContentView(tv);
               }
           }
@@ -94,15 +98,15 @@ jobs:
 
       - name: 🔨 Build Debug APK
         run: |
-          # استخدام الأمر المباشر مع تعطيل الـ Daemon لتقليل استهلاك الذاكرة
-          gradle :app:assembleDebug --no-daemon --stacktrace
+          # التنظيف ثم البناء مع تخطي الـ Daemon
+          gradle clean :app:assembleDebug --no-daemon --stacktrace
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Decapitator Body v1.4"
-          tag_name: "v1.4-final"
-          body: "الجسد جاهز! تم تجاوز أخطاء Gradle 9 باستخدام Kotlin DSL."
+          name: "Decapitator Body v1.5"
+          tag_name: "v1.5-final"
+          body: "الجسد جاهز! تم تجاوز أخطاء Gradle 9 باستخدام Kotlin DSL. التطبيق الآن جاهز لاستقبال العقل."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
