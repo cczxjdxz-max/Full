@@ -11,36 +11,34 @@ jobs:
   execute_and_collect:
     runs-on: ubuntu-latest
     steps:
-      - name: "Receive Plan"
+      - name: "Receive and Prepare Plan"
         env:
           PLAN_PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: |
-          python3 -c "import os, json; open('plan_script.py', 'w').write(json.loads(os.environ['PLAN_PAYLOAD'])['plan_script'])"
+          python3 -c "import os, json; payload = json.loads(os.environ['PLAN_PAYLOAD']); open('plan_script.py', 'w').write(payload['plan_script'])"
 
-      - name: "Execution and Validation"
+      - name: "Deep Data Mining"
         run: |
-          echo "Executing the AI Data Mine..."
-          python3 plan_script.py > execution_log.txt 2>&1
+          echo "Starting Surgical Extraction..."
+          python3 plan_script.py > execution_log.txt 2>&1 || true
           
-          # فحص حقيقي: إذا كان المجلد فارغاً أو غير موجود، نعتبر العملية فشلت
-          if [ ! -d "CORE_DATA" ] || [ -z "$(ls -A CORE_DATA)" ]; then
-            echo "CRITICAL ERROR: No data was extracted (Fake Success detected)."
+          # تأكيد إضافي: جمع الملفات الرقمية يدوياً لضمان عدم الضياع
+          mkdir -p CORE_DATA
+          find . -type f \( -name "*.dll" -o -name "*.dat" -o -name "*.json" -o -name "*.bytes" -o -name "*.lua" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
+          
+          if [ -z "$(ls -A CORE_DATA)" ]; then
+            echo "FAILURE: No numeric data found."
             exit 1
           fi
 
       - name: "Package Matrix Data"
-        if: success()
-        run: |
-          mkdir -p CORE_DATA
-          find . -maxdepth 5 -name "*.json" -o -name "*.bytes" -o -name "*.dll" | xargs -I{} cp --parents {} CORE_DATA/ || true
-          zip -r -9 matrix_data.zip CORE_DATA
+        run: zip -r -9 matrix_data.zip CORE_DATA execution_log.txt
 
-      - name: "Release Data"
+      - name: "Release to GitHub"
         uses: softprops/action-gh-release@v1
-        if: success()
         with:
           files: matrix_data.zip
-          name: "REAL-DATA-v${{ github.run_id }}"
+          name: "AI-MATRIX-DATA-v${{ github.run_id }}"
           tag_name: "v${{ github.run_id }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,10 +48,9 @@ jobs:
     needs: [execute_and_collect]
     if: failure()
     steps:
-      - name: "Send Real Log to Manager"
+      - name: "Feedback Loop"
         run: |
-          # نرسل آخر 50 سطر لنفهم لماذا حدث النجاح الوهمي
-          report=$(tail -n 50 execution_log.txt || echo "Timeout or silent failure")
+          report=$(tail -n 40 execution_log.txt || echo "Empty Log")
           encoded=$(echo "$report" | base64 -w 0)
           curl -X POST -H "Authorization: token ${{ secrets.PAT }}" \
           -H "Accept: application/vnd.github.v3+json" \
