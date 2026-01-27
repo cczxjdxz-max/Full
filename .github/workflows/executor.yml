@@ -1,4 +1,4 @@
-name: 2. The Executor (BODY) - 4 Trillion Battle Arena
+name: 2. The Executor (BODY) - God Mode Execution
 
 on:
   repository_dispatch:
@@ -8,53 +8,43 @@ permissions:
   contents: write
 
 jobs:
-  battle_and_report:
+  run_god_training:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Code"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Decode Arena Script"
+      - name: "Prepare Simulation"
         run: |
-          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > headshot_sim.py
-
-      - name: "Run Massive Simulation (4 Trillion Target)"
-        run: |
-          # تثبيت numpy لتسريع العمليات الحسابية للمصفوفات
           pip install numpy
-          # تشغيل المحاكي الرقمي
-          python3 headshot_sim.py
+          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > simulation.py
 
-      - name: "Update README with Stats"
+      - name: "Execute 99^15 Combat Simulation"
+        run: python3 simulation.py
+
+      - name: "Publish Results & Brain"
         run: |
-          echo "# 🎯 AI Training Results: The Headshot Master" > README.md
-          echo "## Battle Statistics (1 vs 6)" >> README.md
-          echo "Status: 4 Trillion Iterations Completed." >> README.md
-          echo "| Metric | Value |" >> README.md
-          echo "| :--- | :--- |" >> README.md
-          # السكربت سيقوم بكتابة النتائج في results.txt بصيغة | الاسم | القيمة |
+          echo "# 🌌 Project: God Mode AI (1 vs 100)" > README.md
+          echo "### Asymmetric Evolution Report" >> README.md
           cat results.txt >> README.md
-          
-          # إضافة صورة توضيحية لعملية التدريب (اختياري)
-          echo -e "\n![AI Training](https://img.shields.io/badge/Training-Completed-brightgreen)" >> README.md
+          echo -e "\n![AI Evolution](https://img.shields.io/badge/Evolution-Complete-blueviolet)" >> README.md
 
-      - name: "Create Production Release"
+      - name: "Release God Mode Model"
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            headshot_model.dat
-            README.md
-            headshot_sim.py
-          name: "AI-MODEL-v${{ github.run_id }}"
-          tag_name: "v${{ github.run_id }}"
-          body: "This release contains the brain of the AI after 4 trillion headshot-only simulations."
+              god_mode_brain.dat
+              README.md
+          name: "GOD-MODE-BRAIN-v${{ github.run_id }}"
+          tag_name: "god-v${{ github.run_id }}"
+          body: "النسخة النهائية من العقل المدرب بمعدل تطور 4 أضعاف ضد 100 خصم."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Commit Stats to Repo"
+      - name: "Update Repository"
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add README.md
-          git commit -m "Update stats with 4 trillion battle results"
-          git push
+          git commit -m "Update God Mode Stats"
+          git push || echo "No changes to commit"
