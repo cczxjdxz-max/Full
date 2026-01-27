@@ -1,33 +1,34 @@
-name: 2. The Executor (Full) - Competitive warfare
-
+name: 2. The Executor (Full) - Fast Evolution
 on:
   repository_dispatch:
-    types: [start_warfare_sim]
+    types: [run_blitz_evo]
 
 permissions:
   contents: write
 
 jobs:
-  run_warfare:
+  heavy_process:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install Dependencies"
-        run: pip install numpy
+      - name: "Install AI Frameworks"
+        run: pip install numpy matplotlib pillow
 
-      - name: "Execute Co-evolution"
+      - name: "Run God-Mode Training"
         run: |
-          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > battle_engine.py
-          python3 battle_engine.py
+          echo "${{ github.event.client_payload.plan }}" | base64 -d > training_engine.py
+          python3 training_engine.py
 
-      - name: "Release War Master Brain"
+      - name: "Release Results"
         uses: softprops/action-gh-release@v1
         with:
-          files: war_master_brain.dat
-          name: "War-Master-v${{ github.run_id }}"
-          tag_name: "war-v${{ github.run_id }}"
-          body: "عقل ناتج عن 1000 جيل من التطور التنافسي. البطل اكتشف أساليبه الخاصة لهزيمة 100 عدو يتطورون معه."
+          files: |
+            god_mode_preview.gif
+            god_brain.dat
+          name: "Final-God-Brain-v${{ github.run_id }}"
+          tag_name: "god-final-v${{ github.run_id }}"
+          body: "النتيجة النهائية: عقل البطل تدرب خلال 10 دقائق لمواجهة 100 لاعب متطور بفيزياء اللعبة الأصلية."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
