@@ -11,28 +11,25 @@ jobs:
   execute:
     runs-on: ubuntu-latest
     steps:
-      - name: "Decode and Write Plan"
-        env:
-          ENCODED_PLAN: ${{ github.event.client_payload.plan_base64 }}
-        run: |
-          echo "$ENCODED_PLAN" | base64 -d > plan_script.py
+      - name: "Decode Plan"
+        run: echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > plan_script.py
 
-      - name: "Execute Extraction"
+      - name: "Surgical Extraction"
         run: |
-          python3 plan_script.py > execution_log.txt 2>&1 || true
+          python3 plan_script.py > execution_log.txt 2>&1
           
-          # جمع يدوي احتياطي
-          mkdir -p CORE_DATA
-          find . -type f \( -name "*.dll" -o -name "*.dat" -o -name "*.json" -o -name "*.bytes" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
-          
-          if [ -z "$(ls -A CORE_DATA)" ]; then exit 1; fi
+      - name: "Deep Scan Security"
+        run: |
+          # جمع أي ملفات بيانات تائهة
+          find . -type f \( -name "*.dll" -o -name "*.dat" -o -name "*.json" -o -name "*.bytes" -o -name "*.lua" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
+          zip -r -9 matrix_data.zip CORE_DATA execution_log.txt
 
-      - name: "Release Matrix Data"
+      - name: "Release to GitHub"
         uses: softprops/action-gh-release@v1
+        if: always()
         with:
           files: matrix_data.zip
-          name: "DATA-v${{ github.run_id }}"
+          name: "FINAL-DATA-v${{ github.run_id }}"
           tag_name: "v${{ github.run_id }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # (أضف خطوات ضغط الملفات كما في السابق)
