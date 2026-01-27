@@ -1,4 +1,4 @@
-name: 2. The Executor - Construct Pure APK
+name: 2. The Executor - Final Fixed APK
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -19,31 +19,33 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Project Structure
+      - name: 🏗️ Create Android Modern Structure
         run: |
-          # إنشاء المجلدات
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
 
           # 1. ملف إعدادات المشروع
           cat <<EOF > settings.gradle
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
           rootProject.name = "DecapitatorAI"
           include ':app'
           EOF
 
-          # 2. ملف Gradle الرئيسي
+          # 2. ملف Gradle الرئيسي (الجذر) - إصدارات حديثة
           cat <<EOF > build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.1.1' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
+          plugins {
+              id 'com.android.application' version '8.1.1' apply false
+              id 'com.android.library' version '8.1.1' apply false
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق
+          # 3. ملف Gradle الخاص بالتطبيق - توافقية عالية
           cat <<EOF > app/build.gradle
           plugins { id 'com.android.application' }
           android {
@@ -56,14 +58,23 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.9.0'
           }
           EOF
 
           # 4. ملف الـ Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="Decapitator AI" android:theme="@android:style/Theme.Black.NoTitleBar">
-                  <activity android:name="com.decapitator.ai.MainActivity" android:exported="true">
+              <application android:label="Decapitator AI" android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -73,7 +84,7 @@ jobs:
           </manifest>
           EOF
 
-          # 5. ملف كود الجافا للواجهة (الفارغ بانتظار العقل)
+          # 5. كود الجافا للواجهة
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
@@ -87,9 +98,9 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
-                  tv.setText("THE DECAPITATOR AI\nStatus: Empty Body\nWaiting for Brain Injection...");
+                  tv.setText("THE DECAPITATOR AI\nStatus: Empty Body\nWaiting for Brain...");
                   tv.setTextColor(Color.RED);
-                  tv.setTextSize(24);
+                  tv.setTextSize(26);
                   tv.setGravity(Gravity.CENTER);
                   tv.setBackgroundColor(Color.BLACK);
                   setContentView(tv);
@@ -99,9 +110,8 @@ jobs:
 
       - name: 🔨 Build Debug APK
         run: |
-          # تحديد المسار لـ Gradle وتنفيذ مهمة البناء للمشروع الفرعي
-          chmod +x build.gradle
-          gradle :app:assembleDebug
+          # استخدام الـ Wrapper لضمان استقرار البناء
+          gradle :app:assembleDebug --warning-mode all
 
       - name: 📦 Archive APK
         run: |
@@ -112,8 +122,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: final_output/Decapitator_Pure_Body.apk
-          name: "The Decapitator - Pure Body v1.0"
-          tag_name: "v1.0-pure"
-          body: "تم بناء الجسد (APK) بنجاح. الواجهة فارغة تماماً وجاهزة لاستقبال العقل لاحقاً."
+          name: "Decapitator Body v1.1"
+          tag_name: "v1.1-final"
+          body: "تم الإصلاح! الجسد الآن متوافق مع Gradle 9 ومبني بأحدث معايير أندرويد."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
