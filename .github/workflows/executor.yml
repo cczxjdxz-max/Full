@@ -1,4 +1,4 @@
-name: 26. Ultimate Geass - Handcrafted XML Horror
+name: 33. Geass_Ultimate_Awakening
 on:
   workflow_dispatch:
 
@@ -6,10 +6,10 @@ permissions:
   contents: write
 
 jobs:
-  build_horror_apk:
+  build_ultimate_geass:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout
+      - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
       - name: ☕ Setup Java 11
@@ -18,130 +18,155 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🎨 Create Handcrafted Geass XML
+      - name: 🎨 Create Resources (The Ritual)
         run: |
           mkdir -p app/src/main/res/drawable
-          # كود XML لعين الجياس مع تفاصيل العروق والظلال
-          cat <<EOF > app/src/main/res/drawable/geass_eye.xml
+          mkdir -p app/src/main/res/raw
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/java/com/geass/ultimate
+
+          # 1. تصميم المصفوفة السحرية (XML Vector)
+          cat <<EOF > app/src/main/res/drawable/magic_array.xml
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:aapt="http://schemas.android.com/aapt"
-              android:width="400dp"
-              android:height="400dp"
-              android:viewportWidth="100"
-              android:viewportHeight="100">
-              
-              <path android:pathData="M50,50m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0">
-                  <aapt:attr name="android:fillColor">
-                      <gradient android:type="radial" android:gradientRadius="15" android:centerX="50" android:centerY="50">
-                          <item android:offset="0.0" android:color="#FF0000" />
-                          <item android:offset="0.8" android:color="#440000" />
-                          <item android:offset="1.0" android:color="#000000" />
-                      </gradient>
-                  </aapt:attr>
-              </path>
-
-              <path android:fillColor="#FF0000"
-                  android:pathData="M50,35 L42,48 L32,44 C38,52 46,60 50,85 C54,60 62,52 68,44 L58,48 L50,35 Z" />
-
-              <path android:strokeColor="#660000" android:strokeWidth="0.4"
-                  android:pathData="M35,50 Q25,40 15,45 M65,50 Q75,40 85,45 M50,35 Q45,20 50,10 M50,85 Q55,95 50,100" />
-              <path android:strokeColor="#880000" android:strokeWidth="0.3"
-                  android:pathData="M20,60 Q10,70 5,65 M80,60 Q90,70 95,65" />
+              android:width="500dp" android:height="500dp" android:viewportWidth="100" android:viewportHeight="100">
+              <path android:strokeColor="#FF0000" android:strokeWidth="0.4"
+                  android:pathData="M50,5 A45,45 0,1,1 49.9,5 Z M50,12 A38,38 0,1,0 50.1,12 Z" />
+              <path android:strokeColor="#AA0000" android:strokeWidth="0.2"
+                  android:pathData="M50,0 L50,100 M0,50 L100,50 M20,20 L80,80 M80,20 L20,80" />
+              <path android:strokeColor="#FF0000" android:strokeWidth="0.3"
+                  android:pathData="M35,35 L65,35 L65,65 L35,65 Z" />
           </vector>
           EOF
 
-      - name: 🏗️ Construct App Architecture
-        run: |
-          mkdir -p app/src/main/java/com/geass/eye
-          mkdir -p app/src/main/res/layout
-          echo "android.useAndroidX=true" > gradle.properties
-          echo "include ':app'" > settings.gradle
-          
-          cat <<EOF > build.gradle
-          buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.4.2' } }
-          allprojects { repositories { google(); mavenCentral() } }
+          # 2. تحميل صوت الجياس
+          wget -q -O app/src/main/res/raw/geass_sound.mp3 "https://www.myinstants.com/media/sounds/geass-eye-sound.mp3"
+
+          # 3. إعداد الألوان والسمات
+          cat <<EOF > app/src/main/res/values/colors.xml
+          <resources>
+              <color name="black">#000000</color>
+              <color name="blood_red">#880000</color>
+          </resources>
           EOF
 
+      - name: 🏗️ UI Layout (The Dark Screen)
+        run: |
+          cat <<EOF > app/src/main/res/layout/activity_main.xml
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="#000000"
+              android:clipChildren="false">
+
+              <ImageView
+                  android:id="@+id/array_view"
+                  android:layout_width="550dp"
+                  android:layout_height="550dp"
+                  android:layout_centerInParent="true"
+                  android:src="@drawable/magic_array"
+                  android:alpha="0" />
+
+              <ImageView
+                  android:id="@+id/eye_view"
+                  android:layout_width="280dp"
+                  android:layout_height="280dp"
+                  android:layout_centerInParent="true"
+                  android:src="@drawable/geass_eye"
+                  android:alpha="0.8" />
+
+              <TextView
+                  android:id="@+id/status_text"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="TAP TO AWAKEN"
+                  android:textColor="#44FF0000"
+                  android:layout_alignParentBottom="true"
+                  android:layout_centerHorizontal="true"
+                  android:layout_marginBottom="100dp"
+                  android:textSize="18sp"
+                  android:letterSpacing="0.4" />
+          </RelativeLayout>
+          EOF
+
+      - name: 🧠 Main Logic (The Awakening)
+        run: |
+          cat <<EOF > app/src/main/java/com/geass/ultimate/MainActivity.java
+          package com.geass.ultimate;
+          import android.animation.*;
+          import android.media.MediaPlayer;
+          import android.os.*;
+          import android.view.View;
+          import android.view.animation.*;
+          import android.widget.ImageView;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+              private MediaPlayer mp;
+              private boolean active = false;
+
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  ImageView array = findViewById(R.id.array_view);
+                  ImageView eye = findViewById(R.id.eye_view);
+                  Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+
+                  eye.setOnClickListener(v -> {
+                      if (!active) {
+                          active = true;
+                          // تشغيل الصوت
+                          mp = MediaPlayer.create(this, R.raw.geass_sound);
+                          if (mp != null) mp.start();
+
+                          // اهتزاز قوي
+                          if (vib != null) vib.vibrate(VibrationEffect.createOneShot(400, 255));
+
+                          // تدوير المصفوفة وظهورها
+                          array.animate().alpha(0.6f).scaleX(1.2f).scaleY(1.2f).setDuration(1000).start();
+                          ObjectAnimator rot = ObjectAnimator.ofFloat(array, "rotation", 0f, 360f);
+                          rot.setDuration(8000);
+                          rot.setRepeatCount(ValueAnimator.INFINITE);
+                          rot.setInterpolator(new LinearInterpolator());
+                          rot.start();
+
+                          // نبض العين السينمائي
+                          ObjectAnimator pulse = ObjectAnimator.ofPropertyValuesHolder(eye,
+                              PropertyValuesHolder.ofFloat("scaleX", 1f, 1.15f),
+                              PropertyValuesHolder.ofFloat("scaleY", 1f, 1.15f));
+                          pulse.setDuration(600);
+                          pulse.setRepeatMode(ValueAnimator.REVERSE);
+                          pulse.setRepeatCount(ValueAnimator.INFINITE);
+                          pulse.start();
+                      }
+                  });
+              }
+          }
+          EOF
+
+      - name: ⚙️ Project Config
+        run: |
+          echo "include ':app'" > settings.gradle
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 26; versionName "26.0-Handcrafted" } }
+          android { 
+              compileSdkVersion 31
+              namespace 'com.geass.ultimate'
+              defaultConfig { applicationId "com.geass.ultimate"; minSdkVersion 26; targetSdkVersion 31; versionCode 33; versionName "33.0" }
+          }
           dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
-
+          
           cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.ultimate">
               <uses-permission android:name="android.permission.VIBRATE" />
-              <application android:label="Geass Legacy" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <application android:label="Geass Ultimate" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHER" /> </intent-filter>
                   </activity>
               </application>
           </manifest>
-          EOF
-
-          cat <<EOF > app/src/main/res/layout/activity_main.xml
-          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/main_layout"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#000000"
-              android:gravity="center">
-              <ImageView
-                  android:id="@+id/geass_eye"
-                  android:layout_width="350dp"
-                  android:layout_height="350dp"
-                  android:src="@drawable/geass_eye"
-                  android:scaleY="0.0"
-                  android:alpha="0.0"
-                  android:padding="20dp" />
-          </RelativeLayout>
-          EOF
-
-          cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
-          package com.geass.eye;
-          import android.animation.*;
-          import android.graphics.Color;
-          import android.os.*;
-          import android.view.animation.*;
-          import android.widget.*;
-          import androidx.appcompat.app.AppCompatActivity;
-
-          public class MainActivity extends AppCompatActivity {
-              boolean active = false;
-              @Override protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
-                  final RelativeLayout bg = findViewById(R.id.main_layout);
-                  final ImageView eye = findViewById(R.id.geass_eye);
-                  final Vibrator viber = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-
-                  bg.setOnClickListener(v -> {
-                      if(!active) {
-                          // أنيميشن الانفتاح البطئ
-                          eye.animate().scaleY(1f).alpha(1f).setDuration(2500).setInterpolator(new AccelerateDecelerateInterpolator()).start();
-                          
-                          // تحويل لون الخلفية
-                          ValueAnimator colorAnim = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, Color.parseColor("#1A0000"));
-                          colorAnim.setDuration(2500);
-                          colorAnim.addUpdateListener(a -> bg.setBackgroundColor((int)a.getAnimatedValue()));
-                          colorAnim.start();
-
-                          // الاهتزاز والنبض
-                          new Handler().postDelayed(() -> {
-                              if (viber != null) viber.vibrate(400);
-                              ObjectAnimator pulse = ObjectAnimator.ofPropertyValuesHolder(eye, 
-                                  PropertyValuesHolder.ofFloat("scaleX", 1.0f, 1.08f),
-                                  PropertyValuesHolder.ofFloat("scaleY", 1.0f, 1.08f));
-                              pulse.setDuration(1000);
-                              pulse.setRepeatCount(ValueAnimator.INFINITE);
-                              pulse.setRepeatMode(ValueAnimator.REVERSE);
-                              pulse.start();
-                          }, 2500);
-                          active = true;
-                      }
-                  });
-              }
-          }
           EOF
 
       - name: 🔨 Final Compilation
@@ -150,11 +175,11 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release APK
+      - name: 📦 Upload APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Master XML v26.0"
-          tag_name: "v26.0"
+          tag_name: v33.0
+          name: "Geass Ultimate Ritual v33.0"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
