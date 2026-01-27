@@ -1,4 +1,4 @@
-name: 4. The Aesthetic Body - Lelouch UI Fix
+name: 4. The Aesthetic Body - Lelouch Final Fix
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -22,17 +22,19 @@ jobs:
       - name: 🏗️ Create Lelouch UI Structure
         run: |
           rm -rf *
-          # تصحيح المسار هنا (استخدام مائل بدلاً من النقطة)
           mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/mipmap-hdpi
 
-          # 1. settings.gradle
+          # 1. السطر السحري الذي طلبه الخطأ (gradle.properties)
+          echo "android.useAndroidX=true" > gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+
+          # 2. settings.gradle
           echo "include ':app'" > settings.gradle
 
-          # 2. build.gradle (الرئيسي)
+          # 3. build.gradle (الرئيسي)
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -43,7 +45,7 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle
+          # 4. app/build.gradle
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -53,8 +55,8 @@ jobs:
                   applicationId "com.geass.eye"
                   minSdkVersion 21
                   targetSdkVersion 31
-                  versionCode 3
-                  versionName "3.0-LelouchUI"
+                  versionCode 4
+                  versionName "4.0-Stable"
               }
           }
           dependencies {
@@ -63,39 +65,19 @@ jobs:
           }
           EOF
 
-          # 4. Strings & Colors
-          cat <<EOF > app/src/main/res/values/strings.xml
-          <resources>
-              <string name="app_name">Geass Eye</string>
-              <string name="welcome_message">All Hail Lelouch!</string>
-          </resources>
-          EOF
-
-          cat <<EOF > app/src/main/res/values/colors.xml
-          <resources>
-              <color name="primary_dark">#000000</color>
-              <color name="accent_red">#CC0000</color>
-              <color name="text_light">#FFFFFF</color>
-          </resources>
-          EOF
-
+          # 5. Manifest & Styles (واجهة سوداء بالكامل)
           cat <<EOF > app/src/main/res/values/styles.xml
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="colorPrimaryDark">@color/primary_dark</item>
-                  <item name="colorAccent">@color/accent_red</item>
-                  <item name="android:textColorPrimary">@color/text_light</item>
-                  <item name="android:windowBackground">@color/primary_dark</item>
+                  <item name="android:windowBackground">#000000</item>
+                  <item name="android:statusBarColor">#000000</item>
               </style>
           </resources>
           EOF
 
-          # 5. Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application
-                  android:label="@string/app_name"
-                  android:theme="@style/AppTheme">
+              <application android:label="Geass Eye" android:theme="@style/AppTheme">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -106,69 +88,53 @@ jobs:
           </manifest>
           EOF
 
-          # 6. Drawable (Floating Button Icon)
+          # 6. Drawable (أيقونة FAB بيضاء للتباين)
           cat <<EOF > app/src/main/res/drawable/ic_fab_icon.xml
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="24dp"
-              android:height="24dp"
-              android:viewportWidth="24.0"
-              android:viewportHeight="24.0">
-              <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5S14.76,17 12,17z"/>
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFF" android:pathData="M12,2C6.47,2 2,6.47 2,12s4.47,10 10,10 10,-4.47 10,-10S17.53,2 12,2zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5S14.76,17 12,17z"/>
           </vector>
           EOF
 
-          # 7. MainActivity (UI Logic)
+          # 7. MainActivity (Lelouch UI Logic)
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
-
           import android.os.Bundle;
           import android.view.Gravity;
+          import android.view.View;
+          import android.widget.RelativeLayout;
           import android.widget.TextView;
+          import android.widget.Toast;
           import androidx.appcompat.app.AppCompatActivity;
           import com.google.android.material.floatingactionbutton.FloatingActionButton;
-          import android.view.View;
-          import android.widget.Toast;
-          import android.widget.RelativeLayout;
+          import android.content.res.ColorStateList;
 
           public class MainActivity extends AppCompatActivity {
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-
                   RelativeLayout layout = new RelativeLayout(this);
-                  layout.setBackgroundColor(0xFF000000); 
+                  layout.setBackgroundColor(0xFF000000);
 
-                  TextView title = new TextView(this);
-                  title.setText("All Hail Lelouch!");
-                  title.setTextSize(32);
-                  title.setTextColor(0xFFCC0000); 
-                  title.setGravity(Gravity.CENTER);
-
-                  RelativeLayout.LayoutParams titleParams = new RelativeLayout.LayoutParams(
-                      RelativeLayout.LayoutParams.WRAP_CONTENT,
-                      RelativeLayout.LayoutParams.WRAP_CONTENT);
-                  titleParams.addRule(RelativeLayout.CENTER_IN_PARENT, RelativeLayout.TRUE);
-                  layout.addView(title, titleParams);
+                  TextView tv = new TextView(this);
+                  tv.setText("All Hail Lelouch!");
+                  tv.setTextSize(35);
+                  tv.setTextColor(0xFFCC0000);
+                  tv.setGravity(Gravity.CENTER);
+                  RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(-2, -2);
+                  lp.addRule(RelativeLayout.CENTER_IN_PARENT);
+                  layout.addView(tv, lp);
 
                   FloatingActionButton fab = new FloatingActionButton(this);
                   fab.setImageResource(R.drawable.ic_fab_icon);
-                  fab.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFCC0000));
-                  fab.setOnClickListener(new View.OnClickListener() {
-                      @Override
-                      public void onClick(View view) {
-                          Toast.makeText(MainActivity.this, "Geass Activated!", Toast.LENGTH_SHORT).show();
-                      }
-                  });
-
-                  RelativeLayout.LayoutParams fabParams = new RelativeLayout.LayoutParams(
-                      RelativeLayout.LayoutParams.WRAP_CONTENT,
-                      RelativeLayout.LayoutParams.WRAP_CONTENT);
-                  fabParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE);
-                  fabParams.addRule(RelativeLayout.ALIGN_PARENT_END, RelativeLayout.TRUE);
-                  fabParams.setMargins(0, 0, 60, 60);
-                  layout.addView(fab, fabParams);
+                  fab.setBackgroundTintList(ColorStateList.valueOf(0xFFCC0000));
+                  fab.setOnClickListener(v -> Toast.makeText(this, "Obey Me, World!", Toast.LENGTH_SHORT).show());
+                  
+                  RelativeLayout.LayoutParams fabLp = new RelativeLayout.LayoutParams(-2, -2);
+                  fabLp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                  fabLp.addRule(RelativeLayout.ALIGN_PARENT_END);
+                  fabLp.setMargins(0, 0, 70, 70);
+                  layout.addView(fab, fabLp);
 
                   setContentView(layout);
               }
@@ -185,7 +151,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Eye v3.1"
-          tag_name: "v3.1-lelouch"
+          name: "Geass Eye Final v4.0"
+          tag_name: "v4.0-final"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
