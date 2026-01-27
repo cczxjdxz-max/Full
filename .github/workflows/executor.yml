@@ -1,4 +1,4 @@
-name: 2. The Executor - Kotlin DSL Stable Build
+name: 2. The Executor - Final Success APK
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -19,25 +19,39 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Modern Structure (Kotlin DSL)
+      - name: 🏗️ Create Android Structure (Robust Version)
         run: |
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. إعدادات المشروع (Modern Kotlin DSL)
+          # 1. ملف الإعدادات مع تعريف المستودعات للمكونات (Plugins)
           cat <<EOF > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           rootProject.name = "DecapitatorAI"
           include(":app")
           EOF
 
-          # 2. ملف Gradle الرئيسي (الجذر)
+          # 2. ملف Gradle الرئيسي (الجذر) - إصلاح البحث عن الـ Plugin
           cat <<EOF > build.gradle.kts
           plugins {
-              id("com.android.application") version "8.1.1" apply false
+              id("com.android.application") version "8.0.2" apply false
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق (الصيغة الصارمة لـ Gradle 9)
+          # 3. ملف Gradle الخاص بالتطبيق
           cat <<EOF > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -58,7 +72,7 @@ jobs:
           }
           EOF
 
-          # 4. ملف الـ Manifest (بدون ثيمات معقدة لضمان البناء)
+          # 4. ملف الـ Manifest والكود
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application android:label="Decapitator AI">
@@ -72,13 +86,10 @@ jobs:
           </manifest>
           EOF
 
-          # 5. كود الجافا (واجهة نرجسية أولية)
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
           import android.widget.TextView;
-          import android.graphics.Color;
-          import android.view.Gravity;
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
@@ -87,10 +98,7 @@ jobs:
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
                   tv.setText("THE DECAPITATOR AI\nSTATUS: ONLINE\nREADY FOR BRAIN INJECTION");
-                  tv.setTextColor(Color.RED);
                   tv.setTextSize(24);
-                  tv.setGravity(Gravity.CENTER);
-                  tv.setBackgroundColor(Color.BLACK);
                   setContentView(tv);
               }
           }
@@ -98,15 +106,15 @@ jobs:
 
       - name: 🔨 Build Debug APK
         run: |
-          # التنظيف ثم البناء مع تخطي الـ Daemon
-          gradle clean :app:assembleDebug --no-daemon --stacktrace
+          # نستخدم --info لنرى أين يتوجه الجسد أثناء البناء
+          gradle :app:assembleDebug --no-daemon --info
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Decapitator Body v1.5"
-          tag_name: "v1.5-final"
-          body: "الجسد جاهز! تم تجاوز أخطاء Gradle 9 باستخدام Kotlin DSL. التطبيق الآن جاهز لاستقبال العقل."
+          name: "Decapitator Body v1.6"
+          tag_name: "v1.6-fixed"
+          body: "أخيراً! تم ترويض Gradle 9.3 وتوجيهه لمستودعات Google بشكل صحيح."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
