@@ -1,42 +1,33 @@
-name: 2. The Executor (BODY) - Real Physics Training
+name: 2. The Executor (Full) - Competitive warfare
 
 on:
   repository_dispatch:
-    types: [execute_real_world_training]
+    types: [start_warfare_sim]
 
 permissions:
   contents: write
 
 jobs:
-  train_and_release:
+  run_warfare:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Environment Setup"
+      - name: "Install Dependencies"
         run: pip install numpy
 
-      - name: "Run Reality-Based Training"
+      - name: "Execute Co-evolution"
         run: |
-          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > training_engine.py
-          python3 training_engine.py
+          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > battle_engine.py
+          python3 battle_engine.py
 
-      - name: "Commit Discovery Report"
-        run: |
-          cat report.txt >> README.md
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add README.md
-          git commit -m "Update Reality Discovery"
-          git push || echo "No changes"
-
-      - name: "Release Real Wisdom Model"
+      - name: "Release War Master Brain"
         uses: softprops/action-gh-release@v1
         with:
-          files: true_reality_wisdom.dat
-          name: "Real-Physics-Brain-v${{ github.run_id }}"
-          tag_name: "real-v${{ github.run_id }}"
-          body: "هذا الملف هو العقل الذي تدرب داخل بيئة اللعبة الحقيقية (المباني، العقبات، الفيزياء) وليس في فراغ."
+          files: war_master_brain.dat
+          name: "War-Master-v${{ github.run_id }}"
+          tag_name: "war-v${{ github.run_id }}"
+          body: "عقل ناتج عن 1000 جيل من التطور التنافسي. البطل اكتشف أساليبه الخاصة لهزيمة 100 عدو يتطورون معه."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
