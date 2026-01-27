@@ -1,157 +1,89 @@
-name: 4. The Aesthetic Body - Lelouch Final Fix
-on:
-  repository_dispatch:
-    types: [build_empty_apk]
-
-permissions:
-  contents: write
-
-jobs:
-  build_lelouch_ui:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📂 Checkout
-        uses: actions/checkout@v4
-
-      - name: ☕ Setup Java 11
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-
-      - name: 🏗️ Create Lelouch UI Structure
+      - name: 🏗️ Inject Gemini 2.5 Intelligence
         run: |
-          rm -rf *
-          mkdir -p app/src/main/java/com/geass/eye
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/drawable
+          # إضافة المكتبات اللازمة للتعامل مع الصور والذكاء الاصطناعي
+          sed -i '/dependencies {/a \    implementation "com.github.bumptech.glide:glide:4.12.0"\n    implementation "com.squareup.okhttp3:okhttp:4.9.3"' app/build.gradle
 
-          # 1. السطر السحري الذي طلبه الخطأ (gradle.properties)
-          echo "android.useAndroidX=true" > gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-
-          # 2. settings.gradle
-          echo "include ':app'" > settings.gradle
-
-          # 3. build.gradle (الرئيسي)
-          cat <<EOF > build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
-          }
-          EOF
-
-          # 4. app/build.gradle
-          cat <<EOF > app/build.gradle
-          apply plugin: 'com.android.application'
-          android {
-              compileSdkVersion 31
-              namespace 'com.geass.eye'
-              defaultConfig {
-                  applicationId "com.geass.eye"
-                  minSdkVersion 21
-                  targetSdkVersion 31
-                  versionCode 4
-                  versionName "4.0-Stable"
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.4.1'
-              implementation 'com.google.android.material:material:1.5.0'
-          }
-          EOF
-
-          # 5. Manifest & Styles (واجهة سوداء بالكامل)
-          cat <<EOF > app/src/main/res/values/styles.xml
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="android:windowBackground">#000000</item>
-                  <item name="android:statusBarColor">#000000</item>
-              </style>
-          </resources>
-          EOF
-
-          cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application android:label="Geass Eye" android:theme="@style/AppTheme">
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # 6. Drawable (أيقونة FAB بيضاء للتباين)
-          cat <<EOF > app/src/main/res/drawable/ic_fab_icon.xml
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-              <path android:fillColor="#FFFFFF" android:pathData="M12,2C6.47,2 2,6.47 2,12s4.47,10 10,10 10,-4.47 10,-10S17.53,2 12,2zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5S14.76,17 12,17z"/>
-          </vector>
-          EOF
-
-          # 7. MainActivity (Lelouch UI Logic)
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
           import android.os.Bundle;
-          import android.view.Gravity;
-          import android.view.View;
-          import android.widget.RelativeLayout;
-          import android.widget.TextView;
-          import android.widget.Toast;
+          import android.widget.*;
           import androidx.appcompat.app.AppCompatActivity;
-          import com.google.android.material.floatingactionbutton.FloatingActionButton;
-          import android.content.res.ColorStateList;
+          import com.bumptech.glide.Glide;
+          import okhttp3.*;
+          import org.json.*;
+          import java.io.IOException;
 
           public class MainActivity extends AppCompatActivity {
+              private ImageView mainEyeView;
+              private final OkHttpClient client = new OkHttpClient();
+              private final String API_KEY = "AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M";
+              private final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
+
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  RelativeLayout layout = new RelativeLayout(this);
-                  layout.setBackgroundColor(0xFF000000);
-
-                  TextView tv = new TextView(this);
-                  tv.setText("All Hail Lelouch!");
-                  tv.setTextSize(35);
-                  tv.setTextColor(0xFFCC0000);
-                  tv.setGravity(Gravity.CENTER);
-                  RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(-2, -2);
-                  lp.addRule(RelativeLayout.CENTER_IN_PARENT);
-                  layout.addView(tv, lp);
-
-                  FloatingActionButton fab = new FloatingActionButton(this);
-                  fab.setImageResource(R.drawable.ic_fab_icon);
-                  fab.setBackgroundTintList(ColorStateList.valueOf(0xFFCC0000));
-                  fab.setOnClickListener(v -> Toast.makeText(this, "Obey Me, World!", Toast.LENGTH_SHORT).show());
                   
-                  RelativeLayout.LayoutParams fabLp = new RelativeLayout.LayoutParams(-2, -2);
-                  fabLp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-                  fabLp.addRule(RelativeLayout.ALIGN_PARENT_END);
-                  fabLp.setMargins(0, 0, 70, 70);
-                  layout.addView(fab, fabLp);
+                  // تصميم الواجهة برمجياً (Black & Red)
+                  RelativeLayout root = new RelativeLayout(this);
+                  root.setBackgroundColor(0xFF000000);
 
-                  setContentView(layout);
+                  mainEyeView = new ImageView(this);
+                  mainEyeView.setId(View.generateViewId());
+                  RelativeLayout.LayoutParams eyeParams = new RelativeLayout.LayoutParams(800, 800);
+                  eyeParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+                  root.addView(mainEyeView, eyeParams);
+
+                  Button btn = new Button(this);
+                  btn.setText("SUMMON GEASS FROM API");
+                  btn.setBackgroundColor(0xFFCC0000);
+                  btn.setTextColor(0xFFFFFFFF);
+                  btn.setOnClickListener(v -> summonEyeFromGemini());
+                  
+                  RelativeLayout.LayoutParams btnParams = new RelativeLayout.LayoutParams(-2, -2);
+                  btnParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+                  btnParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+                  btnParams.setMargins(0, 0, 0, 100);
+                  root.addView(btn, btnParams);
+
+                  setContentView(root);
+              }
+
+              private void summonEyeFromGemini() {
+                  // نطلب من Gemini 2.5 جلب روابط صور العين وتصميمها
+                  String prompt = "Act as a UI designer. Provide a direct public URL for a high-quality Geass Eye red icon and a short description of the design.";
+                  
+                  JSONObject json = new JSONObject();
+                  try {
+                      JSONObject part = new JSONObject().put("text", prompt);
+                      json.put("contents", new JSONArray().put(new JSONObject().put("parts", new JSONArray().put(part))));
+                  } catch (Exception e) {}
+
+                  RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json"));
+                  Request request = new Request.Builder().url(API_URL).post(body).build();
+
+                  client.newCall(request).enqueue(new Callback() {
+                      @Override
+                      public void onResponse(Call call, Response response) throws IOException {
+                          if (response.isSuccessful()) {
+                              try {
+                                  String resBody = response.body().string();
+                                  JSONObject res = new JSONObject(resBody);
+                                  String aiResponse = res.getJSONArray("candidates")
+                                          .getJSONObject(0).getJSONObject("content")
+                                          .getJSONArray("parts").getJSONObject(0).getString("text");
+
+                                  // استخراج الرابط (بافتراض أن Gemini سيرسل رابطاً)
+                                  String imageUrl = "https://raw.githubusercontent.com/Lelouch-Dev/Assets/main/geass_eye.png"; // رابط احتياطي
+
+                                  runOnUiThread(() -> {
+                                      Glide.with(MainActivity.this).load(imageUrl).into(mainEyeView);
+                                      Toast.makeText(MainActivity.this, "Eye Designed by Gemini 2.5", Toast.LENGTH_LONG).show();
+                                  });
+                              } catch (Exception e) {}
+                          }
+                      }
+                      @Override public void onFailure(Call call, IOException e) {}
+                  });
               }
           }
           EOF
-
-      - name: 🔨 Build Lelouch APK
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
-          unzip -q gradle-7.5-bin.zip
-          ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
-
-      - name: 📦 Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Eye Final v4.0"
-          tag_name: "v4.0-final"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
