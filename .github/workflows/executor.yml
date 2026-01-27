@@ -1,55 +1,28 @@
-name: 2. The Executor (BODY) - Release Master
-
-on:
-  repository_dispatch:
-    types: [evolve_and_execute]
-
-permissions:
-  contents: write
-
-jobs:
-  execute_and_release:
-    runs-on: ubuntu-latest
     steps:
-      - name: "Decode and Prepare Plan"
-        run: |
-          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > plan_script.py
+      - name: "Decode Arena Script"
+        run: echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > headshot_sim.py
 
-      - name: "Run Surgical Extraction"
+      - name: "Battle Training (4 Trillion Target)"
         run: |
-          # تشغيل السكربت وحفظ النتائج في CORE_DATA
-          python3 plan_script.py > execution_log.txt 2>&1 || true
-
-      - name: "Deep Data Mining (Manual Overdrive)"
-        # في حال فشل السكربت الذكي، هذا الكود سيبحث يدوياً في كل مكان
-        run: |
-          mkdir -p CORE_DATA
-          echo "Starting Deep Scan for AI data..."
+          # السكربت سيستخدم معالجة المصفوفات لضرب الاحتمالات والوصول للرقم الضخم
+          python3 headshot_sim.py
           
-          # البحث عن ملفات البرمجة والهياكل في كل المجلدات
-          find . -type f \( -name "Assembly-CSharp.dll" -o -name "global-metadata.dat" -o -name "*.json" -o -name "*.bytes" -o -name "*.lua" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
-          
-          # فحص إذا تم استخراج أي شيء فعلاً
-          if [ -z "$(ls -A CORE_DATA)" ]; then
-            echo "CRITICAL: No target files found in APK."
-            ls -R # طباعة هيكل الملفات للفحص في اللوج
-            exit 1
-          fi
-
-      - name: "Compress Assets"
+      - name: "Update Battle Report"
         run: |
-          # ضغط المجلد المستخرج مع اللوج للفحص
-          zip -r -9 training_matrix.zip CORE_DATA execution_log.txt
+          echo "## 🎯 AI Headshot Training Report" > README.md
+          echo "### Scenario: 1 Hero vs 6 Villains" >> README.md
+          echo "| Metric | Result |" >> README.md
+          echo "|-------|--------|" >> README.md
+          # السكربت سيقوم بتعبئة هذه البيانات في ملف اسمه results.txt
+          cat results.txt >> README.md
 
-      - name: "Create Release and Upload"
+      - name: "Release Trained Model"
         uses: softprops/action-gh-release@v1
         with:
-          files: training_matrix.zip
-          name: "AI-DATA-EXTRACTED-${{ github.run_id }}"
-          tag_name: "v${{ github.run_id }}"
-          body: |
-            تم استخراج بيانات التدريب الرقمية بنجاح.
-            الملفات المتضمنة: JSON, DLL, Bytes, Lua.
-            هذه البيانات جاهزة لبدء محاكاة الـ 3 ترليون تجربة.
+          files: |
+            headshot_model.dat
+            README.md
+          name: "AI-HEADSHOT-MASTER-v${{ github.run_id }}"
+          tag_name: "aim-v${{ github.run_id }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
