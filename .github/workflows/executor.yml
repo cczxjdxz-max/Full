@@ -1,9 +1,32 @@
-      - name: 🎨 Design & Inject Geass Eye
+name: 9. The Absolute Geass - Stable Build
+on:
+  workflow_dispatch: # للتشغيل اليدوي
+
+permissions:
+  contents: write
+
+jobs:
+  build_final_apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: 🏗️ Create App Structure & Inject Design
         run: |
-          # محاولة استخراج العين من الـ API أو إنشاؤها محلياً في حال الفشل
-          # هذا الكود ينشئ ملف ic_geass_eye.xml مباشرة في المسار الصحيح
+          # 1. إنشاء المجلدات الأساسية
+          mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/drawable
-          
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+
+          # 2. حقن تصميم شعار الجياس الفخم (Vector XML) مباشرة في مكانه
           cat <<EOF > app/src/main/res/drawable/ic_geass_eye.xml
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="200dp"
@@ -11,32 +34,24 @@
               android:viewportWidth="100"
               android:viewportHeight="100">
               <path
-                  android:fillColor="#33FF0000"
+                  android:fillColor="#44FF0000"
                   android:pathData="M50,10 C20,10 0,50 0,50 C0,50 20,90 50,90 C80,90 100,50 100,50 C100,50 80,10 50,10 Z" />
               <path
                   android:fillColor="#000000"
-                  android:pathData="M50,20 C25,20 10,50 10,50 C10,50 25,80 50,80 C75,80 90,50 90,50 C90,50 75,20 50,20 Z" />
+                  android:pathData="M50,22 C28,22 12,50 12,50 C12,50 28,78 50,78 C72,78 88,50 88,50 C88,50 72,22 50,22 Z" />
               <path
                   android:fillColor="#FF0000"
-                  android:pathData="M50,35 L42,45 L30,42 C35,48 45,55 50,75 C55,55 65,48 70,42 L58,45 L50,35 Z" />
+                  android:pathData="M50,38 L42,48 L32,45 C37,51 45,58 50,75 C55,58 63,51 68,45 L58,48 L50,38 Z" />
               <path
                   android:fillColor="#FF0000"
-                  android:pathData="M50,45 A5,5 0 1,1 49.9,45 Z" />
+                  android:pathData="M50,47 A3,3 0 1,1 49.9,47 Z" />
           </vector>
           EOF
 
-      - name: 🏗️ Build App Structure
-        run: |
-          # حذف أي ملفات قديمة والبدء بهيكلة نظيفة
-          # ملاحظة: تم إزالة rm -rf * لتجنب حذف ملف ic_geass_eye.xml الذي أنشأناه للتو
-          mkdir -p app/src/main/java/com/geass/eye
-          mkdir -p app/src/main/res/layout
-
-          # إعدادات Gradle
+          # 3. إعدادات Gradle والمانيفست
           echo "android.useAndroidX=true" > gradle.properties
           echo "include ':app'" > settings.gradle
 
-          # بناء ملف build.gradle الرئيسي
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -47,7 +62,6 @@
           }
           EOF
 
-          # بناء ملف build.gradle للتطبيق
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -57,8 +71,8 @@
                   applicationId "com.geass.eye"
                   minSdkVersion 21
                   targetSdkVersion 31
-                  versionCode 9
-                  versionName "9.0-FinalFix"
+                  versionCode 10
+                  versionName "10.0-Stable"
               }
           }
           dependencies {
@@ -66,7 +80,6 @@
           }
           EOF
 
-          # المانيفست
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
               <application android:label="Geass Eye" android:theme="@style/Theme.AppCompat.NoActionBar">
@@ -80,21 +93,22 @@
           </manifest>
           EOF
 
-          # واجهة النشاط الرئيسي
+          # 4. واجهة المستخدم السوداء مع العين المحقونة
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="#000000">
               <ImageView
-                  android:layout_width="300dp"
-                  android:layout_height="300dp"
+                  android:layout_width="320dp"
+                  android:layout_height="320dp"
                   android:layout_centerInParent="true"
-                  android:src="@drawable/ic_geass_eye" />
+                  android:src="@drawable/ic_geass_eye"
+                  android:alpha="0.9" />
           </RelativeLayout>
           EOF
 
-          # كود الـ Java
+          # 5. كود الجافا
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
           import android.os.Bundle;
@@ -107,3 +121,19 @@
               }
           }
           EOF
+
+      - name: 🔨 Execute Gradle Build
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
+          ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
+
+      - name: 📦 Release Final APK
+        uses: softprops/action-gh-release@v1
+        with:
+          files: app/build/outputs/apk/debug/app-debug.apk
+          name: "Geass Eye - The Eternal Build"
+          tag_name: "v10.0-final"
+          body: "التطبيق جاهز الآن مع شعار الجياس المحقون برمجياً وتصميم واجهة فخم."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
