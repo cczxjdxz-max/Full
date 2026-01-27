@@ -74,14 +74,15 @@ jobs:
       - name: "Surgical Log Analysis"
         id: surgical_analysis
         run: |
-          # استخراج الأسطر التي تحتوي على كلمات الخطأ، أو آخر 20 سطرًا كبديل
+          # نستخرج فقط الأسطر التي تحتوي على كلمات الخطأ، أو آخر 20 سطرًا كخطة بديلة
           error_report=$(grep -iE 'error|fatal|traceback|fail' execution_log.txt || tail -n 20 execution_log.txt)
           
+          # إذا كان التقرير فارغًا بعد الفلترة، نرسل رسالة واضحة تصف المشكلة
           if [ -z "$error_report" ]; then
             error_report="Execution finished, but the CORE_DATA directory was empty. The script produced no errors but also no results."
           fi
           
-          # ترميز التقرير الجراحي لضمان النقل الآمن
+          # ترميز التقرير الجراحي فقط لضمان النقل الآمن
           encoded_report=$(echo "$error_report" | base64 -w 0)
           echo "report_data=${encoded_report}" >> $GITHUB_OUTPUT
 
@@ -97,4 +98,5 @@ jobs:
           token: ${{ secrets.PAT }}
           repository: cczxjdxz-max/avatar-template
           event-type: analyze_failure
+          # نرسل التقرير الجراحي المركز فقط
           client-payload: '{"execution_log": "${{ steps.surgical_analysis.outputs.report_data }}" }'
