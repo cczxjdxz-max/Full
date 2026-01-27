@@ -1,4 +1,4 @@
-name: 24. The Blood Geass - Bug Free Build
+name: 25. Ultimate Realistic Geass - Master Build
 on:
   workflow_dispatch:
 
@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 jobs:
-  build_horror_apk:
+  build_master_apk:
     runs-on: ubuntu-latest
     steps:
       - name: 📂 Checkout Repository
@@ -18,36 +18,25 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🧠 AI Design Phase (Safe Execution)
+      - name: 🧠 AI Design (Hyper-Realistic XML)
         env:
           GEMINI_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           mkdir -p app/src/main/res/drawable
           
-          generate_xml() {
-            local prompt=$1
-            local filename=$2
-            local fallback=$3
+          # طلب تصميم فائق الواقعية مع عروق وتدرجات لونية
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{ "contents": [{ "parts": [{ "text": "Provide ONLY the Android Vector XML for a hyper-realistic, terrifying red Geass eye. Include complex paths for jagged blood vessels (veins) and a glowing iris. Use dark red gradients. No markdown, no text." }] }] }')
 
-            # طلب الـ API
-            RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
-              -H "Content-Type: application/json" \
-              -d "{ \"contents\": [{ \"parts\": [{ \"text\": \"$prompt\" }] }] }")
+          # استخراج الكود بأمان
+          DESIGN_CODE=$(echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d['candidates'][0]['content']['parts'][0]['text'].replace('\`\`\`xml', '').replace('\`\`\`', '').strip()) if 'candidates' in d else print('FAILED')")
 
-            # استخراج الكود باستخدام بايثون في سطر واحد لتجنب أخطاء الـ YAML
-            DESIGN_CODE=$(echo "$RESPONSE" | python3 -c "import sys, json; (lambda d: print(d['candidates'][0]['content']['parts'][0]['text'].replace('\`\`\`xml', '').replace('\`\`\`', '').strip()) if 'candidates' in d else print('FAILED'))(json.load(sys.stdin))" 2>/dev/null)
-
-            if [ "$DESIGN_CODE" == "FAILED" ] || [ -z "$DESIGN_CODE" ]; then
-              echo "⚠️ Fallback used for $filename"
-              echo "$fallback" > "app/src/main/res/drawable/$filename.xml"
-            else
-              echo "$DESIGN_CODE" > "app/src/main/res/drawable/$filename.xml"
-            fi
-          }
-
-          FALLBACK_EYE="<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='300dp' android:height='300dp' android:viewportWidth='100' android:viewportHeight='100'><path android:fillColor='#FF0000' android:pathData='M50,30 L42,45 L32,42 C37,48 45,55 50,75 C55,55 63,48 68,42 L58,45 L50,35 Z'/><path android:strokeColor='#440000' android:strokeWidth='0.5' android:pathData='M50,75 L30,90 M50,75 L70,90 M30,40 L10,20 M70,40 L90,20'/></vector>"
-          
-          generate_xml "Provide ONLY the Android Vector XML for a terrifying red Geass eye with veins. No text." "geass_veined" "$FALLBACK_EYE"
+          if [ "$DESIGN_CODE" == "FAILED" ]; then
+            echo "<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='300dp' android:height='300dp' android:viewportWidth='100' android:viewportHeight='100'><path android:fillColor='#FF0000' android:pathData='M50,30 L42,45 L32,42 C37,48 45,55 50,75 C55,55 63,48 68,42 L58,45 L50,35 Z'/></vector>" > app/src/main/res/drawable/geass_eye.xml
+          else
+            echo "$DESIGN_CODE" > app/src/main/res/drawable/geass_eye.xml
+          fi
 
       - name: 🏗️ Construct App Structure
         run: |
@@ -63,13 +52,14 @@ jobs:
 
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 24; versionName "24.0-Stable" } }
+          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 25; versionName "25.0-Hyper-Realistic" } }
           dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
 
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application android:label="Geass Horror" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <application android:label="Geass Reality" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHER" /> </intent-filter>
                   </activity>
@@ -79,16 +69,16 @@ jobs:
 
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/main_bg"
+              android:id="@+id/main_layout"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:background="#000000">
+              android:background="#000000"
+              android:gravity="center">
               <ImageView
                   android:id="@+id/geass_eye"
-                  android:layout_width="380dp"
-                  android:layout_height="380dp"
-                  android:layout_centerInParent="true"
-                  android:src="@drawable/geass_veined"
+                  android:layout_width="400dp"
+                  android:layout_height="400dp"
+                  android:src="@drawable/geass_eye"
                   android:scaleY="0.0"
                   android:alpha="0.0" />
           </RelativeLayout>
@@ -96,50 +86,64 @@ jobs:
 
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
-          import android.animation.ArgbEvaluator;
-          import android.animation.ValueAnimator;
+          import android.animation.*;
           import android.graphics.Color;
-          import android.os.Bundle;
+          import android.os.*;
           import android.view.View;
-          import android.widget.ImageView;
-          import android.widget.RelativeLayout;
+          import android.view.animation.*;
+          import android.widget.*;
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
-              boolean isActivated = false;
+              boolean active = false;
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-                  final RelativeLayout bg = findViewById(R.id.main_bg);
+                  final RelativeLayout bg = findViewById(R.id.main_layout);
                   final ImageView eye = findViewById(R.id.geass_eye);
-                  bg.setOnClickListener(v -> {
-                      float targetScale = isActivated ? 0.0f : 1.0f;
-                      float targetAlpha = isActivated ? 0.0f : 1.0f;
-                      int colorTo = isActivated ? Color.BLACK : Color.parseColor("#220000");
-                      int colorFrom = isActivated ? Color.parseColor("#220000") : Color.BLACK;
+                  final Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
-                      eye.animate().scaleY(targetScale).alpha(targetAlpha).setDuration(3000).start();
-                      ValueAnimator colorAnimation = ValueAnimator.ofObject(new ArgbEvaluator(), colorFrom, colorTo);
-                      colorAnimation.setDuration(3000);
-                      colorAnimation.addUpdateListener(a -> bg.setBackgroundColor((int) a.getAnimatedValue()));
-                      colorAnimation.start();
-                      isActivated = !isActivated;
+                  bg.setOnClickListener(v -> {
+                      if(!active) {
+                          // 1. انفتاح واقعي بطيء (3 ثواني)
+                          eye.animate().scaleY(1f).alpha(1f).setDuration(3000).setInterpolator(new AccelerateDecelerateInterpolator()).start();
+                          
+                          // 2. تغير لون الخلفية تدريجياً
+                          ValueAnimator colorAnim = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, Color.parseColor("#1A0000"));
+                          colorAnim.setDuration(3000);
+                          colorAnim.addUpdateListener(a -> bg.setBackgroundColor((int)a.getAnimatedValue()));
+                          colorAnim.start();
+
+                          // 3. اهتزاز عند اكتمال القوة
+                          new Handler().postDelayed(() -> {
+                              if (vibrator != null) vibrator.vibrate(500);
+                              // تأثير النبض المستمر
+                              ObjectAnimator pulse = ObjectAnimator.ofPropertyValuesHolder(eye, 
+                                  PropertyValuesHolder.ofFloat("scaleX", 1.0f, 1.05f),
+                                  PropertyValuesHolder.ofFloat("scaleY", 1.0f, 1.05f));
+                              pulse.setDuration(800);
+                              pulse.setRepeatCount(ValueAnimator.INFINITE);
+                              pulse.setRepeatMode(ValueAnimator.REVERSE);
+                              pulse.start();
+                          }, 3000);
+                          active = true;
+                      }
                   });
               }
           }
           EOF
 
-      - name: 🔨 Build APK
+      - name: 🔨 Final Compilation
         run: |
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release
+      - name: 📦 Release Final APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Blood v24.0"
-          tag_name: "v24.0"
+          name: "Geass Hyper-Realism v25.0"
+          tag_name: "v25.0"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
