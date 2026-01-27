@@ -1,4 +1,4 @@
-name: 3. The Visualizer (BODY) - Combat Simulation Video
+name: 2. The Visualizer (BODY) - Render Simulation
 
 on:
   repository_dispatch:
@@ -6,52 +6,28 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  create_simulation_video:
+  render_video:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Repository"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install Python Dependencies"
-        run: |
-          pip install numpy matplotlib imageio
-          # تأكد من وجود ملف discovered_wisdom.dat في مجلد العمل
-          # (هذا يتطلب أن يكون قد تم رفعه كـ Artifact أو جزء من الـ Release السابق)
-          # لأغراض التجربة، سنقوم بإنشاء ملف وهمي مؤقتاً
-          python -c "import numpy as np; np.random.randn(2048, 1024).astype(np.float32).tofile('discovered_wisdom.dat')"
+      - name: "Install Rendering Tools"
+        run: pip install numpy matplotlib pillow
 
-      - name: "Decode and Run Visualizer Script"
+      - name: "Execute Visualizer"
         run: |
           echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > visualizer.py
           python3 visualizer.py
 
-      - name: "Upload Simulation GIF"
-        uses: actions/upload-artifact@v4
-        with:
-          name: combat-simulation-gif
-          path: combat_simulation.gif
-          retention-days: 7
-
-      - name: "Update README with Video Link"
-        run: |
-          # تحتاج هنا إلى رابط مباشر للـ artifact
-          # هذا مثال فقط، ستحتاج للحصول على الرابط الفعلي بعد الرفع
-          echo "## 🎬 Visual Combat Simulation" >> README.md
-          echo "شاهد بطلنا يتصدى لـ 100 خصم:" >> README.md
-          echo "![Combat Simulation GIF](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}/artifacts/combat-simulation-gif)" >> README.md
-          # أو يمكن تحديث README بعد الـ release مباشرة
-          
-      - name: "Release Simulation Output"
+      - name: "Upload Video Result"
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            combat_simulation.gif
-            results.txt # إذا كان هناك ملف نتائج إضافي من الـ visualizer
-          name: "Combat-Simulation-v${{ github.run_id }}"
-          tag_name: "sim-v${{ github.run_id }}"
-          body: "فيديو تخيلي يوضح استراتيجية الذكاء الاصطناعي ضد 100 خصم."
+          files: combat_simulation.gif
+          name: "AI-Combat-Visual-v${{ github.run_id }}"
+          tag_name: "vid-v${{ github.run_id }}"
+          body: "فيديو رسومي يوضح استراتيجية البطل (النقطة الزرقاء) في مواجهة 100 عدو (نقاط حمراء)."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
