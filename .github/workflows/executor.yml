@@ -1,4 +1,4 @@
-name: 4. The Aesthetic Body - Lelouch UI
+name: 4. The Aesthetic Body - Lelouch UI Fix
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -22,11 +22,12 @@ jobs:
       - name: 🏗️ Create Lelouch UI Structure
         run: |
           rm -rf *
-          mkdir -p app/src/main/java/com/geass.eye
+          # تصحيح المسار هنا (استخدام مائل بدلاً من النقطة)
+          mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/mipmap-hdpi # لأيقونة التطبيق
+          mkdir -p app/src/main/res/mipmap-hdpi
 
           # 1. settings.gradle
           echo "include ':app'" > settings.gradle
@@ -42,7 +43,7 @@ jobs:
           }
           EOF
 
-          # 3. app/build.gradle (مع مكتبة Material Design للـ FAB)
+          # 3. app/build.gradle
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -58,7 +59,7 @@ jobs:
           }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.4.1'
-              implementation 'com.google.android.material:material:1.5.0' # لمكتبة Material Design
+              implementation 'com.google.android.material:material:1.5.0'
           }
           EOF
 
@@ -89,15 +90,12 @@ jobs:
           </resources>
           EOF
 
-          # 5. Manifest (تطبيق الثيم الجديد)
+          # 5. Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
               <application
                   android:label="@string/app_name"
-                  android:theme="@style/AppTheme"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true">
+                  android:theme="@style/AppTheme">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -108,7 +106,7 @@ jobs:
           </manifest>
           EOF
 
-          # 6. Drawable (أيقونة FAB بسيطة)
+          # 6. Drawable (Floating Button Icon)
           cat <<EOF > app/src/main/res/drawable/ic_fab_icon.xml
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp"
@@ -116,12 +114,12 @@ jobs:
               android:viewportWidth="24.0"
               android:viewportHeight="24.0">
               <path
-                  android:fillColor="#FF0000"
+                  android:fillColor="#FFFFFF"
                   android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5S14.76,17 12,17z"/>
           </vector>
           EOF
 
-          # 7. MainActivity (الواجهة)
+          # 7. MainActivity (UI Logic)
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
 
@@ -132,49 +130,44 @@ jobs:
           import com.google.android.material.floatingactionbutton.FloatingActionButton;
           import android.view.View;
           import android.widget.Toast;
-          import android.widget.RelativeLayout; // استخدام RelativeLayout للتحكم بالزر العائم
+          import android.widget.RelativeLayout;
 
           public class MainActivity extends AppCompatActivity {
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
-                  // إنشاء RelativeLayout كواجهة رئيسية
                   RelativeLayout layout = new RelativeLayout(this);
-                  RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(
-                      RelativeLayout.LayoutParams.MATCH_PARENT,
-                      RelativeLayout.LayoutParams.MATCH_PARENT);
-                  layout.setLayoutParams(layoutParams);
-                  layout.setBackgroundColor(getResources().getColor(R.color.primary_dark)); // خلفية سوداء
+                  layout.setBackgroundColor(0xFF000000); 
 
-                  // إضافة عنوان "All Hail Lelouch!"
                   TextView title = new TextView(this);
-                  title.setText(getString(R.string.welcome_message));
-                  title.setTextSize(30);
-                  title.setTextColor(getResources().getColor(R.color.accent_red)); // لون أحمر
+                  title.setText("All Hail Lelouch!");
+                  title.setTextSize(32);
+                  title.setTextColor(0xFFCC0000); 
                   title.setGravity(Gravity.CENTER);
+
                   RelativeLayout.LayoutParams titleParams = new RelativeLayout.LayoutParams(
                       RelativeLayout.LayoutParams.WRAP_CONTENT,
                       RelativeLayout.LayoutParams.WRAP_CONTENT);
                   titleParams.addRule(RelativeLayout.CENTER_IN_PARENT, RelativeLayout.TRUE);
                   layout.addView(title, titleParams);
 
-                  // إضافة الزر العائم (FloatingActionButton)
                   FloatingActionButton fab = new FloatingActionButton(this);
-                  fab.setImageResource(R.drawable.ic_fab_icon); // أيقونة ليلوش (نقطة حمراء)
-                  fab.setBackgroundTintList(getResources().getColorStateList(R.color.accent_red)); // خلفية حمراء
+                  fab.setImageResource(R.drawable.ic_fab_icon);
+                  fab.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFCC0000));
                   fab.setOnClickListener(new View.OnClickListener() {
                       @Override
                       public void onClick(View view) {
-                          Toast.makeText(MainActivity.this, "Geass Activated! (Placeholder)", Toast.LENGTH_SHORT).show();
+                          Toast.makeText(MainActivity.this, "Geass Activated!", Toast.LENGTH_SHORT).show();
                       }
                   });
+
                   RelativeLayout.LayoutParams fabParams = new RelativeLayout.LayoutParams(
                       RelativeLayout.LayoutParams.WRAP_CONTENT,
                       RelativeLayout.LayoutParams.WRAP_CONTENT);
                   fabParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE);
                   fabParams.addRule(RelativeLayout.ALIGN_PARENT_END, RelativeLayout.TRUE);
-                  fabParams.setMargins(0, 0, 32, 32); // مسافة عن الحواف
+                  fabParams.setMargins(0, 0, 60, 60);
                   layout.addView(fab, fabParams);
 
                   setContentView(layout);
@@ -182,28 +175,17 @@ jobs:
           }
           EOF
 
-          # 8. أيقونة التطبيق (مربع أحمر بسيط) - يمكننا تحسينها لاحقاً
-          # هذه الأوامر تنشئ أيقونة بيضاء في الأساس، لكنها ستظهر مع الخلفية الداكنة
-          # يمكنك أيضاً رفع ملف PNG مخصص لأيقونة Geass Eye إذا أردت
-          # حالياً، سنستخدم لون أحمر بسيط كرمز.
-          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><layer-list xmlns:android=\"http://schemas.android.com/apk/res/android\"><item><color android:color=\"#CC0000\"/></item><item><bitmap android:src=\"@drawable/ic_launcher_foreground\" android:gravity=\"center\"/></item></layer-list>" > app/src/main/res/drawable/ic_launcher_background.xml
-          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><vector xmlns:android=\"http://schemas.android.com/apk/res/android\" android:width=\"108dp\" android:height=\"108dp\" android:viewportWidth=\"108\" android:viewportHeight=\"108\"><path android:fillColor=\"#000000\" android:pathData=\"M0,0h108v108h-108z\"/></vector>" > app/src/main/res/drawable/ic_launcher_foreground.xml
-          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><adaptive-icon xmlns:android=\"http://schemas.android.com/apk/res/android\"><background android:drawable=\"@drawable/ic_launcher_background\"/><foreground android:drawable=\"@drawable/ic_launcher_foreground\"/></adaptive-icon>" > app/src/main/res/mipmap-hdpi/ic_launcher.xml
-          echo "<?xml version=\"1.0\" encoding=\"utf-8\"?><adaptive-icon xmlns:android=\"http://schemas.android.com/apk/res/android\"><background android:drawable=\"@drawable/ic_launcher_background\"/><foreground android:drawable=\"@drawable/ic_launcher_foreground\"/></adaptive-icon>" > app/src/main/res/mipmap-hdpi/ic_launcher_round.xml
-
-
       - name: 🔨 Build Lelouch APK
         run: |
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release Lelouch UI
+      - name: 📦 Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Eye v3.0 - Lelouch UI"
-          tag_name: "v3.0-lelouch-ui"
-          body: "واجهة مستخدم جمالية مستوحاة من ليلوش مع زر عائم للتحكم."
+          name: "Geass Eye v3.1"
+          tag_name: "v3.1-lelouch"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
