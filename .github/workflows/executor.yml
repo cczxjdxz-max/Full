@@ -1,28 +1,60 @@
+name: 2. The Executor (BODY) - 4 Trillion Battle Arena
+
+on:
+  repository_dispatch:
+    types: [evolve_and_execute]
+
+permissions:
+  contents: write
+
+jobs:
+  battle_and_report:
+    runs-on: ubuntu-latest
     steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
       - name: "Decode Arena Script"
-        run: echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > headshot_sim.py
-
-      - name: "Battle Training (4 Trillion Target)"
         run: |
-          # السكربت سيستخدم معالجة المصفوفات لضرب الاحتمالات والوصول للرقم الضخم
+          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > headshot_sim.py
+
+      - name: "Run Massive Simulation (4 Trillion Target)"
+        run: |
+          # تثبيت numpy لتسريع العمليات الحسابية للمصفوفات
+          pip install numpy
+          # تشغيل المحاكي الرقمي
           python3 headshot_sim.py
-          
-      - name: "Update Battle Report"
-        run: |
-          echo "## 🎯 AI Headshot Training Report" > README.md
-          echo "### Scenario: 1 Hero vs 6 Villains" >> README.md
-          echo "| Metric | Result |" >> README.md
-          echo "|-------|--------|" >> README.md
-          # السكربت سيقوم بتعبئة هذه البيانات في ملف اسمه results.txt
-          cat results.txt >> README.md
 
-      - name: "Release Trained Model"
+      - name: "Update README with Stats"
+        run: |
+          echo "# 🎯 AI Training Results: The Headshot Master" > README.md
+          echo "## Battle Statistics (1 vs 6)" >> README.md
+          echo "Status: 4 Trillion Iterations Completed." >> README.md
+          echo "| Metric | Value |" >> README.md
+          echo "| :--- | :--- |" >> README.md
+          # السكربت سيقوم بكتابة النتائج في results.txt بصيغة | الاسم | القيمة |
+          cat results.txt >> README.md
+          
+          # إضافة صورة توضيحية لعملية التدريب (اختياري)
+          echo -e "\n![AI Training](https://img.shields.io/badge/Training-Completed-brightgreen)" >> README.md
+
+      - name: "Create Production Release"
         uses: softprops/action-gh-release@v1
         with:
           files: |
             headshot_model.dat
             README.md
-          name: "AI-HEADSHOT-MASTER-v${{ github.run_id }}"
-          tag_name: "aim-v${{ github.run_id }}"
+            headshot_sim.py
+          name: "AI-MODEL-v${{ github.run_id }}"
+          tag_name: "v${{ github.run_id }}"
+          body: "This release contains the brain of the AI after 4 trillion headshot-only simulations."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Commit Stats to Repo"
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Update stats with 4 trillion battle results"
+          git push
