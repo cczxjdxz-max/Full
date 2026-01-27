@@ -1,4 +1,4 @@
-name: 2. The Executor - Groovy Final Success
+name: 2. The Executor - Final Stable Build
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -19,38 +19,39 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Structure (Groovy Edition)
+      - name: 🏗️ Create Android Structure (Pure Groovy)
         run: |
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. ملف الإعدادات بصيغة Groovy (بدون kts)
+          # 1. settings.gradle (المسؤول الوحيد عن المخازن)
           cat <<EOF > settings.gradle
           pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
           rootProject.name = "DecapitatorAI"
           include ':app'
           EOF
 
-          # 2. ملف Gradle الرئيسي بصيغة Groovy
+          # 2. build.gradle (الرئيسي - تعريف الملحقات فقط)
           cat <<EOF > build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.1.1'
-              }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
+          plugins {
+              id 'com.android.application' version '8.1.1' apply false
           }
           EOF
 
-          # 3. ملف تطبيق الأندرويد (تم تبسيطه لأقصى حد)
+          # 3. app/build.gradle (تطبيق الإعدادات والتبعيات)
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -66,13 +67,16 @@ jobs:
           }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.9.0'
           }
           EOF
 
-          # 4. Manifest والكود
+          # 4. AndroidManifest.xml
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="Decapitator AI">
+              <application 
+                  android:label="Decapitator AI"
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -83,22 +87,31 @@ jobs:
           </manifest>
           EOF
 
+          # 5. MainActivity.java (كود الجسد)
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
+          import android.widget.TextView;
+          import android.view.Gravity;
           import androidx.appcompat.app.AppCompatActivity;
+
           public class MainActivity extends AppCompatActivity {
-              @Override protected void onCreate(Bundle savedInstanceState) {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  setContentView(android.R.layout.simple_list_item_1);
+                  TextView tv = new TextView(this);
+                  tv.setText("SYSTEM ONLINE\nVERSION 2.0-STABLE\nWAITING FOR COMMANDS...");
+                  tv.setGravity(Gravity.CENTER);
+                  tv.setTextSize(20);
+                  setContentView(tv);
               }
           }
           EOF
 
       - name: 🔨 Build Debug APK
         run: |
-          # نستخدم gradle مباشرة مع تجاهل التحذيرات
-          gradle :app:assembleDebug --no-daemon -Dorg.gradle.warning.mode=none
+          # استخدام gradle المثبت مسبقاً مع تعطيل الـ Daemon لضمان النظافة
+          gradle :app:assembleDebug --no-daemon
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
@@ -106,5 +119,6 @@ jobs:
           files: app/build/outputs/apk/debug/app-debug.apk
           name: "Decapitator Body v2.0"
           tag_name: "v2.0-stable"
+          body: "إصدار مستقر تماماً مبني بواسطة Gradle 9.3 مع إصلاح تعارض المخازن."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
