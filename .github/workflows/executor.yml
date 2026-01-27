@@ -1,4 +1,4 @@
-name: 2. The Executor - Kotlin DSL Fixed APK
+name: 2. The Executor - Final Kotlin Victory
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -19,32 +19,25 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Structure (Kotlin DSL)
+      - name: 🏗️ Create Android Modern Structure (Kotlin DSL)
         run: |
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
           # 1. ملف الإعدادات (Modern Kotlin DSL)
           cat <<EOF > settings.gradle.kts
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
-          }
           rootProject.name = "DecapitatorAI"
           include(":app")
           EOF
 
-          # 2. ملف Gradle الرئيسي
+          # 2. ملف Gradle الرئيسي (الجذر)
           cat <<EOF > build.gradle.kts
           plugins {
               id("com.android.application") version "8.1.1" apply false
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق (إصلاح شامل للتبعيات)
+          # 3. ملف Gradle الخاص بالتطبيق (الصيغة الصارمة)
           cat <<EOF > app/build.gradle.kts
           plugins {
               id("com.android.application")
@@ -60,16 +53,16 @@ jobs:
                   versionName = "1.0"
               }
           }
+          // لا توجد تبعيات معقدة لضمان نجاح البناء الأول
           dependencies {
               implementation("androidx.appcompat:appcompat:1.6.1")
-              implementation("com.google.android.material:material:1.9.0")
           }
           EOF
 
-          # 4. ملف الـ Manifest والـ Java (بقيا كما هما ولكن تم وضعهما في مكانهما الصحيح)
+          # 4. ملف الـ Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="Decapitator AI" android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
+              <application android:label="Decapitator AI">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -80,24 +73,20 @@ jobs:
           </manifest>
           EOF
 
+          # 5. كود الجافا
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
-          import androidx.appcompat.app.AppCompatActivity;
           import android.widget.TextView;
-          import android.graphics.Color;
-          import android.view.Gravity;
+          import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
-                  tv.setText("THE DECAPITATOR AI\nStatus: Empty Body\nReady for Brain Injection");
-                  tv.setTextColor(Color.RED);
-                  tv.setTextSize(26);
-                  tv.setGravity(Gravity.CENTER);
-                  tv.setBackgroundColor(Color.BLACK);
+                  tv.setText("THE DECAPITATOR AI\nSTATUS: ONLINE\nREADY FOR BRAIN INJECTION");
+                  tv.setTextSize(30);
                   setContentView(tv);
               }
           }
@@ -105,15 +94,15 @@ jobs:
 
       - name: 🔨 Build Debug APK
         run: |
-          # بناء التطبيق باستخدام الأوامر المباشرة لـ Gradle 9 مع تخطي الـ Daemon لتجنب الانهيار
-          gradle :app:assembleDebug --no-daemon
+          # استخدام الأمر المباشر مع تعطيل الـ Daemon لتقليل استهلاك الذاكرة
+          gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Decapitator Body v1.3"
-          tag_name: "v1.3-kotlin"
-          body: "تم ترويض Gradle 9 بنجاح باستخدام Kotlin DSL. الجسد جاهز."
+          name: "Decapitator Body v1.4"
+          tag_name: "v1.4-final"
+          body: "الجسد جاهز! تم تجاوز أخطاء Gradle 9 باستخدام Kotlin DSL."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
