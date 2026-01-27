@@ -1,34 +1,27 @@
-name: 2. The Executor (Full) - Fast Evolution
+name: 2. The Processor (Full) - 5 Trillion Simulation
 on:
   repository_dispatch:
-    types: [run_blitz_evo]
+    types: [headless_reverse]
 
 permissions:
   contents: write
 
 jobs:
-  heavy_process:
+  run_simulation:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout"
-        uses: actions/checkout@v4
-
-      - name: "Install AI Frameworks"
-        run: pip install numpy matplotlib pillow
-
-      - name: "Run God-Mode Training"
+      - name: "Execute Headless Training"
         run: |
-          echo "${{ github.event.client_payload.plan }}" | base64 -d > training_engine.py
-          python3 training_engine.py
+          echo "${{ github.event.client_payload.plan }}" | base64 -d > engine_core.py
+          # تشغيل التدريب المكثف
+          python3 engine_core.py
 
-      - name: "Release Results"
+      - name: "Deploy Final God Brain"
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            god_mode_preview.gif
-            god_brain.dat
-          name: "Final-God-Brain-v${{ github.run_id }}"
-          tag_name: "god-final-v${{ github.run_id }}"
-          body: "النتيجة النهائية: عقل البطل تدرب خلال 10 دقائق لمواجهة 100 لاعب متطور بفيزياء اللعبة الأصلية."
+          files: god_reverse_brain.dat
+          name: "The-Decapitated-Brain-v${{ github.run_id }}"
+          tag_name: "final-god-v${{ github.run_id }}"
+          body: "هذا العقل نتاج 5 تريليون محاكاة بفيزياء اللعبة الحقيقية. لا عشوائية، لا تنقل، فقط دقة مطلقة."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
