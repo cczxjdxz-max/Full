@@ -1,33 +1,42 @@
-name: 2. The Visualizer (BODY) - Render Simulation
+name: 2. The Executor (BODY) - Real Physics Training
 
 on:
   repository_dispatch:
-    types: [generate_video]
+    types: [execute_real_world_training]
 
 permissions:
   contents: write
 
 jobs:
-  render_video:
+  train_and_release:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install Rendering Tools"
-        run: pip install numpy matplotlib pillow
+      - name: "Environment Setup"
+        run: pip install numpy
 
-      - name: "Execute Visualizer"
+      - name: "Run Reality-Based Training"
         run: |
-          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > visualizer.py
-          python3 visualizer.py
+          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > training_engine.py
+          python3 training_engine.py
 
-      - name: "Upload Video Result"
+      - name: "Commit Discovery Report"
+        run: |
+          cat report.txt >> README.md
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Update Reality Discovery"
+          git push || echo "No changes"
+
+      - name: "Release Real Wisdom Model"
         uses: softprops/action-gh-release@v1
         with:
-          files: combat_simulation.gif
-          name: "AI-Combat-Visual-v${{ github.run_id }}"
-          tag_name: "vid-v${{ github.run_id }}"
-          body: "فيديو رسومي يوضح استراتيجية البطل (النقطة الزرقاء) في مواجهة 100 عدو (نقاط حمراء)."
+          files: true_reality_wisdom.dat
+          name: "Real-Physics-Brain-v${{ github.run_id }}"
+          tag_name: "real-v${{ github.run_id }}"
+          body: "هذا الملف هو العقل الذي تدرب داخل بيئة اللعبة الحقيقية (المباني، العقبات، الفيزياء) وليس في فراغ."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
