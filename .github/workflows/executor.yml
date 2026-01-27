@@ -1,76 +1,49 @@
-name: 11. GitHub as AI Client - Dynamic Design Build
+name: 13. Absolute AI Architect - Live Design
 on:
-  workflow_dispatch: # للتشغيل اليدوي من واجهة GitHub Actions
+  workflow_dispatch:
 
 permissions:
-  contents: write # للسماح للعملية بإنشاء ملف APK وإصداره
+  contents: write
 
 jobs:
-  build_with_ai_generated_assets:
-    runs-on: ubuntu-latest # تشغيل العملية على خادم Ubuntu
+  ai_creation_job:
+    runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout Repository
-        uses: actions/checkout@v4 # جلب محتويات المستودع
+      - name: 📂 Checkout
+        uses: actions/checkout@v4
 
-      - name: ☕ Setup Java 11
+      - name: ☕ Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11' # إعداد بيئة Java اللازمة لبناء Android
+          java-version: '11'
 
-      - name: 🧠 Request Design from Gemini 1.5 Flash (AI is the Designer)
-        id: get_ai_design
+      - name: 🎨 Call Gemini 1.5 Flash to Design the Eye
         run: |
-          # إرسال طلب Curl إلى Gemini API لجلب كود Vector Drawable لعين الجياس
-          # Prompt مصمم لطلب كود XML فقط، لتجنب النصوص الإضافية
-          API_RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M" \
+          # هنا جيثب يتواصل مع الـ API ليطلب منه التصميم فوراً
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M" \
             -H "Content-Type: application/json" \
             -d '{
               "contents": [{
                 "parts": [{
-                  "text": "Generate ONLY the XML code for an Android Vector Drawable representing a stylized red Geass eye. Ensure the XML starts with <vector and ends with </vector>. No explanations, no markdown."
+                  "text": "Act as an Android UI Designer. Generate ONLY the XML code for an Android Vector Drawable of a glowing red Geass eye. I want a complex, cool design. No text, just the <vector> tag."
                 }]
               }]
             }')
           
-          # استخراج كود الـ XML من استجابة الـ API وتخزينه في ملف
-          # نستخدم Python لتنظيف الرد وضمان استخراج كود XML صالح فقط
-          # في حال فشل الاستخراج، سيتم إنشاء ملف فارغ لتجنب خطأ
-          echo "$API_RESPONSE" | python3 -c "import sys, json; 
-          try: 
-            text_content = json.load(sys.stdin)['candidates'][0]['content']['parts'][0]['text']
-            # إزالة أي علامات Markdown أو نصوص إضافية
-            clean_xml = text_content.replace('```xml', '').replace('```', '').strip()
-            print(clean_xml)
-          except Exception: 
-            print('<vector xmlns:android=\"http://schemas.android.com/apk/res/android\" android:width=\"24dp\" android:height=\"24dp\" android:viewportWidth=\"24\" android:viewportHeight=\"24\"><path android:fillColor=\"#FF0000\" android:pathData=\"M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z\"/></vector>') # fallback default eye
-          " > ai_generated_eye.xml
-
-          # طباعة محتوى الملف للتحقق (لأغراض التصحيح)
-          echo "Generated XML Content:"
-          cat ai_generated_eye.xml
-          echo ""
-
-      - name: 🏗️ Construct Android App Structure & Inject AI Asset
-        run: |
-          # مسح أي بقايا بناء قديمة لضمان نظافة البناء
-          rm -rf app
-
-          # إنشاء المجلدات الأساسية للتطبيق
-          mkdir -p app/src/main/java/com/geass/eye
+          # استخراج التصميم وحفظه في ملف drawable
           mkdir -p app/src/main/res/drawable
+          echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)['candidates'][0]['content']['parts'][0]['text'].replace('\`\`\`xml', '').replace('\`\`\`', '').strip())" > app/src/main/res/drawable/ic_geass_eye.xml
+
+      - name: 🏗️ Assemble App Structure
+        run: |
+          mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
 
-          # حقن التصميم الذي ولده الذكاء الاصطناعي في مجلد Drawable
-          # هذا يضمن أن ملف ic_geass_eye.xml موجود دائماً
-          mv ai_generated_eye.xml app/src/main/res/drawable/ic_geass_eye.xml
-
-          # إعداد ملفات Gradle الأساسية
+          # إعداد ملفات البناء
           echo "android.useAndroidX=true" > gradle.properties
           echo "include ':app'" > settings.gradle
 
-          # إنشاء ملف build.gradle الرئيسي
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -81,7 +54,6 @@ jobs:
           }
           EOF
 
-          # إنشاء ملف build.gradle الخاص بالتطبيق
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -91,19 +63,16 @@ jobs:
                   applicationId "com.geass.eye"
                   minSdkVersion 21
                   targetSdkVersion 31
-                  versionCode 12
-                  versionName "12.0-AI-Generated-Build"
+                  versionCode 13
+                  versionName "13.0-AI-Live-Design"
               }
           }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.4.1'
-          }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
 
-          # إنشاء ملف AndroidManifest.xml
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application android:label="Geass Eye AI" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <application android:label="AI Designed Geass" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -114,47 +83,43 @@ jobs:
           </manifest>
           EOF
 
-          # إنشاء ملف Layout (activity_main.xml) الذي يعرض العين التي صممها الذكاء الاصطناعي
+          # واجهة العرض التي ستحتوي على التصميم المولد
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="#000000">
               <ImageView
-                  android:layout_width="300dp"
-                  android:layout_height="300dp"
+                  android:layout_width="350dp"
+                  android:layout_height="350dp"
                   android:layout_centerInParent="true"
-                  android:src="@drawable/ic_geass_eye"
-                  android:contentDescription="AI Generated Geass Eye" />
+                  android:src="@drawable/ic_geass_eye" />
           </RelativeLayout>
           EOF
 
-          # إنشاء ملف MainActivity.java (الهيكل الأساسي للتطبيق)
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
           import android.os.Bundle;
           import androidx.appcompat.app.AppCompatActivity;
           public class MainActivity extends AppCompatActivity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
+              @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
               }
           }
           EOF
 
-      - name: 🔨 Execute Gradle Build
+      - name: 🔨 Build APK
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip # تحميل Gradle
-          unzip -q gradle-7.5-bin.zip # فك ضغط Gradle
-          ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon # بناء ملف الـ APK
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
+          ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release AI-Designed APK
+      - name: 📦 Release AI-Built APK
         uses: softprops/action-gh-release@v1
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk # مسار ملف الـ APK المنتج
-          name: "Geass Eye - AI Generated Design v12.0" # اسم الإصدار
-          tag_name: "v12.0-ai-design" # وسم الإصدار
-          body: "تم بناء هذا التطبيق باستخدام تصميم عين الجياس المولّد بواسطة Gemini 1.5 Flash API مباشرةً أثناء عملية البناء." # وصف الإصدار
+          files: app/build/outputs/apk/debug/app-debug.apk
+          name: "Geass - AI Live Design"
+          tag_name: "v13.0-live"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # توكن GitHub للتحقق من الصلاحيات
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
