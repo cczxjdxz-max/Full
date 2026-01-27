@@ -1,4 +1,4 @@
-name: 2. The Executor - Final Fixed APK
+name: 2. The Executor - Final Stable APK
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -24,7 +24,7 @@ jobs:
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. ملف إعدادات المشروع
+          # 1. إعدادات المشروع مع تعطيل تحذيرات التبعيات
           cat <<EOF > settings.gradle
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
@@ -37,19 +37,20 @@ jobs:
           include ':app'
           EOF
 
-          # 2. ملف Gradle الرئيسي (الجذر) - إصدارات حديثة
+          # 2. ملف Gradle الرئيسي - تعريف الـ Plugins فقط
           cat <<EOF > build.gradle
           plugins {
-              id 'com.android.application' version '8.1.1' apply false
-              id 'com.android.library' version '8.1.1' apply false
+              id "com.android.application" version "8.1.1" apply false
           }
           EOF
 
-          # 3. ملف Gradle الخاص بالتطبيق - توافقية عالية
+          # 3. ملف Gradle الخاص بالتطبيق - إصلاح نظام التبعيات
           cat <<EOF > app/build.gradle
-          plugins { id 'com.android.application' }
+          plugins {
+              id "com.android.application"
+          }
           android {
-              namespace 'com.decapitator.ai'
+              namespace "com.decapitator.ai"
               compileSdk 33
               defaultConfig {
                   applicationId "com.decapitator.ai"
@@ -58,19 +59,16 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
           }
           dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.9.0'
+              // استخدام الصيغة الصارمة لمنع أخطاء Gradle 9
+              implementation "androidx.appcompat:appcompat:1.6.1"
+              implementation "com.google.android.material:material:1.9.0"
+              implementation "androidx.constraintlayout:constraintlayout:2.1.4"
           }
           EOF
 
-          # 4. ملف الـ Manifest
+          # 4. ملف الـ Manifest والكود (كما هما)
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application android:label="Decapitator AI" android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
@@ -84,7 +82,6 @@ jobs:
           </manifest>
           EOF
 
-          # 5. كود الجافا للواجهة
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
@@ -98,7 +95,7 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   TextView tv = new TextView(this);
-                  tv.setText("THE DECAPITATOR AI\nStatus: Empty Body\nWaiting for Brain...");
+                  tv.setText("THE DECAPITATOR AI\nStatus: Empty Body\nReady for Brain Injection");
                   tv.setTextColor(Color.RED);
                   tv.setTextSize(26);
                   tv.setGravity(Gravity.CENTER);
@@ -108,22 +105,18 @@ jobs:
           }
           EOF
 
+      - name: 🛠️ Force Gradle Wrapper 8.2 (Stability Fix)
+        run: gradle wrapper --gradle-version 8.2
+
       - name: 🔨 Build Debug APK
-        run: |
-          # استخدام الـ Wrapper لضمان استقرار البناء
-          gradle :app:assembleDebug --warning-mode all
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: 📦 Archive APK
-        run: |
-          mkdir -p final_output
-          cp app/build/outputs/apk/debug/app-debug.apk final_output/Decapitator_Pure_Body.apk
-
-      - name: 🚀 Release to GitHub
+      - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
-          files: final_output/Decapitator_Pure_Body.apk
-          name: "Decapitator Body v1.1"
-          tag_name: "v1.1-final"
-          body: "تم الإصلاح! الجسد الآن متوافق مع Gradle 9 ومبني بأحدث معايير أندرويد."
+          files: app/build/outputs/apk/debug/app-debug.apk
+          name: "Decapitator Body v1.2"
+          tag_name: "v1.2-fixed"
+          body: "تم تجاوز قيود Gradle 9. الجسد جاهز للتحميل."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
