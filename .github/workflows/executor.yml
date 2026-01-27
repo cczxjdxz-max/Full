@@ -1,4 +1,4 @@
-name: 20. Terrifying Geass - Gemini 2.5 Flash Lite Architect
+name: 21. Realistic Terrifying Geass - AI Architect
 on:
   workflow_dispatch:
 
@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 jobs:
-  build_horror_app:
+  build_realistic_geass:
     runs-on: ubuntu-latest
     steps:
       - name: 📂 Checkout
@@ -18,42 +18,48 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🧠 AI Design Phase (Gemini 2.5 Flash Lite)
+      - name: 🧠 AI Design Phase (Safe & Dynamic)
+        env:
+          GEMINI_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          # 1. طلب تصميم العين المغلقة (Menacing & Closed)
-          CLOSED_EYE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "contents": [{
-                "parts": [{
-                  "text": "Provide ONLY the Android Vector XML for a closed, dark, and menacing Geass eye. Minimalist red lines on black. No markdown."
-                }]
-              }]
-            }')
+          get_design() {
+            local prompt=$1
+            local filename=$2
+            local fallback=$3
+            
+            RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{ \"contents\": [{ \"parts\": [{ \"text\": \"$prompt\" }] }] }")
+            
+            DESIGN_CODE=$(echo "$RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    text = data['candidates'][0]['content']['parts'][0]['text']
+    print(text.replace('\`\`\`xml', '').replace('\`\`\`', '').strip())
+except:
+    print('FAILED')
+" 2>/dev/null)
 
-          # 2. طلب تصميم العين المفتوحة (Terrifying & Glowing)
-          OPEN_EYE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "contents": [{
-                "parts": [{
-                  "text": "Provide ONLY the Android Vector XML for a wide-open, glowing red Geass eye with intense detail and power veins. No markdown."
-                }]
-              }]
-            }')
+            if [ "$DESIGN_CODE" == "FAILED" ] || [ -z "$DESIGN_CODE" ]; then
+              echo "$fallback" > "app/src/main/res/drawable/$filename.xml"
+            else
+              echo "$DESIGN_CODE" > "app/src/main/res/drawable/$filename.xml"
+            fi
+          }
 
           mkdir -p app/src/main/res/drawable
+          FALLBACK_OPEN="<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='200dp' android:height='200dp' android:viewportWidth='100' android:viewportHeight='100'><path android:fillColor='#FF0000' android:pathData='M50,30 L42,45 L32,42 C37,48 45,55 50,75 C55,55 63,48 68,42 L58,45 L50,35 Z'/></vector>"
+          
+          # نطلب تصميم واحد عالي الجودة للعين المفتوحة، وسنتلاعب به برمجياً للإغلاق
+          get_design "ONLY Android Vector XML for a terrifying, detailed red Geass eye. No markdown." "geass_eye" "$FALLBACK_OPEN"
 
-          # تنظيف وحقن الكود المستلم
-          echo "$CLOSED_EYE" | python3 -c "import sys, json; print(json.load(sys.stdin)['candidates'][0]['content']['parts'][0]['text'].strip())" > app/src/main/res/drawable/geass_closed.xml
-          echo "$OPEN_EYE" | python3 -c "import sys, json; print(json.load(sys.stdin)['candidates'][0]['content']['parts'][0]['text'].strip())" > app/src/main/res/drawable/geass_open.xml
-
-      - name: 🏗️ Assemble App Structure
+      - name: 🏗️ Construct App Structure
         run: |
           mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
 
-          # إعدادات Gradle والمانيفست
+          # إعدادات Gradle
           echo "android.useAndroidX=true" > gradle.properties
           echo "include ':app'" > settings.gradle
           cat <<EOF > build.gradle
@@ -63,64 +69,81 @@ jobs:
 
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 20; versionName "20.0-Lite-Horror" } }
+          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 21; versionName "21.0-Realistic" } }
           dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
 
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application android:label="Geass Eye Lite" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <application android:label="Realistic Geass" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHER" /> </intent-filter>
+                      <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHer" /> </intent-filter>
                   </activity>
               </application>
           </manifest>
           EOF
 
-          # الواجهة التفاعلية
+          # الواجهة: عين بدقة عالية
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:background="#000000"
-              android:gravity="center">
+              android:background="#000000">
               <ImageView
-                  android:id="@+id/eye_view"
-                  android:layout_width="350dp"
-                  android:layout_height="350dp"
-                  android:src="@drawable/geass_closed"
-                  android:layout_centerInParent="true" />
+                  android:id="@+id/geass_eye"
+                  android:layout_width="320dp"
+                  android:layout_height="320dp"
+                  android:layout_centerInParent="true"
+                  android:src="@drawable/geass_eye"
+                  android:scaleY="0.01"
+                  android:alpha="0.3" />
               <Button
-                  android:id="@+id/btn_activate"
+                  android:id="@+id/btn_obey"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
-                  android:text="ACTIVATE GEASS"
-                  android:layout_below="@id/eye_view"
+                  android:text="OBEY"
+                  android:layout_alignParentBottom="true"
                   android:layout_centerHorizontal="true"
-                  android:layout_marginTop="20dp"
-                  android:backgroundTint="#8B0000"
-                  android:textColor="#FFFFFF" />
+                  android:layout_marginBottom="50dp"
+                  android:backgroundTint="#440000"
+                  android:textColor="#FF0000" />
           </RelativeLayout>
           EOF
 
-          # كود التفاعل (Java)
+          # كود الجافا للأنيميشن الواقعي
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
+          import android.animation.ObjectAnimator;
           import android.os.Bundle;
           import android.view.View;
+          import android.view.animation.AccelerateDecelerateInterpolator;
           import android.widget.ImageView;
           import androidx.appcompat.app.AppCompatActivity;
 
           public class MainActivity extends AppCompatActivity {
-              boolean isActivated = false;
+              boolean isOpened = false;
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-                  final ImageView eye = findViewById(R.id.eye_view);
-                  findViewById(R.id.btn_activate).setOnClickListener(new View.OnClickListener() {
+                  final ImageView eye = findViewById(R.id.geass_eye);
+                  
+                  findViewById(R.id.btn_obey).setOnClickListener(new View.OnClickListener() {
                       @Override public void onClick(View v) {
-                          isActivated = !isActivated;
-                          eye.setImageResource(isActivated ? R.drawable.geass_open : R.drawable.geass_closed);
+                          float targetScale = isOpened ? 0.01f : 1.0f;
+                          float targetAlpha = isOpened ? 0.3f : 1.0f;
+                          
+                          // أنيميشن الانفتاح العمودي ببطء (واقعي)
+                          ObjectAnimator scaleY = ObjectAnimator.ofFloat(eye, "scaleY", targetScale);
+                          ObjectAnimator alpha = ObjectAnimator.ofFloat(eye, "alpha", targetAlpha);
+                          
+                          scaleY.setDuration(1500); // 1.5 ثانية لانفتاح هادئ ومرعب
+                          alpha.setDuration(1500);
+                          
+                          scaleY.setInterpolator(new AccelerateDecelerateInterpolator());
+                          
+                          scaleY.start();
+                          alpha.start();
+                          isOpened = !isOpened;
                       }
                   });
               }
@@ -133,11 +156,11 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release Horror Lite APK
+      - name: 📦 Release Realistic APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass 2.5 Flash Lite - Horror Edition"
-          tag_name: "v20.0-lite"
+          name: "Geass - Realistic AI Animation"
+          tag_name: "v21.0-realistic"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
