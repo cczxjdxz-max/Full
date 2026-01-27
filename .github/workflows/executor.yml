@@ -1,4 +1,4 @@
-name: 25. Ultimate Realistic Geass - Master Build
+name: 26. Ultimate Geass - Handcrafted XML Horror
 on:
   workflow_dispatch:
 
@@ -6,10 +6,10 @@ permissions:
   contents: write
 
 jobs:
-  build_master_apk:
+  build_horror_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout Repository
+      - name: 📂 Checkout
         uses: actions/checkout@v4
 
       - name: ☕ Setup Java 11
@@ -18,27 +18,39 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🧠 AI Design (Hyper-Realistic XML)
-        env:
-          GEMINI_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      - name: 🎨 Create Handcrafted Geass XML
         run: |
           mkdir -p app/src/main/res/drawable
-          
-          # طلب تصميم فائق الواقعية مع عروق وتدرجات لونية
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{ "contents": [{ "parts": [{ "text": "Provide ONLY the Android Vector XML for a hyper-realistic, terrifying red Geass eye. Include complex paths for jagged blood vessels (veins) and a glowing iris. Use dark red gradients. No markdown, no text." }] }] }')
+          # كود XML لعين الجياس مع تفاصيل العروق والظلال
+          cat <<EOF > app/src/main/res/drawable/geass_eye.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:aapt="http://schemas.android.com/aapt"
+              android:width="400dp"
+              android:height="400dp"
+              android:viewportWidth="100"
+              android:viewportHeight="100">
+              
+              <path android:pathData="M50,50m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0">
+                  <aapt:attr name="android:fillColor">
+                      <gradient android:type="radial" android:gradientRadius="15" android:centerX="50" android:centerY="50">
+                          <item android:offset="0.0" android:color="#FF0000" />
+                          <item android:offset="0.8" android:color="#440000" />
+                          <item android:offset="1.0" android:color="#000000" />
+                      </gradient>
+                  </aapt:attr>
+              </path>
 
-          # استخراج الكود بأمان
-          DESIGN_CODE=$(echo "$RESPONSE" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d['candidates'][0]['content']['parts'][0]['text'].replace('\`\`\`xml', '').replace('\`\`\`', '').strip()) if 'candidates' in d else print('FAILED')")
+              <path android:fillColor="#FF0000"
+                  android:pathData="M50,35 L42,48 L32,44 C38,52 46,60 50,85 C54,60 62,52 68,44 L58,48 L50,35 Z" />
 
-          if [ "$DESIGN_CODE" == "FAILED" ]; then
-            echo "<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='300dp' android:height='300dp' android:viewportWidth='100' android:viewportHeight='100'><path android:fillColor='#FF0000' android:pathData='M50,30 L42,45 L32,42 C37,48 45,55 50,75 C55,55 63,48 68,42 L58,45 L50,35 Z'/></vector>" > app/src/main/res/drawable/geass_eye.xml
-          else
-            echo "$DESIGN_CODE" > app/src/main/res/drawable/geass_eye.xml
-          fi
+              <path android:strokeColor="#660000" android:strokeWidth="0.4"
+                  android:pathData="M35,50 Q25,40 15,45 M65,50 Q75,40 85,45 M50,35 Q45,20 50,10 M50,85 Q55,95 50,100" />
+              <path android:strokeColor="#880000" android:strokeWidth="0.3"
+                  android:pathData="M20,60 Q10,70 5,65 M80,60 Q90,70 95,65" />
+          </vector>
+          EOF
 
-      - name: 🏗️ Construct App Structure
+      - name: 🏗️ Construct App Architecture
         run: |
           mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
@@ -52,14 +64,14 @@ jobs:
 
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 25; versionName "25.0-Hyper-Realistic" } }
+          android { compileSdkVersion 31; namespace 'com.geass.eye'; defaultConfig { applicationId "com.geass.eye"; minSdkVersion 21; targetSdkVersion 31; versionCode 26; versionName "26.0-Handcrafted" } }
           dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
 
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
               <uses-permission android:name="android.permission.VIBRATE" />
-              <application android:label="Geass Reality" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <application android:label="Geass Legacy" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHER" /> </intent-filter>
                   </activity>
@@ -76,11 +88,12 @@ jobs:
               android:gravity="center">
               <ImageView
                   android:id="@+id/geass_eye"
-                  android:layout_width="400dp"
-                  android:layout_height="400dp"
+                  android:layout_width="350dp"
+                  android:layout_height="350dp"
                   android:src="@drawable/geass_eye"
                   android:scaleY="0.0"
-                  android:alpha="0.0" />
+                  android:alpha="0.0"
+                  android:padding="20dp" />
           </RelativeLayout>
           EOF
 
@@ -89,7 +102,6 @@ jobs:
           import android.animation.*;
           import android.graphics.Color;
           import android.os.*;
-          import android.view.View;
           import android.view.animation.*;
           import android.widget.*;
           import androidx.appcompat.app.AppCompatActivity;
@@ -101,31 +113,30 @@ jobs:
                   setContentView(R.layout.activity_main);
                   final RelativeLayout bg = findViewById(R.id.main_layout);
                   final ImageView eye = findViewById(R.id.geass_eye);
-                  final Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                  final Vibrator viber = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
                   bg.setOnClickListener(v -> {
                       if(!active) {
-                          // 1. انفتاح واقعي بطيء (3 ثواني)
-                          eye.animate().scaleY(1f).alpha(1f).setDuration(3000).setInterpolator(new AccelerateDecelerateInterpolator()).start();
+                          // أنيميشن الانفتاح البطئ
+                          eye.animate().scaleY(1f).alpha(1f).setDuration(2500).setInterpolator(new AccelerateDecelerateInterpolator()).start();
                           
-                          // 2. تغير لون الخلفية تدريجياً
+                          // تحويل لون الخلفية
                           ValueAnimator colorAnim = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, Color.parseColor("#1A0000"));
-                          colorAnim.setDuration(3000);
+                          colorAnim.setDuration(2500);
                           colorAnim.addUpdateListener(a -> bg.setBackgroundColor((int)a.getAnimatedValue()));
                           colorAnim.start();
 
-                          // 3. اهتزاز عند اكتمال القوة
+                          // الاهتزاز والنبض
                           new Handler().postDelayed(() -> {
-                              if (vibrator != null) vibrator.vibrate(500);
-                              // تأثير النبض المستمر
+                              if (viber != null) viber.vibrate(400);
                               ObjectAnimator pulse = ObjectAnimator.ofPropertyValuesHolder(eye, 
-                                  PropertyValuesHolder.ofFloat("scaleX", 1.0f, 1.05f),
-                                  PropertyValuesHolder.ofFloat("scaleY", 1.0f, 1.05f));
-                              pulse.setDuration(800);
+                                  PropertyValuesHolder.ofFloat("scaleX", 1.0f, 1.08f),
+                                  PropertyValuesHolder.ofFloat("scaleY", 1.0f, 1.08f));
+                              pulse.setDuration(1000);
                               pulse.setRepeatCount(ValueAnimator.INFINITE);
                               pulse.setRepeatMode(ValueAnimator.REVERSE);
                               pulse.start();
-                          }, 3000);
+                          }, 2500);
                           active = true;
                       }
                   });
@@ -139,11 +150,11 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release Final APK
+      - name: 📦 Release APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Hyper-Realism v25.0"
-          tag_name: "v25.0"
+          name: "Geass Master XML v26.0"
+          tag_name: "v26.0"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
