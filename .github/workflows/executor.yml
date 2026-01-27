@@ -1,4 +1,4 @@
-name: 2. The Processor (Full) - 5 Trillion Simulation
+name: 2. The Processor (Full) - 5 Trillion Simulation & GIF
 on:
   repository_dispatch:
     types: [headless_reverse]
@@ -15,22 +15,22 @@ jobs:
 
       - name: "Install Engineering Tools"
         run: |
-          # تثبيت المكتبة التي فقدها السيرفر
           python -m pip install --upgrade pip
-          pip install numpy
+          pip install numpy matplotlib pillow
 
-      - name: "Execute Headless Training"
+      - name: "Execute Headless Training & Generate GIF"
         run: |
-          # فك تشفير المحرك وتشغيله
           echo "${{ github.event.client_payload.plan }}" | base64 -d > engine_core.py
           python3 engine_core.py
 
-      - name: "Deploy Final God Brain"
+      - name: "Deploy Final God Brain and GIF"
         uses: softprops/action-gh-release@v1
         with:
-          files: god_reverse_brain.dat
+          files: |
+            god_reverse_brain.dat
+            final_decapitated_round.gif # ملف الـ GIF الجديد
           name: "The-Decapitated-Brain-v${{ github.run_id }}"
           tag_name: "final-god-v${{ github.run_id }}"
-          body: "تم إصلاح خطأ المكتبة. العقل الآن جاهز بعد 5 تريليون محاكاة بفيزياء حقيقية."
+          body: "العقل النهائي بعد 5 تريليون محاكاة بفيزياء حقيقية. الفيديو يوضح آخر جولة."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
