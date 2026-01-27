@@ -1,4 +1,4 @@
-name: 2. The Executor (BODY) - Data Miner
+name: 2. The Executor (BODY) - Release Master
 
 on:
   repository_dispatch:
@@ -8,28 +8,48 @@ permissions:
   contents: write
 
 jobs:
-  execute:
+  execute_and_release:
     runs-on: ubuntu-latest
     steps:
-      - name: "Decode Plan"
-        run: echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > plan_script.py
-
-      - name: "Surgical Extraction"
+      - name: "Decode and Prepare Plan"
         run: |
-          python3 plan_script.py > execution_log.txt 2>&1
+          echo "${{ github.event.client_payload.plan_base64 }}" | base64 -d > plan_script.py
+
+      - name: "Run Surgical Extraction"
+        run: |
+          # تشغيل السكربت وحفظ النتائج في CORE_DATA
+          python3 plan_script.py > execution_log.txt 2>&1 || true
+
+      - name: "Deep Data Mining (Manual Overdrive)"
+        # في حال فشل السكربت الذكي، هذا الكود سيبحث يدوياً في كل مكان
+        run: |
+          mkdir -p CORE_DATA
+          echo "Starting Deep Scan for AI data..."
           
-      - name: "Deep Scan Security"
-        run: |
-          # جمع أي ملفات بيانات تائهة
-          find . -type f \( -name "*.dll" -o -name "*.dat" -o -name "*.json" -o -name "*.bytes" -o -name "*.lua" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
-          zip -r -9 matrix_data.zip CORE_DATA execution_log.txt
+          # البحث عن ملفات البرمجة والهياكل في كل المجلدات
+          find . -type f \( -name "Assembly-CSharp.dll" -o -name "global-metadata.dat" -o -name "*.json" -o -name "*.bytes" -o -name "*.lua" \) | xargs -I{} cp --parents {} CORE_DATA/ || true
+          
+          # فحص إذا تم استخراج أي شيء فعلاً
+          if [ -z "$(ls -A CORE_DATA)" ]; then
+            echo "CRITICAL: No target files found in APK."
+            ls -R # طباعة هيكل الملفات للفحص في اللوج
+            exit 1
+          fi
 
-      - name: "Release to GitHub"
+      - name: "Compress Assets"
+        run: |
+          # ضغط المجلد المستخرج مع اللوج للفحص
+          zip -r -9 training_matrix.zip CORE_DATA execution_log.txt
+
+      - name: "Create Release and Upload"
         uses: softprops/action-gh-release@v1
-        if: always()
         with:
-          files: matrix_data.zip
-          name: "FINAL-DATA-v${{ github.run_id }}"
+          files: training_matrix.zip
+          name: "AI-DATA-EXTRACTED-${{ github.run_id }}"
           tag_name: "v${{ github.run_id }}"
+          body: |
+            تم استخراج بيانات التدريب الرقمية بنجاح.
+            الملفات المتضمنة: JSON, DLL, Bytes, Lua.
+            هذه البيانات جاهزة لبدء محاكاة الـ 3 ترليون تجربة.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
