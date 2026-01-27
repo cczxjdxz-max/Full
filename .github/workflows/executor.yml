@@ -9,7 +9,7 @@ jobs:
   build_horror_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout
+      - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
       - name: ☕ Setup Java 11
@@ -22,25 +22,31 @@ jobs:
         env:
           GEMINI_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          get_design() {
+          # دالة معالجة الـ API محمية من أخطاء الـ YAML
+          mkdir -p app/src/main/res/drawable
+          
+          generate_xml() {
             local prompt=$1
             local filename=$2
             local fallback=$3
-            
+
             RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
               -H "Content-Type: application/json" \
               -d "{ \"contents\": [{ \"parts\": [{ \"text\": \"$prompt\" }] }] }")
-            
-            DESIGN_CODE=$(echo "$RESPONSE" | python3 -c "
+
+            # استخدام كود بايثون نظيف لاستخراج البيانات
+            DESIGN_CODE=$(echo "$RESPONSE" | python3 - <<EOF
 import sys, json
 try:
     data = json.load(sys.stdin)
     text = data['candidates'][0]['content']['parts'][0]['text']
-    print(text.replace('\`\`\`xml', '').replace('\`\`\`', '').strip())
-except:
+    # تنظيف الماركدوان
+    clean = text.replace('\`\`\`xml', '').replace('\`\`\`', '').strip()
+    print(clean)
+except Exception:
     print('FAILED')
-" 2>/dev/null)
-
+EOF
+)
             if [ "$DESIGN_CODE" == "FAILED" ] || [ -z "$DESIGN_CODE" ]; then
               echo "$fallback" > "app/src/main/res/drawable/$filename.xml"
             else
@@ -48,21 +54,18 @@ except:
             fi
           }
 
-          mkdir -p app/src/main/res/drawable
-          # تصميم احتياطي يحتوي على تفاصيل العروق في حال فشل الـ API
           FALLBACK_EYE="<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='300dp' android:height='300dp' android:viewportWidth='100' android:viewportHeight='100'><path android:fillColor='#FF0000' android:pathData='M50,30 L42,45 L32,42 C37,48 45,55 50,75 C55,55 63,48 68,42 L58,45 L50,35 Z'/><path android:strokeColor='#440000' android:strokeWidth='0.5' android:pathData='M50,75 L30,90 M50,75 L70,90 M30,40 L10,20 M70,40 L90,20'/></vector>"
           
-          # طلب تصميم العين مع العروق
-          get_design "Provide ONLY the Android Vector XML for a terrifying red Geass eye. Add many thin red veins (vessels) spreading from the eye. Dark, cinematic, realistic. No text." "geass_veined" "$FALLBACK_EYE"
+          generate_xml "Provide ONLY the Android Vector XML for a terrifying red Geass eye. Add many thin red veins spreading from the eye. Dark, cinematic, realistic. No text." "geass_veined" "$FALLBACK_EYE"
 
       - name: 🏗️ Construct App Structure
         run: |
           mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/layout
-
-          # إعدادات Gradle
+          
           echo "android.useAndroidX=true" > gradle.properties
           echo "include ':app'" > settings.gradle
+          
           cat <<EOF > build.gradle
           buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.4.2' } }
           allprojects { repositories { google(); mavenCentral() } }
@@ -84,7 +87,6 @@ except:
           </manifest>
           EOF
 
-          # الواجهة: الخلفية تحتوي على ID للتحكم بلونها
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:id="@+id/main_bg"
@@ -100,7 +102,6 @@ except:
                   android:scaleY="0.0"
                   android:alpha="0.0" />
               <TextView
-                  android:id="@+id/txt_command"
                   android:layout_width="wrap_content"
                   android:layout_height="wrap_content"
                   android:text="I COMMAND YOU"
@@ -113,16 +114,13 @@ except:
           </RelativeLayout>
           EOF
 
-          # كود الجافا: أنيميشن مزدوج للعين والخلفية
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
           import android.animation.ArgbEvaluator;
-          import android.animation.ObjectAnimator;
           import android.animation.ValueAnimator;
           import android.graphics.Color;
           import android.os.Bundle;
           import android.view.View;
-          import android.view.animation.AccelerateDecelerateInterpolator;
           import android.widget.ImageView;
           import android.widget.RelativeLayout;
           import androidx.appcompat.app.AppCompatActivity;
@@ -132,31 +130,19 @@ except:
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
-                  
                   final RelativeLayout bg = findViewById(R.id.main_bg);
                   final ImageView eye = findViewById(R.id.geass_eye);
-                  
                   bg.setOnClickListener(new View.OnClickListener() {
                       @Override public void onClick(View v) {
                           float targetScale = isActivated ? 0.0f : 1.0f;
                           float targetAlpha = isActivated ? 0.0f : 1.0f;
                           int colorFrom = isActivated ? Color.parseColor("#220000") : Color.BLACK;
                           int colorTo = isActivated ? Color.BLACK : Color.parseColor("#220000");
-
-                          // 1. أنيميشن انفتاح العين
-                          ObjectAnimator.ofFloat(eye, "scaleY", targetScale).setDuration(3000).start();
-                          ObjectAnimator.ofFloat(eye, "alpha", targetAlpha).setDuration(3000).start();
-                          
-                          // 2. أنيميشن تغير لون الخلفية تدريجياً (من الأسود للأحمر الداكن)
+                          eye.animate().scaleY(targetScale).alpha(targetAlpha).setDuration(3000).start();
                           ValueAnimator colorAnimation = ValueAnimator.ofObject(new ArgbEvaluator(), colorFrom, colorTo);
                           colorAnimation.setDuration(3000);
-                          colorAnimation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                              @Override public void onAnimationUpdate(ValueAnimator animator) {
-                                  bg.setBackgroundColor((int) animator.getAnimatedValue());
-                              }
-                          });
+                          colorAnimation.addUpdateListener(animator -> bg.setBackgroundColor((int) animator.getAnimatedValue()));
                           colorAnimation.start();
-                          
                           isActivated = !isActivated;
                       }
                   });
@@ -175,6 +161,6 @@ except:
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
           name: "Geass Blood - Realistic AI Horror"
-          tag_name: "v23.0"
+          tag_name: "v23.1"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
