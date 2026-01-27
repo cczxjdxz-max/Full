@@ -1,4 +1,4 @@
-name: 2. The Executor - Final Rescue Build
+name: 2. The Executor - Groovy Final Success
 on:
   repository_dispatch:
     types: [build_empty_apk]
@@ -19,13 +19,13 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 🏗️ Create Android Structure
+      - name: 🏗️ Create Android Structure (Groovy Edition)
         run: |
           mkdir -p app/src/main/java/com/decapitator/ai
           mkdir -p app/src/main/res/layout
 
-          # 1. settings.gradle.kts
-          cat <<EOF > settings.gradle.kts
+          # 1. ملف الإعدادات بصيغة Groovy (بدون kts)
+          cat <<EOF > settings.gradle
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
@@ -34,36 +34,42 @@ jobs:
               repositories { google(); mavenCentral() }
           }
           rootProject.name = "DecapitatorAI"
-          include(":app")
+          include ':app'
           EOF
 
-          # 2. build.gradle.kts (Root)
-          cat <<EOF > build.gradle.kts
-          plugins {
-              id("com.android.application") version "8.1.1" apply false
+          # 2. ملف Gradle الرئيسي بصيغة Groovy
+          cat <<EOF > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.1'
+              }
+          }
+          allprojects {
+              repositories { google(); mavenCentral() }
           }
           EOF
 
-          # 3. app/build.gradle.kts (The Fix)
-          cat <<EOF > app/build.gradle.kts
-          plugins { id("com.android.application") }
+          # 3. ملف تطبيق الأندرويد (تم تبسيطه لأقصى حد)
+          cat <<EOF > app/build.gradle
+          apply plugin: 'com.android.application'
           android {
-              namespace = "com.decapitator.ai"
-              compileSdk = 33
+              namespace 'com.decapitator.ai'
+              compileSdk 33
               defaultConfig {
-                  applicationId = "com.decapitator.ai"
-                  minSdk = 24
-                  targetSdk = 33
-                  versionCode = 1
-                  versionName = "1.0"
+                  applicationId "com.decapitator.ai"
+                  minSdk 24
+                  targetSdk 33
+                  versionCode 1
+                  versionName "1.0"
               }
           }
           dependencies {
-              "implementation"("androidx.appcompat:appcompat:1.6.1")
+              implementation 'androidx.appcompat:appcompat:1.6.1'
           }
           EOF
 
-          # 4. Manifest & Activity
+          # 4. Manifest والكود
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application android:label="Decapitator AI">
@@ -80,28 +86,25 @@ jobs:
           cat <<EOF > app/src/main/java/com/decapitator/ai/MainActivity.java
           package com.decapitator.ai;
           import android.os.Bundle;
-          import android.widget.TextView;
           import androidx.appcompat.app.AppCompatActivity;
           public class MainActivity extends AppCompatActivity {
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  TextView tv = new TextView(this);
-                  tv.setText("DECAPITATOR ONLINE");
-                  setContentView(tv);
+                  setContentView(android.R.layout.simple_list_item_1);
               }
           }
           EOF
 
       - name: 🔨 Build Debug APK
         run: |
-          # هنا التعديل: نستخدم gradle مباشرة
-          gradle :app:assembleDebug --no-daemon
+          # نستخدم gradle مباشرة مع تجاهل التحذيرات
+          gradle :app:assembleDebug --no-daemon -Dorg.gradle.warning.mode=none
 
       - name: 📦 Archive & Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Decapitator Body v1.8"
-          tag_name: "v1.8-final"
+          name: "Decapitator Body v2.0"
+          tag_name: "v2.0-stable"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
