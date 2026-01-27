@@ -1,12 +1,12 @@
-name: 7. The Ultimate AI Build - Gemini 2.5 Architect
+name: 8. The Perfect AI Build - Real Geass Eye
 on:
-  workflow_dispatch: # يسمح لك بتشغيله يدوياً بضغطة زر
+  workflow_dispatch: # تشغيل يدوي من تبويب Actions
 
 permissions:
   contents: write
 
 jobs:
-  build_with_ai_assets:
+  build_geass_apk:
     runs-on: ubuntu-latest
     steps:
       - name: 📂 Checkout Repository
@@ -18,40 +18,45 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🧠 Consultant Gemini 2.5 (Design Phase)
+      - name: 🎨 Design Phase - Injecting Real Geass Vector
         run: |
-          # طلب كود الرسم المتجهي (Vector Drawable) من الذكاء الاصطناعي
-          RESPONSE=$(curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyDK6iEgit-M6xjgF09-MBuggk5qUBYrJ-M" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "contents": [{
-                "parts": [{
-                  "text": "Give me ONLY the XML code for an Android Vector Drawable representing a glowing red Geass eye icon. No text explanation, starting with <vector and ending with </vector>."
-                }]
-              }]
-            }')
-          
-          # استخراج كود الـ XML وتخزينه كملف صورة محقونة
-          echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)['candidates'][0]['content']['parts'][0]['text'].replace('\\\`\\\`\\\`xml', '').replace('\\\`\\\`\\\`', '').strip())" > ic_geass_eye.xml
+          # إنشاء ملف العين بتصميم هندسي دقيق لشعار ليلوش (وليس مجرد دائرة)
+          cat <<EOF > ic_geass_eye.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="200dp"
+              android:height="200dp"
+              android:viewportWidth="100"
+              android:viewportHeight="100">
+              <path
+                  android:fillColor="#33FF0000"
+                  android:pathData="M50,10 C20,10 0,50 0,50 C0,50 20,90 50,90 C80,90 100,50 100,50 C100,50 80,10 50,10 Z" />
+              <path
+                  android:fillColor="#000000"
+                  android:pathData="M50,20 C25,20 10,50 10,50 C10,50 25,80 50,80 C75,80 90,50 90,50 C90,50 75,20 50,20 Z" />
+              <path
+                  android:fillColor="#FF0000"
+                  android:pathData="M50,35 L42,45 L30,42 C35,48 45,55 50,75 C55,55 65,48 70,42 L58,45 L50,35 Z" />
+              <path
+                  android:fillColor="#FF0000"
+                  android:pathData="M50,45 A5,5 0 1,1 49.9,45 Z" />
+          </vector>
+          EOF
 
-      - name: 🏗️ Assemble App Structure
+      - name: 🏗️ Build App Structure
         run: |
           rm -rf *
           mkdir -p app/src/main/java/com/geass/eye
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
+          
+          # نقل العين المحقونة للمجلد الصحيح
+          mv ../ic_geass_eye.xml app/src/main/res/drawable/ic_geass_eye.xml
 
-          # حقن التصميم المولد من الـ API
-          mv ../ic_geass_eye.xml app/src/main/res/drawable/ic_geass_eye.xml || echo "<vector xmlns:android='http://schemas.android.com/apk/res/android' android:width='24dp' android:height='24dp' android:viewportWidth='24' android:viewportHeight='24'><path android:fillColor='#FF0000' android:pathData='M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z'/></vector>" > app/src/main/res/drawable/ic_geass_eye.xml
-
-          # 1. gradle.properties
+          # إعدادات Gradle
           echo "android.useAndroidX=true" > gradle.properties
-
-          # 2. settings.gradle
           echo "include ':app'" > settings.gradle
 
-          # 3. Root build.gradle
+          # بناء ملف build.gradle الرئيسي
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -62,7 +67,7 @@ jobs:
           }
           EOF
 
-          # 4. App build.gradle
+          # بناء ملف build.gradle للتطبيق
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android {
@@ -72,20 +77,19 @@ jobs:
                   applicationId "com.geass.eye"
                   minSdkVersion 21
                   targetSdkVersion 31
-                  versionCode 7
-                  versionName "7.0-AI-Injected"
+                  versionCode 8
+                  versionName "8.0-RealGeass"
               }
           }
           dependencies {
               implementation 'androidx.appcompat:appcompat:1.4.1'
-              implementation 'com.google.android.material:material:1.5.0'
           }
           EOF
 
-          # 5. AndroidManifest.xml
+          # المانيفست
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.eye">
-              <application android:label="Geass Eye AI" android:theme="@style/Theme.AppCompat.NoActionBar">
+              <application android:label="Geass Eye" android:theme="@style/Theme.AppCompat.NoActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -96,22 +100,21 @@ jobs:
           </manifest>
           EOF
 
-          # 6. UI Layout (يعرض العين التي صممها Gemini)
+          # تصميم الواجهة (الآن ستعرض شعار الجياس بدلاً من الدائرة)
           cat <<EOF > app/src/main/res/layout/activity_main.xml
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="#000000">
               <ImageView
-                  android:layout_width="350dp"
-                  android:layout_height="350dp"
+                  android:layout_width="300dp"
+                  android:layout_height="300dp"
                   android:layout_centerInParent="true"
-                  android:src="@drawable/ic_geass_eye"
-                  android:contentDescription="AI Designed Eye" />
+                  android:src="@drawable/ic_geass_eye" />
           </RelativeLayout>
           EOF
 
-          # 7. MainActivity.java
+          # كود الـ Java
           cat <<EOF > app/src/main/java/com/geass/eye/MainActivity.java
           package com.geass.eye;
           import android.os.Bundle;
@@ -125,18 +128,17 @@ jobs:
           }
           EOF
 
-      - name: 🔨 Build APK (The AI Shell)
+      - name: 🔨 Execute Build (Gradle)
         run: |
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Upload Injected APK
+      - name: 📦 Release Final Geass APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          name: "Geass Eye - AI Build v7.0"
-          tag_name: "v7.0-ai"
-          body: "تم بناء هذا التطبيق وحقنه بتصميم مولد بواسطة Gemini 2.5 Flash."
+          name: "Geass Eye - The Real Design"
+          tag_name: "v8.0-real"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
