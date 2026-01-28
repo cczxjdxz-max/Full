@@ -48,7 +48,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. واجهة المستخدم (العين ومربع الحوار)
+          # 2. Layout
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -72,10 +72,9 @@ jobs:
           </LinearLayout>
           EOF
 
-          # 3. محرك الذكاء (GeassBrain)
+          # 3. GeassBrain
           cat <<EOF > app/src/main/java/com/geass/shell/GeassBrain.java
           package com.geass.shell;
-          import java.util.Random;
           public class GeassBrain {
               public String process(String in) {
                   if(in.contains("هيدشوت")) return "تم ضبط زاوية الرفع.. استعد للدماء.";
@@ -137,8 +136,7 @@ jobs:
               }
           }
           EOF
-          
-          # منع فشل البناء في حال عدم وجود ملفات صور
+
           touch app/src/main/res/drawable/geass_eye_full.png
           touch app/src/main/res/drawable/geass_icon.png
 
