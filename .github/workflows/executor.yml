@@ -12,18 +12,8 @@ jobs:
       - name: 🧠 Phase 1: Simulation Logic
         run: |
           mkdir -p app/src/main/assets
-          cat <<'EOF' > simulation.py
-          import json
-          logic = {
-              'aim_lock': '0.001ms',
-              'iq': 250,
-              'simulations': '5 Trillion'
-          }
-          with open('app/src/main/assets/trained_logic.json', 'w') as f:
-              json.dump(logic, f)
-          print('المهندس: تم حقن 5 ترليون محاكاة بنجاح.')
-          EOF
-          python3 simulation.py
+          echo '{"aim_lock": "0.001ms", "iq": 250}' > app/src/main/assets/trained_logic.json
+          echo "المهندس: تم حقن المنطق بنجاح."
 
       - name: 🏗️ Phase 2: Building The Shell
         run: |
@@ -47,7 +37,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. UI Layout (Aim Dot)
+          # 2. UI Layout
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent">
@@ -58,7 +48,7 @@ jobs:
           </FrameLayout>
           EOF
 
-          # 3. Floating Service (Visual Pulse Engine)
+          # 3. Floating Service (Visual Pulse)
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
@@ -80,9 +70,9 @@ jobs:
                   final Handler h = new Handler(Looper.getMainLooper());
                   h.post(new Runnable() {
                       @Override public void run() {
-                          dot.animate().scaleX(2.5f).scaleY(2.5f).setDuration(400).withEndAction(() -> 
+                          dot.animate().scaleX(2.0f).scaleY(2.0f).setDuration(400).withEndAction(() -> 
                           dot.animate().scaleX(1.0f).scaleY(1.0f).setDuration(400).start()).start();
-                          h.postDelayed(this, 1500);
+                          h.postDelayed(this, 1200);
                       }
                   });
               }
@@ -119,10 +109,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release Alpha
+      - name: 📦 Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_alpha_sovereign"
+          tag_name: "v_alpha_fixed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
