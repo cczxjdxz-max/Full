@@ -1,4 +1,4 @@
-name: Geass_Sovereign_Final
+name: Geass_Vision_Final_Build
 on:
   workflow_dispatch:
 
@@ -9,28 +9,27 @@ jobs:
       - name: 📂 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 🏗️ 2. Create Structure
-        # هذا هو السطر 12 الجديد، بسيط ومباشر
+      - name: 🏗️ 2. Structure & Assets
         run: |
+          # إنشاء المجلدات
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/assets
-          echo '{"status": "vision_active"}' > app/src/main/assets/logic.json
+          
+          # محاولة نسخ الصور بقوة (Force Copy)
+          # سنستخدم المسار الذي أكدت أنت وجود الصور فيه
+          cp -v build/geass_eye_base.png app/src/main/res/drawable/ || echo "Missing Base"
+          cp -v build/pupil.png app/src/main/res/drawable/ || echo "Missing Pupil"
+          cp -v build/geass_icon.png app/src/main/res/drawable/ || echo "Missing Icon"
 
-      - name: 🖼️ 3. Import Assets
-        run: |
-          cp build/geass_eye_base.png app/src/main/res/drawable/ || echo "missing"
-          cp build/pupil.png app/src/main/res/drawable/ || echo "missing"
-          cp build/geass_icon.png app/src/main/res/drawable/ || echo "missing"
-
-      - name: 📝 4. Write Manifest
+      - name: 📝 3. Android Manifest
         run: |
           cat <<EOF > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <application android:label="Geass Vision" android:icon="@drawable/geass_icon">
+              <application android:label="Geass Vision" android:icon="@drawable/geass_icon" android:theme="@android:style/Theme.Translucent.NoTitleBar">
                   <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -42,13 +41,13 @@ jobs:
           </manifest>
           EOF
 
-      - name: 🎨 5. Write Layout
+      - name: 🎨 4. Floating Layout
         run: |
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="120dp" android:layout_height="120dp">
+              android:layout_width="150dp" android:layout_height="150dp">
               <ImageView android:id="@+id/pupil"
-                  android:layout_width="45dp" android:layout_height="45dp"
+                  android:layout_width="60dp" android:layout_height="60dp"
                   android:layout_gravity="center" android:src="@drawable/pupil" />
               <ImageView android:id="@+id/geass_eye_base"
                   android:layout_width="match_parent" android:layout_height="match_parent"
@@ -56,7 +55,7 @@ jobs:
           </FrameLayout>
           EOF
 
-      - name: 🧠 6. Write Engine
+      - name: 🧠 5. Vision Engine (Java)
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
@@ -74,30 +73,33 @@ jobs:
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                      300, 300, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                      450, 450, 
+                      (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? 
+                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : 
+                      WindowManager.LayoutParams.TYPE_PHONE,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  p.gravity = Gravity.CENTER;
                   wm.addView(root, p);
-                  startLogic();
+                  startEyeLogic();
               }
-              private void startLogic() {
-                  h.postDelayed(new Runnable() {
+              private void startEyeLogic() {
+                  h.post(new Runnable() {
                       @Override public void run() {
                           if(root == null) return;
-                          View pupil = root.findViewById(R.id.pupil);
-                          View eye = root.findViewById(R.id.geass_eye_base);
-                          // الرمش
-                          eye.animate().scaleY(0.1f).setDuration(150).withEndAction(() -> eye.animate().scaleY(1f).setDuration(150).start()).start();
-                          // حركة البؤبؤ (تجسيد الرؤية)
-                          pupil.animate().translationY((float)(Math.random()*-40)).translationX((float)(Math.random()*60-30)).setDuration(300).start();
-                          h.postDelayed(this, 3000);
+                          View p = root.findViewById(R.id.pupil);
+                          View e = root.findViewById(R.id.geass_eye_base);
+                          // الرمش والالتفات
+                          e.animate().scaleY(0.1f).setDuration(200).withEndAction(() -> e.animate().scaleY(1f).setDuration(200).start()).start();
+                          p.animate().translationX((float)(Math.random()*100-50)).translationY((float)(Math.random()*100-50)).setDuration(500).start();
+                          h.postDelayed(this, 3500);
                       }
-                  }, 1000);
+                  });
               }
               @Override public IBinder onBind(android.content.Intent i) { return null; }
           }
           EOF
 
-      - name: 🚀 7. Write MainActivity
+      - name: 🚀 6. MainActivity (The Trigger)
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
@@ -106,17 +108,22 @@ jobs:
           import android.net.Uri;
           import android.os.Bundle;
           import android.provider.Settings;
+          import android.widget.Toast;
           public class MainActivity extends Activity {
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  if (!Settings.canDrawOverlays(this)) {
-                      startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())), 1);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                      Toast.makeText(this, "أعطِ إذن الظهور فوق التطبيقات لتفعيل العين", Toast.LENGTH_LONG).show();
+                      startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())), 101);
                   } else { startService(new Intent(this, FloatingService.class)); finish(); }
+              }
+              @Override protected void onActivityResult(int req, int res, Intent d) {
+                  if(req == 101) { startService(new Intent(this, FloatingService.class)); finish(); }
               }
           }
           EOF
 
-      - name: 🔨 8. Build APK
+      - name: 🔨 7. Build APK
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -126,7 +133,7 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 9. Release
+      - name: 📦 8. Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
