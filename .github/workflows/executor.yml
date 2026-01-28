@@ -1,185 +1,156 @@
-name: 33. Geass_Ultimate_Awakening
+name: Geass_AI_OS_Voice_And_Chat
 on:
+  push:
+    paths:
+      - 'app/src/main/res/drawable/*.png'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build_ultimate_geass:
+  build_ai_system:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout Repository
+      - name: 📂 Checkout
         uses: actions/checkout@v4
 
-      - name: ☕ Setup Java 11
+      - name: ☕ Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '11'
 
-      - name: 🎨 Create Resources (The Ritual)
+      - name: 🏗️ Create Advanced System Files
         run: |
-          mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/raw
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
           mkdir -p app/src/main/java/com/geass/ultimate
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/values
 
-          # 1. تصميم المصفوفة السحرية (XML Vector)
-          cat <<EOF > app/src/main/res/drawable/magic_array.xml
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="500dp" android:height="500dp" android:viewportWidth="100" android:viewportHeight="100">
-              <path android:strokeColor="#FF0000" android:strokeWidth="0.4"
-                  android:pathData="M50,5 A45,45 0,1,1 49.9,5 Z M50,12 A38,38 0,1,0 50.1,12 Z" />
-              <path android:strokeColor="#AA0000" android:strokeWidth="0.2"
-                  android:pathData="M50,0 L50,100 M0,50 L100,50 M20,20 L80,80 M80,20 L20,80" />
-              <path android:strokeColor="#FF0000" android:strokeWidth="0.3"
-                  android:pathData="M35,35 L65,35 L65,65 L35,65 Z" />
-          </vector>
+          # 1. المانيفست (إضافة تصريح المايك والنظام العائم)
+          cat <<EOF > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.ultimate">
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <application android:label="Geass AI" android:theme="@style/Theme.AppCompat.NoActionBar">
+                  <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
           EOF
 
-          # 2. تحميل صوت الجياس
-          wget -q -O app/src/main/res/raw/geass_sound.mp3 "https://www.myinstants.com/media/sounds/geass-eye-sound.mp3"
-
-          # 3. إعداد الألوان والسمات
-          cat <<EOF > app/src/main/res/values/colors.xml
-          <resources>
-              <color name="black">#000000</color>
-              <color name="blood_red">#880000</color>
-          </resources>
+          # 2. تصميم واجهة الشات الشفاف مع زر المايك
+          cat <<EOF > app/src/main/res/layout/floating_chat_layout.xml
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:background="#CC000000" android:padding="12dp">
+              <EditText android:id="@+id/ai_input" android:layout_width="0dp"
+                  android:layout_height="wrap_content" android:layout_weight="1"
+                  android:hint="Speak or type..." android:textColor="#FF0000"
+                  android:background="@android:color/transparent" android:textColorHint="#66FF0000"/>
+              <ImageButton android:id="@+id/mic_btn" android:layout_width="40dp"
+                  android:layout_height="40dp" android:src="@android:drawable/ic_btn_speak_now"
+                  android:background="@android:color/transparent" android:tint="#FF0000"/>
+          </LinearLayout>
           EOF
 
-      - name: 🏗️ UI Layout (The Dark Screen)
-        run: |
-          cat <<EOF > app/src/main/res/layout/activity_main.xml
-          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#000000"
-              android:clipChildren="false">
-
-              <ImageView
-                  android:id="@+id/array_view"
-                  android:layout_width="550dp"
-                  android:layout_height="550dp"
-                  android:layout_centerInParent="true"
-                  android:src="@drawable/magic_array"
-                  android:alpha="0" />
-
-              <ImageView
-                  android:id="@+id/eye_view"
-                  android:layout_width="280dp"
-                  android:layout_height="280dp"
-                  android:layout_centerInParent="true"
-                  android:src="@drawable/geass_eye"
-                  android:alpha="0.8" />
-
-              <TextView
-                  android:id="@+id/status_text"
-                  android:layout_width="wrap_content"
-                  android:layout_height="wrap_content"
-                  android:text="TAP TO AWAKEN"
-                  android:textColor="#44FF0000"
-                  android:layout_alignParentBottom="true"
-                  android:layout_centerHorizontal="true"
-                  android:layout_marginBottom="100dp"
-                  android:textSize="18sp"
-                  android:letterSpacing="0.4" />
-          </RelativeLayout>
-          EOF
-
-      - name: 🧠 Main Logic (The Awakening)
-        run: |
-          cat <<EOF > app/src/main/java/com/geass/ultimate/MainActivity.java
+          # 3. منطق الخدمة العائمة والتعرف على الصوت (FloatingService.java)
+          cat <<EOF > app/src/main/java/com/geass/ultimate/FloatingService.java
           package com.geass.ultimate;
-          import android.animation.*;
-          import android.media.MediaPlayer;
+          import android.app.Service;
+          import android.content.*;
+          import android.graphics.PixelFormat;
           import android.os.*;
-          import android.view.View;
-          import android.view.animation.*;
-          import android.widget.ImageView;
-          import androidx.appcompat.app.AppCompatActivity;
+          import android.speech.*;
+          import android.view.*;
+          import android.widget.*;
+          import java.util.ArrayList;
 
-          public class MainActivity extends AppCompatActivity {
-              private MediaPlayer mp;
-              private boolean active = false;
+          public class FloatingService extends Service {
+              private WindowManager wm;
+              private View chatView;
+              private ImageView floatingEye;
+              private SpeechRecognizer speechRecognizer;
 
-              @Override protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
+              @Override public IBinder onBind(Intent intent) { return null; }
 
-                  ImageView array = findViewById(R.id.array_view);
-                  ImageView eye = findViewById(R.id.eye_view);
-                  Vibrator vib = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+              @Override public void onCreate() {
+                  super.onCreate();
+                  wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  
+                  // إعداد العين العائمة
+                  floatingEye = new ImageView(this);
+                  floatingEye.setImageResource(R.drawable.geass_eye);
+                  
+                  WindowManager.LayoutParams eyeParams = new WindowManager.LayoutParams(
+                      200, 200, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  eyeParams.gravity = Gravity.TOP | Gravity.LEFT;
+                  wm.addView(floatingEye, eyeParams);
 
-                  eye.setOnClickListener(v -> {
-                      if (!active) {
-                          active = true;
-                          // تشغيل الصوت
-                          mp = MediaPlayer.create(this, R.raw.geass_sound);
-                          if (mp != null) mp.start();
+                  // إعداد واجهة الشات
+                  chatView = LayoutInflater.from(this).inflate(R.layout.floating_chat_layout, null);
+                  final EditText input = chatView.findViewById(R.id.ai_input);
+                  ImageButton mic = chatView.findViewById(R.id.mic_btn);
 
-                          // اهتزاز قوي
-                          if (vib != null) vib.vibrate(VibrationEffect.createOneShot(400, 255));
+                  // إعداد التعرف على الصوت
+                  speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+                  final Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                  speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
 
-                          // تدوير المصفوفة وظهورها
-                          array.animate().alpha(0.6f).scaleX(1.2f).scaleY(1.2f).setDuration(1000).start();
-                          ObjectAnimator rot = ObjectAnimator.ofFloat(array, "rotation", 0f, 360f);
-                          rot.setDuration(8000);
-                          rot.setRepeatCount(ValueAnimator.INFINITE);
-                          rot.setInterpolator(new LinearInterpolator());
-                          rot.start();
+                  mic.setOnClickListener(v -> speechRecognizer.startListening(speechIntent));
+                  
+                  speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                      public void onResults(Bundle results) {
+                          ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                          if (matches != null) input.setText(matches.get(0));
+                      }
+                      // أضف باقي الدوال الفارغة للـ RecognitionListener هنا...
+                      public void onReadyForSpeech(Bundle params) {} public void onBeginningOfSpeech() {}
+                      public void onRmsChanged(float rmsdB) {} public void onBufferReceived(byte[] buffer) {}
+                      public void onEndOfSpeech() {} public void onError(int error) {}
+                      public void onPartialResults(Bundle partialResults) {} public void onEvent(int eventType, Bundle params) {}
+                  });
 
-                          // نبض العين السينمائي
-                          ObjectAnimator pulse = ObjectAnimator.ofPropertyValuesHolder(eye,
-                              PropertyValuesHolder.ofFloat("scaleX", 1f, 1.15f),
-                              PropertyValuesHolder.ofFloat("scaleY", 1f, 1.15f));
-                          pulse.setDuration(600);
-                          pulse.setRepeatMode(ValueAnimator.REVERSE);
-                          pulse.setRepeatCount(ValueAnimator.INFINITE);
-                          pulse.start();
+                  floatingEye.setOnClickListener(v -> {
+                      if (chatView.getParent() == null) {
+                          WindowManager.LayoutParams chatParams = new WindowManager.LayoutParams(
+                              WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                              WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, 0, PixelFormat.TRANSLUCENT);
+                          chatParams.gravity = Gravity.BOTTOM;
+                          wm.addView(chatView, chatParams);
+                      } else {
+                          wm.removeView(chatView);
                       }
                   });
               }
           }
           EOF
 
-      - name: ⚙️ Project Config
+      - name: 🔨 Final Compilation
         run: |
           echo "include ':app'" > settings.gradle
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { 
-              compileSdkVersion 31
-              namespace 'com.geass.ultimate'
-              defaultConfig { applicationId "com.geass.ultimate"; minSdkVersion 26; targetSdkVersion 31; versionCode 33; versionName "33.0" }
-          }
+          android { compileSdkVersion 31; namespace 'com.geass.ultimate'
+              defaultConfig { applicationId "com.geass.ultimate"; minSdkVersion 26; targetSdkVersion 31 } }
           dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
           EOF
-          
-          cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.ultimate">
-              <uses-permission android:name="android.permission.VIBRATE" />
-              <application android:label="Geass Ultimate" android:theme="@style/Theme.AppCompat.NoActionBar">
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter> <action android:name="android.intent.action.MAIN" /> <category android:name="android.intent.category.LAUNCHER" /> </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-      - name: 🔨 Final Compilation
-        run: |
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Upload APK
+      - name: 📦 Release APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: v33.0
-          name: "Geass Ultimate Ritual v33.0"
+          tag_name: "v_ai_system_${{ github.run_number }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
