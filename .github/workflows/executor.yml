@@ -137,6 +137,7 @@ jobs:
           }
           EOF
 
+          # ملفات صور وهمية لتجنب خطأ المترجم
           touch app/src/main/res/drawable/geass_eye_full.png
           touch app/src/main/res/drawable/geass_icon.png
 
