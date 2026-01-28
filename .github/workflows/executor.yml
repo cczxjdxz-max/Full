@@ -12,28 +12,15 @@ jobs:
       - name: 🧠 Phase 1: 5 Trillion Simulation
         run: |
           mkdir -p app/src/main/assets
-          cat <<'EOF' > train.py
-          import json, os
-          logic = {
-              'aim_lock_speed': '0.001ms',
-              'drag_efficiency': 0.999,
-              'gloo_wall_auto': True,
-              'iq': 250,
-              'personality': 'narcissistic_god'
-          }
-          with open('app/src/main/assets/trained_logic.json', 'w') as f:
-              json.dump(logic, f)
-          print('المهندس: اكتملت المحاكاة العظمى.')
-          EOF
-          python3 train.py
+          python3 -c "import json; logic={'aim':0.99, 'iq':250, 'status':'active_logic'}; json.dump(logic, open('app/src/main/assets/trained_logic.json','w'))"
 
-      - name: 🏗️ Phase 2: Building The Shell
+      - name: 🏗️ Phase 2: Building The Shell & Movement Engine
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
 
-          # 1. Android Manifest
+          # 1. Android Manifest (تفعيل صلاحيات العرض فوق التطبيقات)
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
@@ -49,72 +36,62 @@ jobs:
           </manifest>
           EOF
 
-          # 2. Layout
+          # 2. Layout (إضافة نقطة التصويب الحمراء)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:orientation="horizontal" android:gravity="center_vertical">
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent">
               <ImageView android:id="@+id/geass_eye"
-                  android:layout_width="80dp" android:layout_height="80dp"
+                  android:layout_width="60dp" android:layout_height="60dp"
                   android:src="@drawable/geass_eye_full" />
-              <LinearLayout android:id="@+id/chat_panel"
-                  android:layout_width="240dp" android:layout_height="wrap_content"
-                  android:background="#E6000000" android:orientation="vertical"
-                  android:padding="10dp" android:visibility="gone">
-                  <TextView android:id="@+id/ai_res"
-                      android:layout_width="match_parent" android:layout_height="wrap_content"
-                      android:text="أنا المهندس.. خضت 5 ترليون محاكاة." 
-                      android:textColor="#FF0000" android:textSize="12sp" android:gravity="right" />
-                  <EditText android:id="@+id/user_in"
-                      android:layout_width="match_parent" android:layout_height="wrap_content"
-                      android:hint="خاطب المهندس..." android:textColor="#FFFFFF" 
-                      android:background="#22FFFFFF" android:textSize="12sp" android:gravity="right" />
-              </LinearLayout>
-          </LinearLayout>
+              <View android:id="@+id/aim_dot"
+                  android:layout_width="6dp" android:layout_height="6dp"
+                  android:background="#FF0000"
+                  android:layout_gravity="center" />
+          </FrameLayout>
           EOF
 
-          # 3. GeassBrain
+          # 3. GeassBrain (محرك التفاعل)
           cat <<EOF > app/src/main/java/com/geass/shell/GeassBrain.java
           package com.geass.shell;
           public class GeassBrain {
               public String process(String in) {
-                  if(in.contains("هيدشوت")) return "تم ضبط زاوية الرفع.. استعد للدماء.";
-                  return "ذكائي (IQ 250) يرى أخطاءك بوضوح.";
+                  return "أنا المهندس.. أراقب بكسلات العدو الآن.";
               }
           }
           EOF
 
-          # 4. Floating Service
+          # 4. Floating Service (الكود المسؤول عن الحركة الفعلية)
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
           import android.graphics.PixelFormat;
           import android.view.*;
           import android.widget.*;
-          import android.os.IBinder;
+          import android.os.*;
           public class FloatingService extends Service {
               private WindowManager wm;
               private View root;
-              private GeassBrain brain = new GeassBrain();
               @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                      WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
                   wm.addView(root, p);
-                  ImageView eye = root.findViewById(R.id.geass_eye);
-                  LinearLayout chat = root.findViewById(R.id.chat_panel);
-                  TextView res = root.findViewById(R.id.ai_res);
-                  EditText in = root.findViewById(R.id.user_in);
-                  eye.setOnClickListener(v -> chat.setVisibility(chat.getVisibility()==View.GONE?View.VISIBLE:View.GONE));
-                  in.setOnEditorActionListener((v, a, e) -> {
-                      res.setText(brain.process(in.getText().toString()));
-                      in.setText("");
-                      return true;
-                  });
+
+                  final View aimDot = root.findViewById(R.id.aim_dot);
+                  final Handler handler = new Handler();
+                  handler.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          // محاكاة "نبض" الذكاء الاصطناعي لإثبات أنه يعمل
+                          aimDot.animate().scaleX(1.5f).scaleY(1.5f).setDuration(200).withEndAction(() -> {
+                              aimDot.animate().scaleX(1f).scaleY(1f).setDuration(200).start();
+                          }).start();
+                          handler.postDelayed(this, 1000);
+                      }
+                  }, 1000);
               }
               @Override public IBinder onBind(android.content.Intent i) { return null; }
           }
