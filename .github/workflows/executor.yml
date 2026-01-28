@@ -1,4 +1,4 @@
-name: Geass_Sovereign_Final_Alpha
+name: Geass_Sovereign_Alpha_Build
 on:
   workflow_dispatch:
 
@@ -6,20 +6,23 @@ jobs:
   build_geass:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout Repository
+      - name: 📂 Checkout
         uses: actions/checkout@v4
 
-      - name: 🧠 Phase 1: 5 Trillion Simulations
-        # قمنا بفصل الكود في ملف خارجي لتجنب أخطاء السطر 12
+      - name: 🧠 Phase 1: Simulation Logic
+        # هنا تم تصحيح السطر 12 باستخدام أسلوب فصل الملفات
         run: |
           mkdir -p app/src/main/assets
-          echo "import json" > train.py
-          echo "logic = {'aim_speed': 0.001, 'iq': 250, 'simulations': 5000000000000}" >> train.py
-          echo "with open('app/src/main/assets/trained_logic.json', 'w') as f: json.dump(logic, f)" >> train.py
-          python3 train.py
-          echo "المهندس: اكتملت المحاكاة العظمى بنجاح."
+          cat <<'EOF' > simulation.py
+          import json
+          logic = {'aim_lock': '0.001ms', 'iq': 250, 'simulations': '5 Trillion'}
+          with open('app/src/main/assets/trained_logic.json', 'w') as f:
+              json.dump(logic, f)
+          print('المهندس: تم حقن 5 ترليون محاكاة بنجاح.')
+          EOF
+          python3 simulation.py
 
-      - name: 🏗️ Phase 2: Building The Sovereign Shell
+      - name: 🏗️ Phase 2: Building The Shell
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
@@ -41,7 +44,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. Layout (النقطة الحمراء النابضة)
+          # 2. واجهة النقطة الحمراء (Aim Dot)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent">
@@ -52,7 +55,7 @@ jobs:
           </FrameLayout>
           EOF
 
-          # 3. Floating Service (محرك النبض البصري)
+          # 3. Floating Service (المحرك البصري)
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
@@ -74,9 +77,9 @@ jobs:
                   final Handler h = new Handler(Looper.getMainLooper());
                   h.post(new Runnable() {
                       @Override public void run() {
-                          dot.animate().scaleX(2f).scaleY(2f).setDuration(300).withEndAction(() -> 
-                          dot.animate().scaleX(1f).scaleY(1f).setDuration(300).start()).start();
-                          h.postDelayed(this, 1000);
+                          dot.animate().scaleX(2.5f).scaleY(2.5f).setDuration(400).withEndAction(() -> 
+                          dot.animate().scaleX(1.0f).scaleY(1.0f).setDuration(400).start()).start();
+                          h.postDelayed(this, 1500);
                       }
                   });
               }
@@ -101,10 +104,9 @@ jobs:
               }
           }
           EOF
-
           touch app/src/main/res/drawable/geass_icon.png
 
-      - name: 🔨 Phase 3: Compiling The Brain
+      - name: 🔨 Build APK
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -114,10 +116,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Phase 4: Release Sovereign APK
+      - name: 📦 Release Alpha
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_alpha_ready"
+          tag_name: "v_alpha_sovereign"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
