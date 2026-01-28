@@ -9,22 +9,25 @@ jobs:
       - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🏗️ Phase 1: Deep Directory Creation
+      - name: 🏗️ Phase 1: Structure Setup
+        # تم تبسيط هذا الجزء تماماً لتجنب خطأ السطر 12 المتكرر
         run: |
-          # إنشاء هيكل المشروع بالكامل لضمان رؤية Gradle للملفات
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/assets
-          
-          # نقل الصور من المجلد الذي وضعتها فيه (نسخة احتياطية)
-          cp build/geass_eye_base.png app/src/main/res/drawable/ || true
-          cp build/pupil.png app/src/main/res/drawable/ || true
-          cp build/geass_icon.png app/src/main/res/drawable/ || true
+          echo '{"vision": "active"}' > app/src/main/assets/logic.json
 
-      - name: 📝 Phase 2: Manifest & Resources
+      - name: 🖼️ Phase 2: Asset Deployment
         run: |
-          # إنشاء المانيفست في مكانه الدقيق
+          # نقل الصور من المجلد الذي وضعتها فيه
+          cp build/geass_eye_base.png app/src/main/res/drawable/ || echo "Base missing"
+          cp build/pupil.png app/src/main/res/drawable/ || echo "Pupil missing"
+          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon missing"
+
+      - name: 📝 Phase 3: Manifest & Design
+        run: |
+          # إنشاء المانيفست في مكانه الصحيح
           cat <<EOF > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
@@ -41,7 +44,7 @@ jobs:
           </manifest>
           EOF
 
-          # إنشاء واجهة "تجسيد الرؤية"
+          # تصميم واجهة العين والبؤبؤ
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="120dp" android:layout_height="120dp">
@@ -55,7 +58,7 @@ jobs:
           </FrameLayout>
           EOF
 
-      - name: 🧠 Phase 3: The Vision Engine (Java)
+      - name: 🧠 Phase 4: Vision Intelligence (Java)
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
@@ -127,7 +130,7 @@ jobs:
           }
           EOF
 
-      - name: 🔨 Phase 4: Gradle Strict Build
+      - name: 🔨 Phase 5: Build APK
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -137,10 +140,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Phase 5: Release
+      - name: 📦 Phase 6: Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_vision_final"
+          tag_name: "v_vision_embodiment_final"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
