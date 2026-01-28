@@ -1,4 +1,4 @@
-name: Geass_Final_Complete_Build
+name: Geass_Final_Fix_Build
 on:
   workflow_dispatch:
 
@@ -14,17 +14,16 @@ jobs:
 
       - name: 🏗️ Setup Android Project
         run: |
-          # إنشاء هيكلة المجلدات الأساسية لنظام أندرويد
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           
-          # نقل صور PNG من مجلد build الخاص بك إلى مجلد drawable الخاص بالنظام
-          cp build/geass_eye_full.png app/src/main/res/drawable/ || echo "Eye image not found!"
-          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon image not found!"
-          cp build/magic_array.png app/src/main/res/drawable/ || echo "Circle image not found!"
+          # نقل الصور من مجلد build
+          cp build/geass_eye_full.png app/src/main/res/drawable/ || echo "Eye missing"
+          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon missing"
+          cp build/magic_array.png app/src/main/res/drawable/ || echo "Circle missing"
 
-          # 1. تصميم واجهة العين الطافية (العين فوق الدائرة)
+          # تصميم الواجهة
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content">
@@ -37,7 +36,7 @@ jobs:
           </FrameLayout>
           EOF
 
-          # 2. كود البرمجة (المنطق الحركي)
+          # كود البرمجة
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.animation.*;
@@ -58,65 +57,54 @@ jobs:
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
-                  
-                  // إعدادات النافذة الطافية فوق التطبيقات الأخرى
                   params = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-                  
                   wm.addView(root, params);
 
                   ImageView circle = root.findViewById(R.id.magic_circle);
                   ImageView eye = root.findViewById(R.id.geass_eye);
 
-                  // تحريك الدائرة: لفة كاملة كل 3 ثوانٍ
-                  ObjectAnimator rotate = ObjectAnimator.ofFloat(circle, "rotation", 0f, 360f);
-                  rotate.setDuration(3000);
-                  rotate.setInterpolator(new LinearInterpolator());
-                  rotate.setRepeatCount(ValueAnimator.INFINITE);
-                  rotate.start();
-
-                  // تأثير الرمش: تغمض وتفتح كل 5 ثوانٍ
+                  circle.animate().rotationBy(360000).setDuration(3000000).setInterpolator(new LinearInterpolator()).start();
                   setupBlink(eye);
-
-                  // ميزة السحب والتحريك بالإصبع
                   setupDrag();
               }
 
-              private void setupBlink(View eye) {
-                  eye.animate().scaleY(0).setDuration(200).setStartDelay(5000).withEndAction(() -> 
-                  eye.animate().scaleY(1).setDuration(200).withEndAction(() -> setupBlink(eye)).start()).start();
+              private void setupBlink(View e) {
+                  e.animate().scaleY(0).setDuration(200).setStartDelay(5000).withEndAction(() -> 
+                  e.animate().scaleY(1).setDuration(200).withEndAction(() -> setupBlink(e)).start()).start();
               }
 
               private void setupDrag() {
                   root.setOnTouchListener(new View.OnTouchListener() {
                       private int ix, iy; private float itx, ity;
                       @Override public boolean onTouch(View v, MotionEvent e) {
-                          switch (e.getAction()) {
-                              case MotionEvent.ACTION_DOWN:
-                                  ix = params.x; iy = params.y;
-                                  itx = e.getRawX(); ity = e.getRawY();
-                                  return true;
-                              case MotionEvent.ACTION_MOVE:
-                                  params.x = ix + (int)(e.getRawX() - itx);
-                                  params.y = iy + (int)(e.getRawY() - ity);
-                                  wm.updateViewLayout(root, params);
-                                  return true;
-                          }
-                          return false;
+                          if(e.getAction()==0){ix=params.x;iy=params.y;itx=e.getRawX();ity=e.getRawY();}
+                          if(e.getAction()==2){params.x=ix+(int)(e.getRawX()-itx);params.y=iy+(int)(e.getRawY()-ity);wm.updateViewLayout(root, params);}
+                          return true;
                       }
                   });
               }
-
               @Override public IBinder onBind(Intent i) { return null; }
-              @Override public void onDestroy() { if(root != null) wm.removeView(root); super.onDestroy(); }
           }
           EOF
 
-      - name: 🔨 Execute Build Process
+      - name: 🔨 Execute Build Process (FIXED)
         run: |
+          # إصلاح ملف settings.gradle
           echo "include ':app'" > settings.gradle
+
+          # إصلاح ملف build.gradle الرئيسي (إضافة المستودعات)
+          cat <<EOF > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:7.2.1' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+
+          # إصلاح ملف build.gradle الخاص بالتطبيق
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android { 
@@ -131,6 +119,7 @@ jobs:
               } 
           }
           EOF
+
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
@@ -139,7 +128,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_geass_beast_final"
-          body: "The Geass summoning system is ready. Dragon rotation 3s, Blink 5s, Drag-to-move enabled."
+          tag_name: "v_geass_fixed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
