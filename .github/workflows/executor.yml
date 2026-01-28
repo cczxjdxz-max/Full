@@ -1,4 +1,4 @@
-name: Geass_Final_Fix_Build
+name: Geass_Final_Fix_Complete
 on:
   workflow_dispatch:
 
@@ -18,12 +18,48 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           
-          # نقل الصور من مجلد build
-          cp build/geass_eye_full.png app/src/main/res/drawable/ || echo "Eye missing"
-          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon missing"
-          cp build/magic_array.png app/src/main/res/drawable/ || echo "Circle missing"
+          # 1. إنشاء ملف AndroidManifest.xml (هذا ما كان ينقصنا)
+          cat <<EOF > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <application android:label="Geass Shell" android:icon="@drawable/geass_icon">
+                  <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
 
-          # تصميم الواجهة
+          # 2. إنشاء كود التشغيل (MainActivity) لطلب الإذن وتشغيل العين
+          cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
+          package com.geass.shell;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.provider.Settings;
+
+          public class MainActivity extends Activity {
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  if (!Settings.canDrawOverlays(this)) {
+                      Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                      startActivityForResult(i, 1);
+                  } else { startService(new Intent(this, FloatingService.class)); finish(); }
+              }
+          }
+          EOF
+
+          # نقل الصور من مجلد build
+          cp build/geass_eye_full.png app/src/main/res/drawable/
+          cp build/geass_icon.png app/src/main/res/drawable/
+          cp build/magic_array.png app/src/main/res/drawable/
+
+          # تصميم الواجهة وكود الخدمة (كما فعلنا سابقاً)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content">
@@ -36,7 +72,6 @@ jobs:
           </FrameLayout>
           EOF
 
-          # كود البرمجة
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.animation.*;
@@ -70,18 +105,16 @@ jobs:
                   setupBlink(eye);
                   setupDrag();
               }
-
               private void setupBlink(View e) {
                   e.animate().scaleY(0).setDuration(200).setStartDelay(5000).withEndAction(() -> 
                   e.animate().scaleY(1).setDuration(200).withEndAction(() -> setupBlink(e)).start()).start();
               }
-
               private void setupDrag() {
                   root.setOnTouchListener(new View.OnTouchListener() {
                       private int ix, iy; private float itx, ity;
                       @Override public boolean onTouch(View v, MotionEvent e) {
-                          if(e.getAction()==0){ix=params.x;iy=params.y;itx=e.getRawX();ity=e.getRawY();}
-                          if(e.getAction()==2){params.x=ix+(int)(e.getRawX()-itx);params.y=iy+(int)(e.getRawY()-ity);wm.updateViewLayout(root, params);}
+                          if(e.getAction()==MotionEvent.ACTION_DOWN){ix=params.x;iy=params.y;itx=e.getRawX();ity=e.getRawY();}
+                          if(e.getAction()==MotionEvent.ACTION_MOVE){params.x=ix+(int)(e.getRawX()-itx);params.y=iy+(int)(e.getRawY()-ity);wm.updateViewLayout(root, params);}
                           return true;
                       }
                   });
@@ -90,12 +123,9 @@ jobs:
           }
           EOF
 
-      - name: 🔨 Execute Build Process (FIXED)
+      - name: 🔨 Execute Build Process
         run: |
-          # إصلاح ملف settings.gradle
           echo "include ':app'" > settings.gradle
-
-          # إصلاح ملف build.gradle الرئيسي (إضافة المستودعات)
           cat <<EOF > build.gradle
           buildscript {
               repositories { google(); mavenCentral() }
@@ -103,31 +133,22 @@ jobs:
           }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
-
-          # إصلاح ملف build.gradle الخاص بالتطبيق
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
           android { 
               compileSdkVersion 31
               namespace 'com.geass.shell'
-              defaultConfig { 
-                  applicationId "com.geass.shell" 
-                  minSdkVersion 26 
-                  targetSdkVersion 31 
-                  versionCode 1
-                  versionName "1.0"
-              } 
+              defaultConfig { applicationId "com.geass.shell"; minSdkVersion 26; targetSdkVersion 31 }
           }
           EOF
-
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Deliver Final APK
+      - name: 📦 Release APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_geass_fixed"
+          tag_name: "v_geass_complete"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
