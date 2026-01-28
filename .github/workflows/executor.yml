@@ -1,156 +1,145 @@
-name: Geass_AI_OS_Voice_And_Chat
+name: Geass_Final_Complete_Build
 on:
-  push:
-    paths:
-      - 'app/src/main/res/drawable/*.png'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build_ai_system:
+  build_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout
+      - name: 📂 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ☕ Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-
-      - name: 🏗️ Create Advanced System Files
+      - name: 🏗️ Setup Android Project
         run: |
-          mkdir -p app/src/main/java/com/geass/ultimate
+          # إنشاء هيكلة المجلدات الأساسية لنظام أندرويد
+          mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/values
+          
+          # نقل صور PNG من مجلد build الخاص بك إلى مجلد drawable الخاص بالنظام
+          cp build/geass_eye_full.png app/src/main/res/drawable/ || echo "Eye image not found!"
+          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon image not found!"
+          cp build/magic_array.png app/src/main/res/drawable/ || echo "Circle image not found!"
 
-          # 1. المانيفست (إضافة تصريح المايك والنظام العائم)
-          cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.ultimate">
-              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-              <application android:label="Geass AI" android:theme="@style/Theme.AppCompat.NoActionBar">
-                  <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
+          # 1. تصميم واجهة العين الطافية (العين فوق الدائرة)
+          cat <<EOF > app/src/main/res/layout/floating_layout.xml
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="wrap_content" android:layout_height="wrap_content">
+              <ImageView android:id="@+id/magic_circle"
+                  android:layout_width="280dp" android:layout_height="280dp"
+                  android:layout_gravity="center" android:src="@drawable/magic_array" />
+              <ImageView android:id="@+id/geass_eye"
+                  android:layout_width="190dp" android:layout_height="190dp"
+                  android:layout_gravity="center" android:src="@drawable/geass_eye_full" />
+          </FrameLayout>
           EOF
 
-          # 2. تصميم واجهة الشات الشفاف مع زر المايك
-          cat <<EOF > app/src/main/res/layout/floating_chat_layout.xml
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:orientation="horizontal" android:background="#CC000000" android:padding="12dp">
-              <EditText android:id="@+id/ai_input" android:layout_width="0dp"
-                  android:layout_height="wrap_content" android:layout_weight="1"
-                  android:hint="Speak or type..." android:textColor="#FF0000"
-                  android:background="@android:color/transparent" android:textColorHint="#66FF0000"/>
-              <ImageButton android:id="@+id/mic_btn" android:layout_width="40dp"
-                  android:layout_height="40dp" android:src="@android:drawable/ic_btn_speak_now"
-                  android:background="@android:color/transparent" android:tint="#FF0000"/>
-          </LinearLayout>
-          EOF
-
-          # 3. منطق الخدمة العائمة والتعرف على الصوت (FloatingService.java)
-          cat <<EOF > app/src/main/java/com/geass/ultimate/FloatingService.java
-          package com.geass.ultimate;
+          # 2. كود البرمجة (المنطق الحركي)
+          cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
+          package com.geass.shell;
+          import android.animation.*;
           import android.app.Service;
-          import android.content.*;
+          import android.content.Intent;
           import android.graphics.PixelFormat;
-          import android.os.*;
-          import android.speech.*;
+          import android.os.IBinder;
           import android.view.*;
-          import android.widget.*;
-          import java.util.ArrayList;
+          import android.view.animation.LinearInterpolator;
+          import android.widget.ImageView;
 
           public class FloatingService extends Service {
               private WindowManager wm;
-              private View chatView;
-              private ImageView floatingEye;
-              private SpeechRecognizer speechRecognizer;
-
-              @Override public IBinder onBind(Intent intent) { return null; }
+              private View root;
+              private WindowManager.LayoutParams params;
 
               @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
                   
-                  // إعداد العين العائمة
-                  floatingEye = new ImageView(this);
-                  floatingEye.setImageResource(R.drawable.geass_eye);
-                  
-                  WindowManager.LayoutParams eyeParams = new WindowManager.LayoutParams(
-                      200, 200, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                  // إعدادات النافذة الطافية فوق التطبيقات الأخرى
+                  params = new WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-                  eyeParams.gravity = Gravity.TOP | Gravity.LEFT;
-                  wm.addView(floatingEye, eyeParams);
-
-                  // إعداد واجهة الشات
-                  chatView = LayoutInflater.from(this).inflate(R.layout.floating_chat_layout, null);
-                  final EditText input = chatView.findViewById(R.id.ai_input);
-                  ImageButton mic = chatView.findViewById(R.id.mic_btn);
-
-                  // إعداد التعرف على الصوت
-                  speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-                  final Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                  speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-
-                  mic.setOnClickListener(v -> speechRecognizer.startListening(speechIntent));
                   
-                  speechRecognizer.setRecognitionListener(new RecognitionListener() {
-                      public void onResults(Bundle results) {
-                          ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                          if (matches != null) input.setText(matches.get(0));
-                      }
-                      // أضف باقي الدوال الفارغة للـ RecognitionListener هنا...
-                      public void onReadyForSpeech(Bundle params) {} public void onBeginningOfSpeech() {}
-                      public void onRmsChanged(float rmsdB) {} public void onBufferReceived(byte[] buffer) {}
-                      public void onEndOfSpeech() {} public void onError(int error) {}
-                      public void onPartialResults(Bundle partialResults) {} public void onEvent(int eventType, Bundle params) {}
-                  });
+                  wm.addView(root, params);
 
-                  floatingEye.setOnClickListener(v -> {
-                      if (chatView.getParent() == null) {
-                          WindowManager.LayoutParams chatParams = new WindowManager.LayoutParams(
-                              WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                              WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, 0, PixelFormat.TRANSLUCENT);
-                          chatParams.gravity = Gravity.BOTTOM;
-                          wm.addView(chatView, chatParams);
-                      } else {
-                          wm.removeView(chatView);
+                  ImageView circle = root.findViewById(R.id.magic_circle);
+                  ImageView eye = root.findViewById(R.id.geass_eye);
+
+                  // تحريك الدائرة: لفة كاملة كل 3 ثوانٍ
+                  ObjectAnimator rotate = ObjectAnimator.ofFloat(circle, "rotation", 0f, 360f);
+                  rotate.setDuration(3000);
+                  rotate.setInterpolator(new LinearInterpolator());
+                  rotate.setRepeatCount(ValueAnimator.INFINITE);
+                  rotate.start();
+
+                  // تأثير الرمش: تغمض وتفتح كل 5 ثوانٍ
+                  setupBlink(eye);
+
+                  // ميزة السحب والتحريك بالإصبع
+                  setupDrag();
+              }
+
+              private void setupBlink(View eye) {
+                  eye.animate().scaleY(0).setDuration(200).setStartDelay(5000).withEndAction(() -> 
+                  eye.animate().scaleY(1).setDuration(200).withEndAction(() -> setupBlink(eye)).start()).start();
+              }
+
+              private void setupDrag() {
+                  root.setOnTouchListener(new View.OnTouchListener() {
+                      private int ix, iy; private float itx, ity;
+                      @Override public boolean onTouch(View v, MotionEvent e) {
+                          switch (e.getAction()) {
+                              case MotionEvent.ACTION_DOWN:
+                                  ix = params.x; iy = params.y;
+                                  itx = e.getRawX(); ity = e.getRawY();
+                                  return true;
+                              case MotionEvent.ACTION_MOVE:
+                                  params.x = ix + (int)(e.getRawX() - itx);
+                                  params.y = iy + (int)(e.getRawY() - ity);
+                                  wm.updateViewLayout(root, params);
+                                  return true;
+                          }
+                          return false;
                       }
                   });
               }
+
+              @Override public IBinder onBind(Intent i) { return null; }
+              @Override public void onDestroy() { if(root != null) wm.removeView(root); super.onDestroy(); }
           }
           EOF
 
-      - name: 🔨 Final Compilation
+      - name: 🔨 Execute Build Process
         run: |
           echo "include ':app'" > settings.gradle
           cat <<EOF > app/build.gradle
           apply plugin: 'com.android.application'
-          android { compileSdkVersion 31; namespace 'com.geass.ultimate'
-              defaultConfig { applicationId "com.geass.ultimate"; minSdkVersion 26; targetSdkVersion 31 } }
-          dependencies { implementation 'androidx.appcompat:appcompat:1.4.1' }
+          android { 
+              compileSdkVersion 31
+              namespace 'com.geass.shell'
+              defaultConfig { 
+                  applicationId "com.geass.shell" 
+                  minSdkVersion 26 
+                  targetSdkVersion 31 
+                  versionCode 1
+                  versionName "1.0"
+              } 
+          }
           EOF
           wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release APK
+      - name: 📦 Deliver Final APK
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_ai_system_${{ github.run_number }}"
+          tag_name: "v_geass_beast_final"
+          body: "The Geass summoning system is ready. Dragon rotation 3s, Blink 5s, Drag-to-move enabled."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
