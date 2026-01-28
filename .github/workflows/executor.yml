@@ -1,4 +1,4 @@
-name: Geass_Sovereign_Final_Vision
+name: Geass_Sovereign_Visual_Alpha
 on:
   workflow_dispatch:
 
@@ -6,27 +6,25 @@ jobs:
   build_geass:
     runs-on: ubuntu-latest
     steps:
-      - name: 📂 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🧠 Phase 1: Logic Injection
-        # تم تبسيط هذا السطر تماماً لتجنب خطأ السطر 12
+      - name: Logic Creation
+        # هذا هو السطر 12 الجديد، بسيط ومباشر بدون تعقيدات YAML
         run: |
           mkdir -p app/src/main/assets
-          echo '{"vision_active": true, "pupil_focus": 1.2}' > app/src/main/assets/logic.json
-          echo "المهندس: تم حقن جوهر الرؤية."
+          echo '{"vision": "active"}' > app/src/main/assets/logic.json
 
-      - name: 🏗️ Phase 2: Resource Setup
+      - name: Setup Resources
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
-          # نقل الصور من المجلد الذي وضعتها فيه
-          cp build/geass_eye_base.png app/src/main/res/drawable/ || echo "Base missing"
-          cp build/pupil.png app/src/main/res/drawable/ || echo "Pupil missing"
-          cp build/geass_icon.png app/src/main/res/drawable/ || echo "Icon missing"
+          cp build/geass_eye_base.png app/src/main/res/drawable/ || true
+          cp build/pupil.png app/src/main/res/drawable/ || true
+          cp build/geass_icon.png app/src/main/res/drawable/ || true
 
-      - name: 🎨 Phase 3: Vision UI (The Sensor)
+      - name: Design UI
         run: |
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -41,7 +39,7 @@ jobs:
           </FrameLayout>
           EOF
 
-      - name: 🧠 Phase 4: Vision Engine (Floating Service)
+      - name: Vision Engine
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
@@ -54,7 +52,7 @@ jobs:
           public class FloatingService extends Service {
               private WindowManager wm;
               private View root;
-              private Handler mainHandler = new Handler(Looper.getMainLooper());
+              private Handler h = new Handler(Looper.getMainLooper());
 
               @Override public void onCreate() {
                   super.onCreate();
@@ -63,35 +61,27 @@ jobs:
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
                       300, 300, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-                  p.gravity = Gravity.CENTER;
+                  p.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
                   wm.addView(root, p);
-                  startSystemBlink();
-                  startVisionPulse();
+                  startBlink();
+                  startPupil();
               }
-
-              private void startSystemBlink() {
-                  mainHandler.postDelayed(new Runnable() {
-                      @Override public void run() {
-                          final ImageView eyelid = root.findViewById(R.id.geass_eye_base);
-                          eyelid.animate().scaleY(0f).setDuration(150).withEndAction(() -> {
-                              eyelid.animate().scaleY(1f).setDuration(150).start();
-                              startSystemBlink();
-                          }).start();
-                      }
+              private void startBlink() {
+                  h.postDelayed(() -> {
+                      root.findViewById(R.id.geass_eye_base).animate().scaleY(0f).setDuration(150).withEndAction(() -> {
+                          root.findViewById(R.id.geass_eye_base).animate().scaleY(1f).setDuration(150).start();
+                          startBlink();
+                      }).start();
                   }, 4000);
               }
-
-              private void startVisionPulse() {
-                  final ImageView pupil = root.findViewById(R.id.pupil);
-                  mainHandler.postDelayed(new Runnable() {
+              private void startPupil() {
+                  final ImageView p = root.findViewById(R.id.pupil);
+                  h.postDelayed(new Runnable() {
                       @Override public void run() {
-                          float targetY = (float)(Math.random() * -50); 
-                          float targetX = (float)(Math.random() * 80 - 40);
-                          pupil.animate().translationY(targetY).translationX(targetX)
-                               .scaleX(1.2f).scaleY(1.2f).setDuration(100)
-                               .withEndAction(() -> pupil.animate().scaleX(1f).scaleY(1f).setDuration(100).start())
-                               .start();
-                          mainHandler.postDelayed(this, 800);
+                          p.animate().translationY((float)(Math.random()*-50)).translationX((float)(Math.random()*80-40))
+                           .scaleX(1.2f).scaleY(1.2f).setDuration(100)
+                           .withEndAction(() -> p.animate().scaleX(1f).scaleY(1f).setDuration(100).start()).start();
+                          h.postDelayed(this, 800);
                       }
                   }, 1000);
               }
@@ -99,7 +89,7 @@ jobs:
           }
           EOF
 
-      - name: 🔨 Final Compilation
+      - name: Build
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -109,10 +99,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_vision_embodiment_fixed"
+          tag_name: "v_vision_embodiment"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
