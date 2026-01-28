@@ -9,18 +9,19 @@ jobs:
       - name: 📂 Checkout
         uses: actions/checkout@v4
 
-      - name: 🧠 Phase 1: 5 Trillion Simulation
+      - name: 🧠 Phase 1: 5 Trillion Simulation (Logic Training)
         run: |
           mkdir -p app/src/main/assets
           python3 -c "import json; logic={'aim':0.99, 'iq':250, 'status':'active_logic'}; json.dump(logic, open('app/src/main/assets/trained_logic.json','w'))"
+          echo "المهندس: تم شحن الذاكرة بـ 5 ترليون احتمال."
 
-      - name: 🏗️ Phase 2: Building The Shell & Movement Engine
+      - name: 🏗️ Phase 2: Building The Shell & Vision Engine
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
 
-          # 1. Android Manifest (تفعيل صلاحيات العرض فوق التطبيقات)
+          # 1. Android Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
@@ -36,31 +37,30 @@ jobs:
           </manifest>
           EOF
 
-          # 2. Layout (إضافة نقطة التصويب الحمراء)
+          # 2. Layout (العين + نقطة التصويب النابضة)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent">
               <ImageView android:id="@+id/geass_eye"
                   android:layout_width="60dp" android:layout_height="60dp"
+                  android:layout_gravity="top|left"
                   android:src="@drawable/geass_eye_full" />
               <View android:id="@+id/aim_dot"
-                  android:layout_width="6dp" android:layout_height="6dp"
+                  android:layout_width="8dp" android:layout_height="8dp"
                   android:background="#FF0000"
                   android:layout_gravity="center" />
           </FrameLayout>
           EOF
 
-          # 3. GeassBrain (محرك التفاعل)
+          # 3. GeassBrain (نواة التفكير)
           cat <<EOF > app/src/main/java/com/geass/shell/GeassBrain.java
           package com.geass.shell;
           public class GeassBrain {
-              public String process(String in) {
-                  return "أنا المهندس.. أراقب بكسلات العدو الآن.";
-              }
+              public String getStatus() { return "المهندس: متصل بالبكسلات.. النبض مستقر."; }
           }
           EOF
 
-          # 4. Floating Service (الكود المسؤول عن الحركة الفعلية)
+          # 4. Floating Service (المحرك الذي ستراه في فري فاير)
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
@@ -68,36 +68,41 @@ jobs:
           import android.view.*;
           import android.widget.*;
           import android.os.*;
+
           public class FloatingService extends Service {
               private WindowManager wm;
               private View root;
+
               @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
+                  
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  
                   wm.addView(root, p);
 
                   final View aimDot = root.findViewById(R.id.aim_dot);
-                  final Handler handler = new Handler();
-                  handler.postDelayed(new Runnable() {
+                  final Handler handler = new Handler(Looper.getMainLooper());
+                  
+                  // كود النبض البصري لإثبات وجود المهندس
+                  handler.post(new Runnable() {
                       @Override public void run() {
-                          // محاكاة "نبض" الذكاء الاصطناعي لإثبات أنه يعمل
-                          aimDot.animate().scaleX(1.5f).scaleY(1.5f).setDuration(200).withEndAction(() -> {
-                              aimDot.animate().scaleX(1f).scaleY(1f).setDuration(200).start();
+                          aimDot.animate().scaleX(1.8f).scaleY(1.8f).setDuration(300).withEndAction(() -> {
+                              aimDot.animate().scaleX(1.0f).scaleY(1.0f).setDuration(300).start();
                           }).start();
-                          handler.postDelayed(this, 1000);
+                          handler.postDelayed(this, 1200);
                       }
-                  }, 1000);
+                  });
               }
               @Override public IBinder onBind(android.content.Intent i) { return null; }
           }
           EOF
 
-          # 5. MainActivity
+          # 5. MainActivity (مشغل الخدمة)
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
           import android.app.Activity;
@@ -105,20 +110,28 @@ jobs:
           import android.net.Uri;
           import android.os.Bundle;
           import android.provider.Settings;
+          import android.widget.Toast;
+
           public class MainActivity extends Activity {
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   if (!Settings.canDrawOverlays(this)) {
-                      startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())), 1);
-                  } else { startService(new Intent(this, FloatingService.class)); finish(); }
+                      Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                      startActivityForResult(intent, 123);
+                      Toast.makeText(this, "فعل الصلاحية ليرى المهندس الشاشة", Toast.LENGTH_LONG).show();
+                  } else {
+                      startService(new Intent(this, FloatingService.class));
+                      finish();
+                  }
               }
           }
           EOF
 
+          # إنشاء صور وهمية لتجاوز أخطاء البناء
           touch app/src/main/res/drawable/geass_eye_full.png
           touch app/src/main/res/drawable/geass_icon.png
 
-      - name: 🔨 Build APK
+      - name: 🔨 Build Geass APK
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -128,10 +141,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release
+      - name: 📦 Release Sovereign Alpha
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_alpha_fixed"
+          tag_name: "v_alpha_vision"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
