@@ -1,4 +1,4 @@
-name: Geass_Force_Show_Eye
+name: Geass_Eye_Only_Build
 on:
   workflow_dispatch:
 
@@ -18,12 +18,11 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           
-          # 1. Manifest معدل لضمان التشغيل
+          # 1. AndroidManifest.xml
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-              <application android:label="Geass Shell" android:theme="@android:style/Theme.NoTitleBar" android:icon="@drawable/geass_icon">
+              <application android:label="Geass Eye" android:theme="@android:style/Theme.NoTitleBar" android:icon="@drawable/geass_icon">
                   <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -35,7 +34,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. MainActivity تطلب الإذن وتشغل العين فوراً
+          # 2. MainActivity
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
           import android.app.Activity;
@@ -43,49 +42,36 @@ jobs:
           import android.net.Uri;
           import android.os.Bundle;
           import android.provider.Settings;
-          import android.widget.Toast;
 
           public class MainActivity extends Activity {
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   if (!Settings.canDrawOverlays(this)) {
-                      Toast.makeText(this, "Please allow 'Display over apps'", Toast.LENGTH_LONG).show();
                       Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
                       startActivityForResult(i, 1);
                   } else { 
-                      startForegroundService(new Intent(this, FloatingService.class)); 
+                      startService(new Intent(this, FloatingService.class)); 
                       finish(); 
-                  }
-              }
-              @Override protected void onActivityResult(int req, int res, Intent data) {
-                  if (Settings.canDrawOverlays(this)) {
-                      startForegroundService(new Intent(this, FloatingService.class));
-                      finish();
                   }
               }
           }
           EOF
 
-          # نقل الصور من مجلد build
+          # نقل الصور المطلوبة فقط
           cp build/geass_eye_full.png app/src/main/res/drawable/
           cp build/geass_icon.png app/src/main/res/drawable/
-          cp build/magic_array.png app/src/main/res/drawable/
 
-          # 3. Floating Layout (تأكدنا من الشفافية)
+          # 3. Floating Layout (تمت إزالة الدائرة هنا)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="wrap_content" android:layout_height="wrap_content"
-              android:background="@android:color/transparent">
-              <ImageView android:id="@+id/magic_circle"
-                  android:layout_width="280dp" android:layout_height="280dp"
-                  android:layout_gravity="center" android:src="@drawable/magic_array" />
+              android:layout_width="wrap_content" android:layout_height="wrap_content">
               <ImageView android:id="@+id/geass_eye"
-                  android:layout_width="190dp" android:layout_height="190dp"
+                  android:layout_width="200dp" android:layout_height="200dp"
                   android:layout_gravity="center" android:src="@drawable/geass_eye_full" />
           </FrameLayout>
           EOF
 
-          # 4. Floating Service (كود العرض الفعلي)
+          # 4. Floating Service (تعديل وقت الرمش)
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.animation.*;
@@ -94,48 +80,54 @@ jobs:
           import android.graphics.PixelFormat;
           import android.os.IBinder;
           import android.view.*;
-          import android.view.animation.LinearInterpolator;
           import android.widget.ImageView;
-          import androidx.core.app.NotificationCompat;
 
           public class FloatingService extends Service {
               private WindowManager wm;
               private View root;
+              private WindowManager.LayoutParams params;
 
               @Override public void onCreate() {
                   super.onCreate();
-                  // إشعار ضروري لأندرويد الحديث لتشغيل الخدمة
-                  Notification n = new NotificationCompat.Builder(this, "default")
-                      .setContentTitle("Geass Active").setSmallIcon(android.R.drawable.ic_menu_compass).build();
-                  startForeground(1, n);
-
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
                   
-                  WindowManager.LayoutParams p = new WindowManager.LayoutParams(
+                  params = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
                   
-                  wm.addView(root, p);
+                  wm.addView(root, params);
 
-                  ImageView c = root.findViewById(R.id.magic_circle);
                   ImageView e = root.findViewById(R.id.geass_eye);
 
-                  c.animate().rotationBy(360000).setDuration(3000000).setInterpolator(new LinearInterpolator()).start();
+                  // استدعاء وظيفة الرمش المعدلة
                   setupBlink(e);
                   
-                  root.setOnTouchListener((v, event) -> {
-                      static float dx, dy;
-                      if(event.getAction()==0){ dx=p.x-event.getRawX(); dy=p.y-event.getRawY(); }
-                      if(event.getAction()==2){ p.x=(int)(event.getRawX()+dx); p.y=(int)(event.getRawY()+dy); wm.updateViewLayout(root, p); }
-                      return true;
+                  root.setOnTouchListener(new View.OnTouchListener() {
+                      private int ix, iy; private float itx, ity;
+                      @Override public boolean onTouch(View v, MotionEvent event) {
+                          if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                              ix = params.x; iy = params.y; itx = event.getRawX(); ity = event.getRawY();
+                              return true;
+                          }
+                          if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                              params.x = ix + (int)(event.getRawX() - itx);
+                              params.y = iy + (int)(event.getRawY() - ity);
+                              wm.updateViewLayout(root, params);
+                              return true;
+                          }
+                          return false;
+                      }
                   });
               }
+
+              // تعديل: تغمض كل 3 ثواني وتفتح بعد 0.5 ثانية
               private void setupBlink(View e) {
-                  e.animate().scaleY(0).setDuration(200).setStartDelay(5000).withEndAction(() -> 
-                  e.animate().scaleY(1).setDuration(200).withEndAction(() -> setupBlink(e)).start()).start();
+                  e.animate().scaleY(0).setDuration(200).setStartDelay(3000).withEndAction(() -> 
+                  e.animate().scaleY(1).setDuration(500).withEndAction(() -> setupBlink(e)).start()).start();
               }
+
               @Override public IBinder onBind(Intent i) { return null; }
           }
           EOF
@@ -162,10 +154,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release
+      - name: 📦 Final Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_geass_visible"
+          tag_name: "v_eye_only_blink"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
