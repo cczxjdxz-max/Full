@@ -1,4 +1,4 @@
-name: Geass_Sovereign_Alpha_Build
+name: Geass_Sovereign_Vision_Embodiment
 on:
   workflow_dispatch:
 
@@ -9,78 +9,117 @@ jobs:
       - name: 📂 Checkout
         uses: actions/checkout@v4
 
-      - name: 🧠 Phase 1: Simulation Logic
-        run: |
-          mkdir -p app/src/main/assets
-          echo '{"aim_lock": "0.001ms", "iq": 250}' > app/src/main/assets/trained_logic.json
-          echo "المهندس: تم حقن المنطق بنجاح."
-
-      - name: 🏗️ Phase 2: Building The Shell
+      - name: 🏗️ Phase 1: Resource Setup
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
+          # نقل صورك من المجلد الذي اخترته
+          cp build/geass_eye_base.png app/src/main/res/drawable/ || true
+          cp build/pupil.png app/src/main/res/drawable/ || true
+          cp build/geass_icon.png app/src/main/res/drawable/ || true
 
-          # 1. Android Manifest
-          cat <<EOF > app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
-              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <application android:label="Geass Sovereign" android:theme="@android:style/Theme.NoTitleBar">
-                  <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          # 2. UI Layout
+      - name: 🎨 Phase 2: Vision UI (The Eye & Sensor)
+        run: |
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent">
-              <View android:id="@+id/aim_dot"
-                  android:layout_width="10dp" android:layout_height="10dp"
-                  android:background="#FF0000"
-                  android:layout_gravity="center" />
+              android:layout_width="120dp" android:layout_height="120dp">
+              
+              <ImageView android:id="@+id/pupil"
+                  android:layout_width="45dp" android:layout_height="45dp"
+                  android:layout_gravity="center"
+                  android:src="@drawable/pupil"
+                  android:alpha="0.9" />
+              
+              <ImageView android:id="@+id/geass_eye_base"
+                  android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:src="@drawable/geass_eye_base" />
           </FrameLayout>
           EOF
 
-          # 3. Floating Service (Visual Pulse)
+      - name: 🧠 Phase 3: The Vision Engine (Floating Service)
+        run: |
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
           import android.graphics.PixelFormat;
           import android.view.*;
           import android.os.*;
+          import android.widget.ImageView;
+
           public class FloatingService extends Service {
               private WindowManager wm;
+              private View root;
+              private Handler mainHandler = new Handler(Looper.getMainLooper());
+
               @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-                  View root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
+                  root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
+                  
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                      WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                      300, 300, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                  p.gravity = Gravity.CENTER; // العين في المنتصف لتعبر عن "مركز الرؤية"
                   wm.addView(root, p);
-                  final View dot = root.findViewById(R.id.aim_dot);
-                  final Handler h = new Handler(Looper.getMainLooper());
-                  h.post(new Runnable() {
-                      @Override public void run() {
-                          dot.animate().scaleX(2.0f).scaleY(2.0f).setDuration(400).withEndAction(() -> 
-                          dot.animate().scaleX(1.0f).scaleY(1.0f).setDuration(400).start()).start();
-                          h.postDelayed(this, 1200);
-                      }
-                  });
+
+                  startSystemBlink();
+                  startVisionPulse();
               }
-              @Override public IBinder onBind(android.content.Intent i) { return null; }
+
+              // محرك الرمش: تحديث الرؤية
+              private void startSystemBlink() {
+                  mainHandler.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          final ImageView eyelid = root.findViewById(R.id.geass_eye_base);
+                          eyelid.animate().scaleY(0f).setDuration(150).withEndAction(() -> {
+                              eyelid.animate().scaleY(1f).setDuration(150).start();
+                              startSystemBlink();
+                          }).start();
+                      }
+                  }, 4000);
+              }
+
+              // نبض الرؤية: البؤبؤ يلتفت للأعداء الافتراضيين (تمهيداً للربط الفعلي)
+              private void startVisionPulse() {
+                  final ImageView pupil = root.findViewById(R.id.pupil);
+                  mainHandler.postDelayed(new Runnable() {
+                      @Override public void run() {
+                          // محاكاة التركيز: حركة حادة وسريعة (مثل رادار الهيدشوت)
+                          float targetY = (float)(Math.random() * -50); 
+                          float targetX = (float)(Math.random() * 80 - 40);
+                          
+                          pupil.animate()
+                               .translationY(targetY)
+                               .translationX(targetX)
+                               .scaleX(1.2f).scaleY(1.2f) // "يتوسع" البؤبؤ عند رؤية هدف
+                               .setDuration(100)
+                               .withEndAction(() -> pupil.animate().scaleX(1f).scaleY(1f).setDuration(100).start())
+                               .start();
+                          
+                          mainHandler.postDelayed(this, 800);
+                      }
+                  }, 1000);
+              }
+
+              @Override public IBinder onBind(Intent i) { return null; }
           }
           EOF
 
-          # 4. MainActivity
+      - name: ⚙️ Phase 4: Final Setup
+        run: |
+          cat <<EOF > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <application android:label="Geass Vision" android:icon="@drawable/geass_icon">
+                  <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
           import android.app.Activity;
@@ -97,9 +136,8 @@ jobs:
               }
           }
           EOF
-          touch app/src/main/res/drawable/geass_icon.png
 
-      - name: 🔨 Build APK
+      - name: 🔨 Final Build
         run: |
           echo "include ':app'" > settings.gradle
           echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:7.2.1' } }" > build.gradle
@@ -113,6 +151,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_alpha_fixed"
+          tag_name: "v_vision_embodiment"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
