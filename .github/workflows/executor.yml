@@ -1,4 +1,4 @@
-name: Geass_Vision_Final_Build
+name: Geass_Vision_Final_Fixed
 on:
   workflow_dispatch:
 
@@ -9,19 +9,17 @@ jobs:
       - name: 📂 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 🏗️ 2. Structure & Assets
+      - name: 🏗️ 2. Clean Structure
         run: |
-          # إنشاء المجلدات
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
           mkdir -p app/src/main/assets
           
-          # محاولة نسخ الصور بقوة (Force Copy)
-          # سنستخدم المسار الذي أكدت أنت وجود الصور فيه
-          cp -v build/geass_eye_base.png app/src/main/res/drawable/ || echo "Missing Base"
-          cp -v build/pupil.png app/src/main/res/drawable/ || echo "Missing Pupil"
-          cp -v build/geass_icon.png app/src/main/res/drawable/ || echo "Missing Icon"
+          # نسخ الصور بقوة من المسار المتوفر
+          cp -v build/geass_eye_base.png app/src/main/res/drawable/ || echo "missing"
+          cp -v build/pupil.png app/src/main/res/drawable/ || echo "missing"
+          cp -v build/geass_icon.png app/src/main/res/drawable/ || echo "missing"
 
       - name: 📝 3. Android Manifest
         run: |
@@ -29,7 +27,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <application android:label="Geass Vision" android:icon="@drawable/geass_icon" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+              <application android:label="Geass Vision" android:icon="@drawable/geass_icon" android:theme="@android:style/Theme.NoTitleBar">
                   <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -55,7 +53,7 @@ jobs:
           </FrameLayout>
           EOF
 
-      - name: 🧠 5. Vision Engine (Java)
+      - name: 🧠 5. Vision Engine (Java) - Fixed Imports
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
@@ -73,10 +71,9 @@ jobs:
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
                   root = LayoutInflater.from(this).inflate(R.layout.floating_layout, null);
                   WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                      450, 450, 
+                      400, 400, 
                       (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? 
-                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : 
-                      WindowManager.LayoutParams.TYPE_PHONE,
+                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : 2003,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
                   p.gravity = Gravity.CENTER;
                   wm.addView(root, p);
@@ -88,10 +85,9 @@ jobs:
                           if(root == null) return;
                           View p = root.findViewById(R.id.pupil);
                           View e = root.findViewById(R.id.geass_eye_base);
-                          // الرمش والالتفات
                           e.animate().scaleY(0.1f).setDuration(200).withEndAction(() -> e.animate().scaleY(1f).setDuration(200).start()).start();
-                          p.animate().translationX((float)(Math.random()*100-50)).translationY((float)(Math.random()*100-50)).setDuration(500).start();
-                          h.postDelayed(this, 3500);
+                          p.animate().translationX((float)(Math.random()*80-40)).translationY((float)(Math.random()*80-40)).setDuration(400).start();
+                          h.postDelayed(this, 3000);
                       }
                   });
               }
@@ -99,7 +95,7 @@ jobs:
           }
           EOF
 
-      - name: 🚀 6. MainActivity (The Trigger)
+      - name: 🚀 6. MainActivity - Fixed Imports
         run: |
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
@@ -107,18 +103,25 @@ jobs:
           import android.content.Intent;
           import android.net.Uri;
           import android.os.Bundle;
+          import android.os.Build;
           import android.provider.Settings;
-          import android.widget.Toast;
           public class MainActivity extends Activity {
               @Override protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                      Toast.makeText(this, "أعطِ إذن الظهور فوق التطبيقات لتفعيل العين", Toast.LENGTH_LONG).show();
                       startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())), 101);
-                  } else { startService(new Intent(this, FloatingService.class)); finish(); }
+                  } else { 
+                      startService(new Intent(this, FloatingService.class)); 
+                      finish(); 
+                  }
               }
               @Override protected void onActivityResult(int req, int res, Intent d) {
-                  if(req == 101) { startService(new Intent(this, FloatingService.class)); finish(); }
+                  if(req == 101) { 
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                          startService(new Intent(this, FloatingService.class));
+                      }
+                      finish(); 
+                  }
               }
           }
           EOF
@@ -137,6 +140,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_vision_final"
+          tag_name: "v_vision_final_stable"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
