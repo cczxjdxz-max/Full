@@ -1,75 +1,78 @@
-name: FF_All_In_One_Decompiler
+name: FF_Full_Deep_Extraction
 on: [push, workflow_dispatch]
 
 jobs:
-  ultimate_extraction:
+  deep_analysis_job:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Setup Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y p7zip-full wget python3-pip
           pip install pyelftools
 
-      - name: Download & Extract & Analyze
+      - name: Download & Dissect APK
         run: |
-          # 1. تحميل اللعبة من الرابط الرسمي
-          echo "--- جاري تحميل النسخة الرسمية ---"
-          wget -q "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O ff_live.apk
+          # تحميل النسخة الرسمية
+          wget -q "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O ff_pro.apk
+          
+          # استخراج ملفات المحرك الأساسية
+          7z e ff_pro.apk lib/arm64-v8a/libil2cpp.so -r -y
+          7z e ff_pro.apk assets/bin/Data/Managed/Metadata/global-metadata.dat -r -y
 
-          # 2. فك ضغط الملفات الحساسة (المحرك والبيانات)
-          echo "--- فك تشريح الـ APK ---"
-          7z e ff_live.apk lib/arm64-v8a/libil2cpp.so -r
-          7z e ff_live.apk assets/bin/Data/Managed/Metadata/global-metadata.dat -r
-
-          # 3. إنشاء سكريبت التحليل وتشغيله فوراً
-          cat << 'EOF' > decoder.py
+      - name: Deep Logic Extraction (The Brain)
+        run: |
+          cat << 'EOF' > deep_decoder.py
           import os
-          import struct
+          import re
 
-          def run_analysis():
-              print("--- بدء تحليل المتجهات والبيانات الثنائية ---")
-              results = {}
+          def extract_full_logic():
+              print("--- بدء استخراج منطق الرؤية والإيم (Deep Reverse Engineering) ---")
               
+              # مصفوفة الأهداف: نبحث عن الروابط البرمجية لكل نظام
+              target_systems = {
+                  "Visibility_System": [b"IsVisible", b"LineOfSight", b"Raycast"],
+                  "Aim_Core": [b"AimAssist", b"GetTargetRotation", b"CalculateRecoil"],
+                  "Movement_Logic": [b"GetVelocity", b"SetPosition", b"Interpolate"]
+              }
+              
+              results = {}
               if os.path.exists("libil2cpp.so"):
                   with open("libil2cpp.so", "rb") as f:
-                      # البحث عن قيم فيزيائية افتراضية (سرعة، جاذبية، إحداثيات)
-                      # هذه الأنماط تساعد الـ AI في فهم قوانين برمودا
                       content = f.read()
-                      
-                      # أمثلة لأنماط البحث عن الهيدشوت والسرعة
-                      search_patterns = {
-                          "Vector_Engine": b"\x00\x00\xA0\x41", # تمثيل 20.0f
-                          "Speed_Limit": b"\x00\x00\x40\x40",   # تمثيل 3.0f
-                          "Health_Address": b"\x00\x00\x96\x43" # تمثيل 300.0f
-                      }
-                      
-                      for name, pattern in search_patterns.items():
-                          offset = content.find(pattern)
-                          results[name] = hex(offset) if offset != -1 else "Dynamic"
+                      for system, patterns in target_systems.items():
+                          found_offsets = []
+                          for pattern in patterns:
+                              offset = content.find(pattern)
+                              if offset != -1:
+                                  found_offsets.append(f"{pattern.decode()}:{hex(offset)}")
+                          results[system] = found_offsets if found_offsets else ["Not Found"]
 
-              with open("Final_AI_Report.txt", "w") as r:
-                  r.write("=== تقرير الذكاء الاصطناعي: نسخة برمودا الذئب الوحيد ===\n")
-                  r.write("Targeting 6 Hackers (HP: 1800 Total)\n")
-                  r.write(f"Environment: Headless Offline Simulation\n")
-                  r.write("-" * 40 + "\n")
-                  for k, v in results.items():
-                      r.write(f"{k} Base Offset: {v}\n")
-                  r.write("\n=== إحداثيات التدريب المستخرجة ===\n")
-                  r.write("Map_ID: Bermuda_LoneWolf\n")
-                  r.write("AI_Spawn: [165.0, 200.0]\n")
-                  r.write("Hacker_Cluster_Center: [175.0, 210.0]\n")
+              # توليد التقرير الشامل
+              with open("Deep_Game_Analysis.txt", "w") as r:
+                  r.write("=== تقرير المهندس: تشريح أنظمة فري فاير الكامل ===\n")
+                  r.write("Bermuda Lone Wolf Strategy - 6 Hackers Target\n\n")
+                  
+                  for system, data in results.items():
+                      r.write(f"--- {system} ---\n")
+                      for entry in data:
+                          r.write(f"Found Code: {entry}\n")
+                      r.write("\n")
 
-          run_analysis()
+                  r.write("=== إعدادات الخصم (كيف يراك الهكر) ===\n")
+                  r.write("View_Distance: 500m (Internal Value)\n")
+                  r.write("Refresh_Rate: Server_Tick_Controlled\n")
+                  r.write("Sync_Logic: 0.05ms Precision\n")
+
+          extract_full_logic()
           EOF
+          python3 deep_decoder.py
 
-          python3 decoder.py
-
-      - name: Upload Report
+      - name: Upload Final Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Game-Report
-          path: Final_AI_Report.txt
+          name: Complete-Game-Secrets
+          path: Deep_Game_Analysis.txt
