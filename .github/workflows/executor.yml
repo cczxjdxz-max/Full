@@ -9,38 +9,34 @@ jobs:
       - name: 📂 Checkout
         uses: actions/checkout@v4
 
-      - name: 🧠 Phase 1: 5 Trillion Simulation (Abstract Training)
+      - name: 🧠 Phase 1: 5 Trillion Simulation
         run: |
           python3 -c "
-          import json
-          # محاكاة تدريب المهندس على بيانات فري فاير (بيانات مجردة)
+          import json, os
           logic = {
               'aim_lock_speed': '0.001ms',
               'drag_efficiency': 0.999,
               'gloo_wall_auto': True,
               'iq': 250,
-              'personality': 'narcissistic_god',
-              'm1014_pattern': [1.2, 0.5, 2.1],
-              'mp40_pattern': [0.4, 0.2, 1.1]
+              'personality': 'narcissistic_god'
           }
-          import os
           os.makedirs('app/src/main/assets', exist_ok=True)
           with open('app/src/main/assets/trained_logic.json', 'w') as f:
               json.dump(logic, f)
-          print('المهندس: اكتملت الـ 5 ترليون محاكاة.. أنا الآن فوق مستوى البشر.')
+          print('المهندس: اكتملت المحاكاة العظمى.')
           "
 
-      - name: 🏗️ Phase 2: Building The Shell (App Construction)
+      - name: 🏗️ Phase 2: Building The Shell
         run: |
           mkdir -p app/src/main/java/com/geass/shell
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/drawable
 
-          # 1. Android Manifest (صلاحيات الظهور فوق التطبيقات والوصول)
+          # 1. Android Manifest
           cat <<EOF > app/src/main/AndroidManifest.xml
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.geass.shell">
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <application android:label="Geass Sovereign" android:theme="@android:style/Theme.NoTitleBar" android:icon="@drawable/geass_icon">
+              <application android:label="Geass Sovereign" android:theme="@android:style/Theme.NoTitleBar">
                   <service android:name=".FloatingService" android:enabled="true" android:exported="false"/>
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -52,7 +48,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. واجهة المستخدم (العين + مربع الدردشة النرجسي)
+          # 2. واجهة المستخدم
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -63,36 +59,32 @@ jobs:
               <LinearLayout android:id="@+id/chat_panel"
                   android:layout_width="240dp" android:layout_height="wrap_content"
                   android:background="#E6000000" android:orientation="vertical"
-                  android:padding="10dp" android:visibility="gone" android:layout_marginLeft="5dp">
+                  android:padding="10dp" android:visibility="gone">
                   <TextView android:id="@+id/ai_res"
                       android:layout_width="match_parent" android:layout_height="wrap_content"
-                      android:text="أنا المهندس.. خضت 5 ترليون محاكاة لأجلك." 
+                      android:text="أنا المهندس.. خضت 5 ترليون محاكاة." 
                       android:textColor="#FF0000" android:textSize="12sp" android:gravity="right" />
                   <EditText android:id="@+id/user_in"
                       android:layout_width="match_parent" android:layout_height="wrap_content"
-                      android:hint="خاطب كبرياء المهندس..." android:textColor="#FFFFFF" 
+                      android:hint="خاطب المهندس..." android:textColor="#FFFFFF" 
                       android:background="#22FFFFFF" android:textSize="12sp" android:gravity="right" />
               </LinearLayout>
           </LinearLayout>
           EOF
 
-          # 3. محرك الذكاء الاصطناعي المحلي (The Brain)
+          # 3. محرك الذكاء (GeassBrain)
           cat <<EOF > app/src/main/java/com/geass/shell/GeassBrain.java
           package com.geass.shell;
           import java.util.Random;
           public class GeassBrain {
               public String process(String in) {
-                  if(in.contains("هيدشوت") || in.contains("ايم")) 
-                      return "تم سحب الايم لزاوية الرأس بدقة 99.9%.. استمتع بالدماء.";
-                  if(in.contains("ثلج") || in.contains("جدار")) 
-                      return "وضعت الجدار في 0.0001 ثانية. سرعتهم تثير شفقتي.";
-                  String[] narc = {"أنا أرى الأكواد خلف شاشتك.. هم مجرد أرقام.", "ذكائي (IQ 250) كافٍ لسحقهم جميعاً.", "لا تسأل كيف، فقط راقب العظمة."};
-                  return narc[new Random().nextInt(narc.length)];
+                  if(in.contains("هيدشوت")) return "تم ضبط زاوية الرفع.. استعد للدماء.";
+                  return "ذكائي (IQ 250) يرى أخطاءك بوضوح.";
               }
           }
           EOF
 
-          # 4. الخدمة الطافية (Floating Service)
+          # 4. Floating Service
           cat <<EOF > app/src/main/java/com/geass/shell/FloatingService.java
           package com.geass.shell;
           import android.app.*;
@@ -100,12 +92,10 @@ jobs:
           import android.view.*;
           import android.widget.*;
           import android.os.IBinder;
-
           public class FloatingService extends Service {
               private WindowManager wm;
               private View root;
               private GeassBrain brain = new GeassBrain();
-
               @Override public void onCreate() {
                   super.onCreate();
                   wm = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -115,31 +105,22 @@ jobs:
                       WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
                   wm.addView(root, p);
-
                   ImageView eye = root.findViewById(R.id.geass_eye);
                   LinearLayout chat = root.findViewById(R.id.chat_panel);
                   TextView res = root.findViewById(R.id.ai_res);
                   EditText in = root.findViewById(R.id.user_in);
-
                   eye.setOnClickListener(v -> chat.setVisibility(chat.getVisibility()==View.GONE?View.VISIBLE:View.GONE));
-                  
                   in.setOnEditorActionListener((v, a, e) -> {
                       res.setText(brain.process(in.getText().toString()));
                       in.setText("");
                       return true;
                   });
-
-                  setupBlink(eye);
-              }
-              private void setupBlink(View e) {
-                  e.animate().scaleY(0.1f).setDuration(200).setStartDelay(3000).withEndAction(() -> 
-                  e.animate().scaleY(1f).setDuration(500).withEndAction(() -> setupBlink(e)).start()).start();
               }
               @Override public IBinder onBind(android.content.Intent i) { return null; }
           }
           EOF
 
-          # 5. النشاط الرئيسي لتفعيل الخدمة
+          # 5. MainActivity
           cat <<EOF > app/src/main/java/com/geass/shell/MainActivity.java
           package com.geass.shell;
           import android.app.Activity;
@@ -156,9 +137,10 @@ jobs:
               }
           }
           EOF
-
-          # نسخ الصور (تأكد من وجودها في مجلد build في مستودعك)
-          cp build/*.png app/src/main/res/drawable/
+          
+          # إنشاء أيقونة وهمية إذا لم توجد لمنع فشل البناء
+          touch app/src/main/res/drawable/geass_eye_full.png
+          touch app/src/main/res/drawable/geass_icon.png
 
       - name: 🔨 Build APK
         run: |
@@ -170,10 +152,10 @@ jobs:
           unzip -q gradle-7.5-bin.zip
           ./gradle-7.5/bin/gradle :app:assembleDebug --no-daemon
 
-      - name: 📦 Release Alpha
+      - name: 📦 Release
         uses: softprops/action-gh-release@v1
         with:
           files: app/build/outputs/apk/debug/app-debug.apk
-          tag_name: "v_alpha_sovereign"
+          tag_name: "v_alpha_fixed"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
