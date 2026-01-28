@@ -13,6 +13,7 @@ jobs:
         run: |
           python3 -c "
           import json, os
+          os.makedirs('app/src/main/assets', exist_ok=True)
           logic = {
               'aim_lock_speed': '0.001ms',
               'drag_efficiency': 0.999,
@@ -20,7 +21,6 @@ jobs:
               'iq': 250,
               'personality': 'narcissistic_god'
           }
-          os.makedirs('app/src/main/assets', exist_ok=True)
           with open('app/src/main/assets/trained_logic.json', 'w') as f:
               json.dump(logic, f)
           print('المهندس: اكتملت المحاكاة العظمى.')
@@ -48,7 +48,7 @@ jobs:
           </manifest>
           EOF
 
-          # 2. واجهة المستخدم
+          # 2. واجهة المستخدم (العين ومربع الحوار)
           cat <<EOF > app/src/main/res/layout/floating_layout.xml
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -138,7 +138,7 @@ jobs:
           }
           EOF
           
-          # إنشاء أيقونة وهمية إذا لم توجد لمنع فشل البناء
+          # منع فشل البناء في حال عدم وجود ملفات صور
           touch app/src/main/res/drawable/geass_eye_full.png
           touch app/src/main/res/drawable/geass_icon.png
 
