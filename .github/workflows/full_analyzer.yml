@@ -1,4 +1,4 @@
-name: GIAS_Sovereign_Clear_Body
+name: GIAS_Final_Sovereign_Fix
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,22 +8,13 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Setup Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.buildozer
-            .buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-
-      - name: 3. Setup Java 17
+      - name: 2. Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 4. Create main.py (Clear & Visible Eyes)
+      - name: 3. Create main.py (Fixed Visibility)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -35,10 +26,14 @@ jobs:
           from kivy.utils import platform
           import os
 
+          # إعدادات النافذة للظهور فوق الكل
+          Window.borderless = True
+          Window.fullscreen = False
+
           class GiasEye(FloatLayout):
               def __init__(self, is_left=True, **kwargs):
                   super().__init__(**kwargs)
-                  self.size_hint = (0.45, 0.45)
+                  self.size_hint = (0.4, 0.4)
                   self.pos_hint = {'center_x': 0.28 if is_left else 0.72, 'center_y': 0.82}
                   
                   def get_p(name):
@@ -52,68 +47,66 @@ jobs:
                       "kill": get_p("KILL")
                   }
 
-                  # تم تعديل الشفافية لتكون واضحة جداً (0.8 للبؤبؤ و 0.9 للإطار)
-                  self.pupil = Image(source=self.states["talk"], size_hint=(0.75, 0.75), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.8)
+                  # الشفافية الآن 1.0 (وضوح كامل)
+                  self.pupil = Image(source=self.states["talk"], size_hint=(0.8, 0.8), 
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=1.0)
                   self.frame = Image(source=self.states["frame"], size_hint=(1, 1), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.9)
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=1.0)
                   self.add_widget(self.pupil)
                   self.add_widget(self.frame)
-                  self.disabled = True 
 
               def blink(self, *args):
-                  # الرمش مع العودة لعتامة واضحة (0.8)
                   close_eye = Animation(opacity=0, duration=0.1)
-                  open_eye = Animation(opacity=0.8, duration=0.1)
+                  open_eye = Animation(opacity=1.0, duration=0.1)
                   (close_eye + Animation(duration=0.5) + open_eye).start(self.pupil)
-
-              def set_mood(self, mood_name):
-                  if mood_name in self.states:
-                      self.pupil.source = self.states[mood_name]
 
           class GiasSovereignCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  Window.clearcolor = (0, 0, 0, 0)
+                  Window.clearcolor = (0, 0, 0, 0) # الخلفية المحيطة فقط شفافة
                   self.left_eye = GiasEye(is_left=True)
                   self.right_eye = GiasEye(is_left=False)
                   self.add_widget(self.left_eye)
                   self.add_widget(self.right_eye)
                   Clock.schedule_interval(self.trigger_blink, 3.5)
-                  Clock.schedule_once(self.go_angry, 300)
 
               def trigger_blink(self, dt):
                   self.left_eye.blink()
                   self.right_eye.blink()
 
-              def go_angry(self, dt):
-                  self.left_eye.set_mood("angry")
-                  self.right_eye.set_mood("angry")
-
           class GIAS_SovereignApp(App):
               def build(self):
+                  self.title = "GIAS"
                   if platform == 'android':
                       from android.permissions import request_permissions, Permission
-                      request_permissions([Permission.SYSTEM_ALERT_WINDOW, Permission.READ_EXTERNAL_STORAGE])
+                      request_permissions([Permission.SYSTEM_ALERT_WINDOW])
                   return GiasSovereignCore()
 
           if __name__ == "__main__":
               GIAS_SovereignApp().run()
           EOF
 
-      - name: 5. Build APK
+      - name: 4. Build APK with Clean Specs
         run: |
           pip install buildozer Cython==0.29.33
-          [ ! -f buildozer.spec ] && buildozer init
-          sed -i 's/#icon.filename = %(source.dir)s\/data\/icon.png/icon.filename = build\/LAUNCHER.jpeg/' buildozer.spec
+          buildozer init
+          # تغيير اسم التطبيق والأيقونة إجبارياً
+          sed -i 's/^title = .*/title = GIAS_Sovereign/' buildozer.spec
+          sed -i 's/^package.name = .*/package.name = gias.sovereign/' buildozer.spec
+          sed -i 's/^#icon.filename = .*/icon.filename = build\/LAUNCHER.jpeg/' buildozer.spec
           sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
-          sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
-          sed -i 's/#android.permissions = android.permission.INTERNET/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE/' buildozer.spec
-          sed -i 's/#source.include_patterns = assets/source.include_patterns = build\/*.png,build\/*.jpeg,*.png,*.jpeg/' buildozer.spec
+          # حذف شاشة كينفي بالكامل
+          sed -i 's/^#presplash.filename = .*/presplash.filename = /' buildozer.spec
+          # إضافة الصلاحيات الفتاكة
+          sed -i 's/^android.permissions = .*/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,ACTION_MANAGE_OVERLAY_PERMISSION/' buildozer.spec
+          
+          # تنظيف التخزين المؤقت قبل البناء لضمان تغير الأيقونة
+          rm -rf .buildozer/android/platform/build-armeabi-v7a/dists/gias_sovereign
+          
           yes | buildozer android debug
 
-      - name: 6. Upload Visible Body APK
+      - name: 5. Upload Final Fixed APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Sovereign-Visible-Body
+          name: GIAS-Final-Fixed-Visible
           path: bin/*.apk
