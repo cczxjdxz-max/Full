@@ -1,4 +1,4 @@
-name: GIAS_Nirvana_Final_Success
+name: GIAS_Nirvana_Living_Entity
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,66 +8,100 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      # --- تفعيل الاستئناف: حفظ واسترجاع الملفات الضخمة ---
-      - name: 2. Cache Buildozer & Dependencies
-        uses: actions/cache@v3
+      - name: 2. Setup Java 17
+        uses: actions/setup-java@v4
         with:
-          path: |
-            ~/.cache/pip
-            ~/.buildozer
-            .buildozer
-          key: ${{ runner.os }}-gias-v7-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-gias-v7-
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: 3. Install System Fixes & Java 17
+      - name: 3. Download GIAS Eye Image
         run: |
-          sudo apt-get update
-          # تثبيت مكتبات النظام الضرورية لـ OpenCV والذكاء الاصطناعي
-          sudo apt-get install -y libsm6 libxext6 libxrender-dev ffmpeg \
-          build-essential libltdl-dev libtool autoconf automake \
-          pkg-config zlib1g-dev libffi-dev libssl-dev
-          
-          # إعداد الجافا لضمان استئناف Gradle بنجاح
-          echo "JAVA_HOME=$(echo /usr/lib/jvm/temurin-17-jdk-amd64)" >> $GITHUB_ENV
+          # تحميل صورة العين المرعبة والواقعية التي اخترناها
+          curl -L -o gias_eye.png "[attachment_0](attachment)"
 
-      - name: 4. Python Setup & 720P Video Render
+      - name: 4. Create Main.py (The Entity Code)
+        run: |
+          cat << 'EOF' > main.py
+          from kivy.app import App
+          from kivy.uix.floatlayout import FloatLayout
+          from kivy.uix.image import Image
+          from kivy.animation import Animation
+          from kivy.uix.textinput import TextInput
+          from kivy.clock import Clock
+          from kivy.core.window import Window
+          from kivy.utils import get_color_from_hex
+
+          class GiasEye(Image):
+              def __init__(self, **kwargs):
+                  super().__init__(**kwargs)
+                  self.source = 'gias_eye.png'
+                  self.size_hint = (None, None)
+                  self.size = (0, 0)
+                  self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
+                  self.opacity = 0
+
+              def awaken(self):
+                  # تأثير الاستيقاظ المرعب: تملأ الشاشة ثم تتقلص للزاوية
+                  anim = Animation(opacity=1, size=(Window.width * 1.3, Window.height * 0.7), duration=1.2, t='out_expo')
+                  anim += Animation(size=(200, 150), pos_hint={'center_x': 0.85, 'center_y': 0.9}, duration=1.5, t='in_out_quad')
+                  anim.start(self)
+
+          class NirvanaCore(FloatLayout):
+              def __init__(self, **kwargs):
+                  super().__init__(**kwargs)
+                  Window.clearcolor = get_color_from_hex('#000000')
+                  self.eye = GiasEye()
+                  self.add_widget(self.eye)
+                  
+                  self.chat_input = TextInput(
+                      hint_text='GIAS Listening...',
+                      size_hint=(0.8, 0.08), pos_hint={'center_x': 0.5, 'center_y': -0.1},
+                      background_color=(0, 0, 0, 0.8), foreground_color=(0, 1, 0, 1),
+                      font_size='18sp', multiline=False
+                  )
+                  self.add_widget(self.chat_input)
+                  self.press_time = 0
+
+                  # محاكاة الاستيقاظ بعد 3 ثواني (جياس!)
+                  Clock.schedule_once(lambda dt: self.eye.awaken(), 3)
+
+              def on_touch_down(self, touch):
+                  self.press_time = Clock.get_time()
+                  Clock.schedule_once(self.open_chat, 6) # عداد الـ 6 ثواني
+                  return super().on_touch_down(touch)
+
+              def on_touch_up(self, touch):
+                  self.press_time = 0
+                  return super().on_touch_up(touch)
+
+              def open_chat(self, dt):
+                  if self.press_time > 0:
+                      anim = Animation(pos_hint={'center_x': 0.5, 'center_y': 0.2}, duration=0.6)
+                      anim.start(self.chat_input)
+
+          class GIAS_Sovereign(App):
+              def build(self):
+                  return NirvanaCore()
+
+          if __name__ == "__main__":
+              GIAS_Sovereign().run()
+          EOF
+
+      - name: 5. Build APK
         run: |
           pip install --upgrade pip
-          # تثبيت نسخة headless لأنها تعمل على السيرفرات بدون أخطاء
-          pip install opencv-python-headless numpy Cython==0.29.33 buildozer
-          
-          # إنتاج الفيديو بجودة 720P وصوت مدمج
-          python3 -c "
-          import cv2, numpy as np
-          out = cv2.VideoWriter('raw_video.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (1280, 720))
-          for _ in range(90):
-              frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-              cv2.putText(frame, 'GIAS NIRVANA 720P', (400, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 65), 3)
-              out.write(frame)
-          out.release()
-          "
-          # إضافة صوت الوسائط (صمت) للفيديو لضمان التوافق
-          ffmpeg -i raw_video.mp4 -f lavfi -i anullsrc -c:v copy -c:a aac -shortest final_720p.mp4
-
-      - name: 5. Start/Resume Buildozer
-        run: |
+          pip install buildozer Cython==0.29.33
           [ ! -f buildozer.spec ] && buildozer init
-          # ضبط المواصفات بدقة
-          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,numpy,opencv-python-headless/' buildozer.spec
+          sed -i 's/title = My Application/title = GIAS Sovereign/' buildozer.spec
+          sed -i 's/package.name = myapp/package.name = gias.sovereign.v1/' buildozer.spec
+          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,numpy/' buildozer.spec
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a/' buildozer.spec
+          sed -i 's/#android.permissions = INTERNET/android.permissions = INTERNET,RECORD_AUDIO,VIBRATE/' buildozer.spec
           
-          # محاولة البناء - إذا فشل بسبب الوقت، التقدم محفوظ في الكاش
-          yes | buildozer android debug || (echo "TIMEOUT: Progress Saved. Re-run to continue." && exit 1)
+          yes | buildozer android debug
 
-      - name: 6. Deploy Result
-        if: always()
-        uses: softprops/action-gh-release@v1
+      - name: 6. Upload Final Entity
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v22.0-Checkpoint
-          name: "G.I.A.S Nirvana (Build Success)"
-          files: |
-            bin/*.apk
-            final_720p.mp4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: GIAS-Sovereign-Eye
+          path: bin/*.apk
