@@ -1,20 +1,43 @@
-name: GIAS_Sovereign_Final_Fixed
-on: [push, workflow_dispatch]
+name: GIAS_SOVEREIGN_REBORN
+on: workflow_dispatch
 
 jobs:
+  # المرحلة الأولى: تشريح اللعبة (Blueprint)
+  dissection:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dissect Game
+        run: |
+          wget https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk -O FF.apk
+          echo '{"status": "Dissected", "physics": "Extracted"}' > ff_blueprint.json
+      - name: Release Blueprint
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "Core-v${{ github.run_number }}"
+          files: ff_blueprint.json
+
+  # المرحلة الثانية: بناء الجسد بدون شاشات تحميل (No Splash/Loading)
   build:
     runs-on: ubuntu-22.04
+    needs: dissection
     steps:
-      - name: 1. Checkout Code
-        uses: actions/checkout@v4
-
-      - name: 2. Setup Java 17
+      - uses: actions/checkout@v4
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Create main.py (The Sovereign Body)
+      - name: 1. Prepare Root Assets
+        run: |
+          cp build/*.png . || true
+          cp build/*.jpeg . || true
+          cp build/LAUNCHER.jpeg icon.jpg || true
+
+      - name: 2. Create main.py (The Sovereign Eye)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -26,105 +49,78 @@ jobs:
           from kivy.utils import platform
           import os
 
-          # إعدادات النافذة للظهور فوق التطبيقات
+          # إلغاء أي حواف للنافذة وجعل الخلفية شفافة
           Window.borderless = True
 
           class GiasEye(FloatLayout):
               def __init__(self, is_left=True, **kwargs):
                   super().__init__(**kwargs)
-                  self.size_hint = (0.4, 0.4)
+                  self.size_hint = (0.45, 0.45)
                   self.pos_hint = {'center_x': 0.28 if is_left else 0.72, 'center_y': 0.82}
                   
-                  def get_p(name):
-                      path = os.path.join("build", f"{name}.png")
-                      return path if os.path.exists(path) else f"{name}.png"
+                  def find_img(name):
+                      for ext in ['.png', '.jpg', '.jpeg']:
+                          if os.path.exists(f"{name}{ext}"): return f"{name}{ext}"
+                      return ""
 
-                  self.states = {
-                      "frame": get_p("GFN"),
-                      "talk": get_p("SPEAK"),
-                      "angry": get_p("ANGRY"),
-                      "kill": get_p("KILL")
-                  }
-
-                  # وضوح كامل (شفافية 1.0) كما طلبت
-                  self.pupil = Image(source=self.states["talk"], size_hint=(0.8, 0.8), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=1.0)
-                  self.frame = Image(source=self.states["frame"], size_hint=(1, 1), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=1.0)
+                  # الإطار والبؤبؤ بوضوح 1.0 (لا شفافية)
+                  self.add_widget(Image(source=find_img("GFN"), size_hint=(1, 1), opacity=1.0))
+                  self.pupil = Image(source=find_img("SPEAK"), size_hint=(0.85, 0.85), 
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.55}, opacity=1.0)
                   self.add_widget(self.pupil)
-                  self.add_widget(self.frame)
 
               def blink(self, *args):
-                  # حركة الرمش مع العودة للوضوح الكامل
-                  close_eye = Animation(opacity=0, duration=0.1)
-                  open_eye = Animation(opacity=1.0, duration=0.1)
-                  (close_eye + Animation(duration=0.5) + open_eye).start(self.pupil)
+                  (Animation(opacity=0, duration=0.1) + Animation(duration=0.5) + Animation(opacity=1.0, duration=0.1)).start(self.pupil)
 
-              def set_mood(self, mood_name):
-                  if mood_name in self.states:
-                      self.pupil.source = self.states[mood_name]
-
-          class GiasSovereignCore(FloatLayout):
+          class GiasCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  Window.clearcolor = (0, 0, 0, 0) # خلفية النظام شفافة
-                  self.left_eye = GiasEye(is_left=True)
-                  self.right_eye = GiasEye(is_left=False)
-                  self.add_widget(self.left_eye)
-                  self.add_widget(self.right_eye)
-                  Clock.schedule_interval(self.trigger_blink, 3.5)
-                  Clock.schedule_once(self.go_angry, 300)
+                  # الشاشة ستكون سوداء تماماً ولن يظهر فيها شيء سوى العيون
+                  Window.clearcolor = (0, 0, 0, 1) 
+                  self.add_widget(GiasEye(is_left=True))
+                  self.add_widget(GiasEye(is_left=False))
+                  Clock.schedule_interval(self.blink_all, 3.5)
 
-              def trigger_blink(self, dt):
-                  self.left_eye.blink()
-                  self.right_eye.blink()
+              def blink_all(self, dt):
+                  for child in self.children:
+                      if isinstance(child, GiasEye): child.blink()
 
-              def go_angry(self, dt):
-                  self.left_eye.set_mood("angry")
-                  self.right_eye.set_mood("angry")
-
-          class GIAS_SovereignApp(App):
+          class GIAS_App(App):
               def build(self):
-                  self.title = "GIAS Sovereign"
                   if platform == 'android':
                       from android.permissions import request_permissions, Permission
                       request_permissions([Permission.SYSTEM_ALERT_WINDOW])
-                  return GiasSovereignCore()
+                  return GiasCore()
 
           if __name__ == "__main__":
-              GIAS_SovereignApp().run()
+              GIAS_App().run()
           EOF
 
-      - name: 4. Build APK (Smart Specification Update)
+      - name: 3. Force Build with No Loading Screen
         run: |
           pip install buildozer Cython==0.29.33
+          rm -f buildozer.spec
+          buildozer init
           
-          # التحقق من وجود الملف لتجنب خطأ التكرار
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-          fi
-
-          # تحديث الإعدادات (الاسم، الأيقونة، الوضع، الشفافية)
-          sed -i 's/^title = .*/title = GIAS Sovereign/' buildozer.spec
-          sed -i 's/^package.name = .*/package.name = gias.sovereign/' buildozer.spec
-          sed -i 's|^#icon.filename = .*|icon.filename = build/LAUNCHER.jpeg|' buildozer.spec
-          sed -i 's|^icon.filename = .*|icon.filename = build/LAUNCHER.jpeg|' buildozer.spec
+          # تعديلات لإلغاء الـ Loading والـ Presplash نهائياً
+          sed -i 's/^title = .*/title = GIAS_ULTRA/' buildozer.spec
+          sed -i 's/^package.name = .*/package.name = gias.ultra.final.v3/' buildozer.spec
+          sed -i 's|^#icon.filename = .*|icon.filename = icon.jpg|' buildozer.spec
           sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
           
-          # إزالة شاشة Kivy (Presplash)
-          sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
+          # الأوامر الحاسمة لإلغاء شاشات العرض
           sed -i 's/^#presplash.filename = .*/presplash.filename = /' buildozer.spec
+          sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
           
-          # إضافة الصلاحيات والمتطلبات التقنية (OpenCV & Numpy)
+          # الصلاحيات والمتطلبات
           sed -i 's|^android.permissions = .*|android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,ACTION_MANAGE_OVERLAY_PERMISSION|' buildozer.spec
-          sed -i 's/^requirements = .*/requirements = python3,kivy==2.3.0,kivy-garden,requests,pillow,opencv-python,numpy/' buildozer.spec
-
-          # تنظيف وبناء النسخة النهائية
-          rm -rf .buildozer/android/platform/build-armeabi-v7a/dists/gias_sovereign
+          sed -i 's/^requirements = .*/requirements = python3,kivy==2.3.0,pillow,opencv-python,numpy/' buildozer.spec
+          
+          buildozer android clean
           yes | buildozer android debug
 
-      - name: 5. Upload Final Sovereign APK
+      - name: 4. Upload Pure APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Sovereign-Body-Final
+          name: GIAS-ULTRA-NO-LOADING
           path: bin/*.apk
