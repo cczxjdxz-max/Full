@@ -1,4 +1,4 @@
-name: GIAS_Final_Sovereign_Build
+name: GIAS_Sovereign_Clear_Body
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,7 +8,7 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Smart Cache (Speed Boost)
+      - name: 2. Setup Cache
         uses: actions/cache@v3
         with:
           path: |
@@ -23,13 +23,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 4. Auto-Accept Android Licenses
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses || true
-
-      - name: 5. Create main.py (Blinking & 5-Min Anger)
+      - name: 4. Create main.py (Clear & Visible Eyes)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -38,6 +32,7 @@ jobs:
           from kivy.animation import Animation
           from kivy.clock import Clock
           from kivy.core.window import Window
+          from kivy.utils import platform
           import os
 
           class GiasEye(FloatLayout):
@@ -53,40 +48,38 @@ jobs:
                   self.states = {
                       "frame": get_p("GFN"),
                       "talk": get_p("SPEAK"),
-                      "angry": get_p("ANGRY")
+                      "angry": get_p("ANGRY"),
+                      "kill": get_p("KILL")
                   }
 
+                  # تم تعديل الشفافية لتكون واضحة جداً (0.8 للبؤبؤ و 0.9 للإطار)
                   self.pupil = Image(source=self.states["talk"], size_hint=(0.75, 0.75), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.4)
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.8)
                   self.frame = Image(source=self.states["frame"], size_hint=(1, 1), 
-                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.6)
-                  
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.9)
                   self.add_widget(self.pupil)
                   self.add_widget(self.frame)
                   self.disabled = True 
 
               def blink(self, *args):
-                  # إغلاق لنصف ثانية كل 3 ثواني
+                  # الرمش مع العودة لعتامة واضحة (0.8)
                   close_eye = Animation(opacity=0, duration=0.1)
-                  open_eye = Animation(opacity=0.4, duration=0.1)
+                  open_eye = Animation(opacity=0.8, duration=0.1)
                   (close_eye + Animation(duration=0.5) + open_eye).start(self.pupil)
 
-              def set_angry(self, *args):
-                  self.pupil.source = self.states["angry"]
-                  self.pupil.opacity = 0.6 # زيادة الحدة عند الغضب
+              def set_mood(self, mood_name):
+                  if mood_name in self.states:
+                      self.pupil.source = self.states[mood_name]
 
-          class BlinkingNirvana(FloatLayout):
+          class GiasSovereignCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
+                  Window.clearcolor = (0, 0, 0, 0)
                   self.left_eye = GiasEye(is_left=True)
                   self.right_eye = GiasEye(is_left=False)
                   self.add_widget(self.left_eye)
                   self.add_widget(self.right_eye)
-                  
-                  # رمش العيون كل 3 ثواني
                   Clock.schedule_interval(self.trigger_blink, 3.5)
-                  
-                  # التحول للغضب (ANGRY) بعد 5 دقائق (300 ثانية)
                   Clock.schedule_once(self.go_angry, 300)
 
               def trigger_blink(self, dt):
@@ -94,31 +87,33 @@ jobs:
                   self.right_eye.blink()
 
               def go_angry(self, dt):
-                  self.left_eye.set_angry()
-                  self.right_eye.set_angry()
+                  self.left_eye.set_mood("angry")
+                  self.right_eye.set_mood("angry")
 
-          class GIAS_Sovereign(App):
-              def build(self): return BlinkingNirvana()
+          class GIAS_SovereignApp(App):
+              def build(self):
+                  if platform == 'android':
+                      from android.permissions import request_permissions, Permission
+                      request_permissions([Permission.SYSTEM_ALERT_WINDOW, Permission.READ_EXTERNAL_STORAGE])
+                  return GiasSovereignCore()
 
-          if __name__ == "__main__": GIAS_Sovereign().run()
+          if __name__ == "__main__":
+              GIAS_SovereignApp().run()
           EOF
 
-      - name: 6. Build APK (Set Icon & Fast Mode)
+      - name: 5. Build APK
         run: |
           pip install buildozer Cython==0.29.33
           [ ! -f buildozer.spec ] && buildozer init
-          # تعيين أيقونة التطبيق (LAUNCHER.jpeg)
           sed -i 's/#icon.filename = %(source.dir)s\/data\/icon.png/icon.filename = build\/LAUNCHER.jpeg/' buildozer.spec
-          # إعدادات الشاشة والظهور فوق التطبيقات
           sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
           sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
-          sed -i 's/#android.permissions = android.permission.INTERNET/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW/' buildozer.spec
+          sed -i 's/#android.permissions = android.permission.INTERNET/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE/' buildozer.spec
           sed -i 's/#source.include_patterns = assets/source.include_patterns = build\/*.png,build\/*.jpeg,*.png,*.jpeg/' buildozer.spec
-          
           yes | buildozer android debug
 
-      - name: 7. Upload APK
+      - name: 6. Upload Visible Body APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Final-Icon-APK
+          name: GIAS-Sovereign-Visible-Body
           path: bin/*.apk
