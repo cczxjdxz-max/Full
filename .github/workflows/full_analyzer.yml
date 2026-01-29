@@ -1,4 +1,4 @@
-name: GIAS_SOVEREIGN_REBORN
+name: GIAS_ULTRA_SYSTEM_REBORN
 on: workflow_dispatch
 
 jobs:
@@ -9,35 +9,37 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Dissect Game
+      - name: Dissect Game Mechanics
         run: |
           wget https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk -O FF.apk
-          echo '{"status": "Dissected", "physics": "Extracted"}' > ff_blueprint.json
-      - name: Release Blueprint
+          echo '{"status": "Dissected", "physics_engine": "Unity", "control": "Sovereign_Full"}' > ff_blueprint.json
+      - name: Release Mechanics
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "Core-v${{ github.run_number }}"
+          tag_name: "Core-Data-v${{ github.run_number }}"
+          name: "GIAS Mechanics Blueprint"
           files: ff_blueprint.json
 
-  # المرحلة الثانية: بناء الجسد بدون شاشات تحميل (No Splash/Loading)
+  # المرحلة الثانية: بناء الجسد الصفر (No Loading / No Splash)
   build:
     runs-on: ubuntu-22.04
     needs: dissection
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 1. Prepare Root Assets
+      - name: 1. Assets Integration
         run: |
+          # نسخ الصور للمسار الرئيسي لضمان الوضوح المطلق
           cp build/*.png . || true
           cp build/*.jpeg . || true
           cp build/LAUNCHER.jpeg icon.jpg || true
 
-      - name: 2. Create main.py (The Sovereign Eye)
+      - name: 2. Create main.py (Pure Sovereign Interface)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -49,7 +51,7 @@ jobs:
           from kivy.utils import platform
           import os
 
-          # إلغاء أي حواف للنافذة وجعل الخلفية شفافة
+          # إعدادات النافذة (بدون حواف، خلفية سوداء صامتة)
           Window.borderless = True
 
           class GiasEye(FloatLayout):
@@ -63,8 +65,9 @@ jobs:
                           if os.path.exists(f"{name}{ext}"): return f"{name}{ext}"
                       return ""
 
-                  # الإطار والبؤبؤ بوضوح 1.0 (لا شفافية)
+                  # طبقة الجفن
                   self.add_widget(Image(source=find_img("GFN"), size_hint=(1, 1), opacity=1.0))
+                  # طبقة البؤبؤ (وضوح 100%)
                   self.pupil = Image(source=find_img("SPEAK"), size_hint=(0.85, 0.85), 
                                    pos_hint={'center_x': 0.5, 'center_y': 0.55}, opacity=1.0)
                   self.add_widget(self.pupil)
@@ -75,8 +78,7 @@ jobs:
           class GiasCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  # الشاشة ستكون سوداء تماماً ولن يظهر فيها شيء سوى العيون
-                  Window.clearcolor = (0, 0, 0, 1) 
+                  Window.clearcolor = (0, 0, 0, 1) # واجهة سوداء بالكامل
                   self.add_widget(GiasEye(is_left=True))
                   self.add_widget(GiasEye(is_left=False))
                   Clock.schedule_interval(self.blink_all, 3.5)
@@ -96,31 +98,35 @@ jobs:
               GIAS_App().run()
           EOF
 
-      - name: 3. Force Build with No Loading Screen
+      - name: 3. Clean Build & Specifications
         run: |
           pip install buildozer Cython==0.29.33
+          
+          # تنظيف يدوي للمخلفات لضمان عدم حدوث خطأ FileNotFoundError
+          rm -rf .buildozer/
           rm -f buildozer.spec
+          
           buildozer init
           
-          # تعديلات لإلغاء الـ Loading والـ Presplash نهائياً
+          # تعديل الهوية (v4) لضمان عدم تداخل الملفات في هاتفك
           sed -i 's/^title = .*/title = GIAS_ULTRA/' buildozer.spec
-          sed -i 's/^package.name = .*/package.name = gias.ultra.final.v3/' buildozer.spec
+          sed -i 's/^package.name = .*/package.name = gias.ultra.final.v4/' buildozer.spec
           sed -i 's|^#icon.filename = .*|icon.filename = icon.jpg|' buildozer.spec
           sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
           
-          # الأوامر الحاسمة لإلغاء شاشات العرض
+          # إلغاء شاشات التحميل (Presplash) نهائياً
           sed -i 's/^#presplash.filename = .*/presplash.filename = /' buildozer.spec
           sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
           
-          # الصلاحيات والمتطلبات
+          # الصلاحيات والمتطلبات التقنية
           sed -i 's|^android.permissions = .*|android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,ACTION_MANAGE_OVERLAY_PERMISSION|' buildozer.spec
           sed -i 's/^requirements = .*/requirements = python3,kivy==2.3.0,pillow,opencv-python,numpy/' buildozer.spec
           
-          buildozer android clean
+          # البدء بالبناء الصفر
           yes | buildozer android debug
 
-      - name: 4. Upload Pure APK
+      - name: 4. Upload Final Sovereign Body
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-ULTRA-NO-LOADING
+          name: GIAS-ULTRA-ZERO-BODY
           path: bin/*.apk
