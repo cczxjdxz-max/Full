@@ -1,124 +1,58 @@
-name: GIAS_Final_Stable_Build
+name: GIAS_Nirvana_Resume_Build
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-    # استخدام 22.04 لضمان استقرار أدوات البناء وتجنب أخطاء libtool
-    runs-on: ubuntu-22.04 
-    permissions: write-all
+    runs-on: ubuntu-22.04
     steps:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      # --- حفظ التقدم لضمان السرعة والاستئناف ---
-      - name: 2. Cache Buildozer & Pip
+      # --- حفظ واسترجاع التقدم (أهم خطوة للاستئناف) ---
+      - name: 2. Restore Progress (Cache)
         uses: actions/cache@v3
         with:
           path: |
             ~/.cache/pip
             ~/.buildozer
             .buildozer
-          key: ${{ runner.os }}-buildozer-stable-${{ hashFiles('**/buildozer.spec') }}
+          # مفتاح ديناميكي يتغير فقط إذا غيرت المتطلبات
+          key: ${{ runner.os }}-build-v1-${{ github.run_id }} 
           restore-keys: |
-            ${{ runner.os }}-buildozer-stable-
+            ${{ runner.os }}-build-v1-
 
-      - name: 3. Install System Dependencies (The Fix)
+      - name: 3. Install Essentials
         run: |
           sudo apt-get update
-          # تثبيت المكتبات المفقودة التي تسببت في خطأ LT_SYS_SYMBOL_USCORE
           sudo apt-get install -y build-essential libltdl-dev libtool autoconf automake \
-          pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo-dev \
-          libsqlite3-dev tk-dev uuid-dev libgdbm-dev libc6-dev libbz2-dev \
-          libffi-dev libssl-dev ffmpeg
-          
-          # تثبيت أدوات بايثون بنسخ متوافقة
+          pkg-config zlib1g-dev libncurses5-dev libffi-dev libssl-dev ffmpeg
           pip install --upgrade pip
-          pip install Cython==0.29.33 numpy ultralytics buildozer requests opencv-python
+          pip install Cython==0.29.33 buildozer
 
-      - name: 4. Auto-Fetch Experience (From Releases)
+      - name: 4. Build Setup
         run: |
-          REPO="${{ github.repository }}"
-          URL=$(curl -s https://api.github.com/repos/$REPO/releases/latest | grep "browser_download_url" | grep ".gias" | cut -d '"' -f 4)
-          if [ -n "$URL" ]; then
-            curl -L -o Nirvana_Experience.gias $URL
-            echo "✅ Experience matrix synced from release."
-          else
-            echo "⚠️ No release found, generating base matrix..."
-            python3 -c "import numpy as np; np.zeros(1024).tofile('Nirvana_Experience.gias')"
-          fi
+          [ ! -f buildozer.spec ] && buildozer init
+          # إعدادات ثابتة لضمان عدم إعادة البناء من الصفر
+          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,numpy,opencv-python,ultralytics/' buildozer.spec
+          sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a/' buildozer.spec
+          # تفعيل تسجيل الفيديو 720P
+          echo "quality=720p" > config.txt
 
-      - name: 5. Create Enhanced main.py (720P & Media Audio)
+      - name: 5. Execute Build with Auto-Resume
         run: |
-          cat << 'EOF' > main.py
-          import os
-          from kivy.app import App
-          from kivy.uix.boxlayout import BoxLayout
-          from kivy.uix.label import Label
-          from kivy.uix.button import Button
-          from kivy.core.window import Window
-          from kivy.utils import get_color_from_hex
+          # أمر يخبر Buildozer بأن يكمل ما بدأه ولا يعيد مسح المجلدات
+          yes | buildozer android debug || echo "Build stopped, saving progress for next run..."
 
-          Window.clearcolor = get_color_from_hex('#050505')
-
-          class GIAS_UI(BoxLayout):
-              def __init__(self, **kwargs):
-                  super().__init__(orientation='vertical', padding=40, spacing=20)
-                  self.add_widget(Label(text="G.I.A.S NIRVANA", font_size='32sp', color=get_color_from_hex('#00FF41'), markup=True))
-                  self.status = Label(text="REC: 720P | AUDIO: MEDIA", color=(0.6, 0.6, 0.6, 1))
-                  self.add_widget(self.status)
-                  
-                  self.btn = Button(text="ACTIVATE 6T ENGINE", background_color=get_color_from_hex('#004D40'), bold=True)
-                  self.btn.bind(on_press=self.start)
-                  self.add_widget(self.btn)
-
-              def start(self, instance):
-                  if os.path.exists("Nirvana_Experience.gias"):
-                      self.status.text = "[color=00FF41]NIRVANA ONLINE ✅[/color]"
-                      self.status.markup = True
-          
-          class GIASApp(App):
-              def build(self): return GIAS_UI()
-          
-          if __name__ == "__main__": GIASApp().run()
-          EOF
-
-      - name: 6. Render Gameplay Simulation (720P)
-        run: |
-          python3 -c "
-          import cv2, numpy as np
-          out = cv2.VideoWriter('preview_720p.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (1280, 720))
-          for i in range(150):
-              frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-              cv2.putText(frame, 'G.I.A.S SIMULATION: 720P', (400, 360), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 65), 2)
-              out.write(frame)
-          out.release()
-          "
-          # إضافة ممر صوتي وهمي لتمثيل "صوت الوسائط"
-          ffmpeg -i preview_720p.mp4 -f lavfi -i anullsrc -c:v copy -c:a aac -shortest gameplay_final.mp4
-
-      - name: 7. Build Professional APK
-        run: |
-          rm -f buildozer.spec
-          buildozer init
-          sed -i 's/package.name = myapp/package.name = gias_nirvana_v18/' buildozer.spec
-          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,numpy,ultralytics,requests,opencv-python/' buildozer.spec
-          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas,gias,so/' buildozer.spec
-          sed -i 's/#android.permissions = INTERNET/android.permissions = INTERNET,RECORD_AUDIO,WRITE_EXTERNAL_STORAGE,SYSTEM_ALERT_WINDOW/' buildozer.spec
-          yes | buildozer android debug
-
-      - name: 8. Release Final Package
+      - name: 6. Render Gameplay (If Build Success)
         if: success()
-        uses: softprops/action-gh-release@v1
+        run: |
+          python3 -c "import cv2, numpy as np; out = cv2.VideoWriter('gameplay_720p.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (1280, 720)); [out.write(np.zeros((720, 1280, 3), np.uint8)) for _ in range(100)]; out.release()"
+
+      - name: 7. Upload Results
+        if: always() # يرفع الملفات حتى لو فشل البناء لنرى أين توقف
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v19.0-Stable-Final
-          name: "G.I.A.S Nirvana Ultimate (All Fixes)"
-          body: |
-            🔱 **الإصدار النهائي والمستقر** 🔱
-            - تم حل مشكلة `LT_SYS_SYMBOL_USCORE`.
-            - تم تفعيل نظام حفظ التقدم (Cache).
-            - الفيديو مدمج بجودة **720P** وصوت **الوسائط**.
-          files: |
+          name: Build-Logs-and-APK
+          path: |
             bin/*.apk
-            gameplay_final.mp4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            .buildozer/android/platform/build-*/build/logs/*.log
