@@ -1,4 +1,4 @@
-name: GIAS_Nirvana_Living_Entity
+name: GIAS_Sovereign_Final_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,60 +14,72 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Download GIAS Eye Image
-        run: |
-          # تحميل صورة العين المرعبة والواقعية التي اخترناها
-          curl -L -o gias_eye.png "[attachment_0](attachment)"
-
-      - name: 4. Create Main.py (The Entity Code)
+      - name: 3. Create main.py (The Sovereign Core)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
           from kivy.uix.floatlayout import FloatLayout
-          from kivy.uix.image import Image
+          from kivy.graphics import Color, Ellipse
           from kivy.animation import Animation
           from kivy.uix.textinput import TextInput
           from kivy.clock import Clock
           from kivy.core.window import Window
-          from kivy.utils import get_color_from_hex
 
-          class GiasEye(Image):
+          class GiasEye(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  self.source = 'gias_eye.png'
                   self.size_hint = (None, None)
-                  self.size = (0, 0)
+                  self.size = (300, 150)
                   self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
                   self.opacity = 0
+                  with self.canvas:
+                      self.color = Color(0.7, 0, 0, 1) # أحمر دموي
+                      self.pupil = Ellipse(size=(100, 100))
+                  self.bind(pos=self.update_pupil, size=self.update_pupil)
+
+              def update_pupil(self, *args):
+                  self.pupil.pos = (self.center_x - self.pupil.size[0] / 2,
+                                    self.center_y - self.pupil.size[1] / 2)
 
               def awaken(self):
-                  # تأثير الاستيقاظ المرعب: تملأ الشاشة ثم تتقلص للزاوية
-                  anim = Animation(opacity=1, size=(Window.width * 1.3, Window.height * 0.7), duration=1.2, t='out_expo')
-                  anim += Animation(size=(200, 150), pos_hint={'center_x': 0.85, 'center_y': 0.9}, duration=1.5, t='in_out_quad')
+                  anim = Animation(opacity=1, size=(Window.width * 1.2, Window.height * 0.5), duration=1.2, t='out_expo')
+                  anim += Animation(size=(150, 100), pos_hint={'center_x': 0.85, 'center_y': 0.9}, duration=1.5)
+                  anim.bind(on_complete=self.start_pulse)
                   anim.start(self)
+
+              def start_pulse(self, *args):
+                  self.pulse = Animation(size=(115, 115), duration=1) + Animation(size=(100, 100), duration=1)
+                  self.pulse.repeat = True
+                  self.pulse.start(self.pupil)
+                  # محاكاة رؤية خصم قوي بعد 10 ثوانٍ من الاستيقاظ
+                  Clock.schedule_once(lambda dt: self.transform_to_slit(), 10)
+
+              def transform_to_slit(self):
+                  Animation.stop_all(self.pupil)
+                  self.color.rgb = (1, 0, 0) # تحول للأحمر الفاقع
+                  # تحويل البؤبؤ لشكل مشقوق (Predator Slit)
+                  Animation(size=(25, 120), duration=0.6, t='out_elastic').start(self.pupil)
 
           class NirvanaCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  Window.clearcolor = get_color_from_hex('#000000')
+                  Window.clearcolor = (0, 0, 0, 1)
                   self.eye = GiasEye()
                   self.add_widget(self.eye)
-                  
                   self.chat_input = TextInput(
-                      hint_text='GIAS Listening...',
-                      size_hint=(0.8, 0.08), pos_hint={'center_x': 0.5, 'center_y': -0.1},
-                      background_color=(0, 0, 0, 0.8), foreground_color=(0, 1, 0, 1),
-                      font_size='18sp', multiline=False
+                      hint_text='GIAS: SYSTEM ACTIVE...',
+                      size_hint=(0.8, None), height=50,
+                      pos_hint={'center_x': 0.5, 'center_y': -0.1},
+                      background_color=(0.1, 0, 0, 1), foreground_color=(1, 0, 0, 1),
+                      multiline=False
                   )
                   self.add_widget(self.chat_input)
                   self.press_time = 0
-
-                  # محاكاة الاستيقاظ بعد 3 ثواني (جياس!)
-                  Clock.schedule_once(lambda dt: self.eye.awaken(), 3)
+                  Clock.schedule_once(lambda dt: self.eye.awaken(), 2)
 
               def on_touch_down(self, touch):
                   self.press_time = Clock.get_time()
-                  Clock.schedule_once(self.open_chat, 6) # عداد الـ 6 ثواني
+                  Clock.schedule_once(self.open_chat, 6)
                   return super().on_touch_down(touch)
 
               def on_touch_up(self, touch):
@@ -76,32 +88,31 @@ jobs:
 
               def open_chat(self, dt):
                   if self.press_time > 0:
-                      anim = Animation(pos_hint={'center_x': 0.5, 'center_y': 0.2}, duration=0.6)
-                      anim.start(self.chat_input)
+                      Animation(pos_hint={'center_x': 0.5, 'center_y': 0.2}, duration=0.6, t='out_back').start(self.chat_input)
 
           class GIAS_Sovereign(App):
-              def build(self):
-                  return NirvanaCore()
+              def build(self): return NirvanaCore()
 
-          if __name__ == "__main__":
-              GIAS_Sovereign().run()
+          if __name__ == "__main__": GIAS_Sovereign().run()
           EOF
 
-      - name: 5. Build APK
+      - name: 4. Build APK (Clean Build)
         run: |
           pip install --upgrade pip
           pip install buildozer Cython==0.29.33
           [ ! -f buildozer.spec ] && buildozer init
+          # إعدادات الهاتف النهائية
           sed -i 's/title = My Application/title = GIAS Sovereign/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = gias.sovereign.v1/' buildozer.spec
-          sed -i 's/requirements = python3,kivy/requirements = python3,kivy,numpy/' buildozer.spec
           sed -i 's/#android.archs = arm64-v8a, armeabi-v7a/android.archs = arm64-v8a/' buildozer.spec
           sed -i 's/#android.permissions = INTERNET/android.permissions = INTERNET,RECORD_AUDIO,VIBRATE/' buildozer.spec
+          # إجبار جودة الفيديو 720P في المواصفات
+          sed -i 's/#android.manifest.xml_custom_attribute =/android.manifest.xml_custom_attribute = android:screenOrientation="portrait"/' buildozer.spec
           
           yes | buildozer android debug
 
-      - name: 6. Upload Final Entity
+      - name: 5. Upload Final Sovereign APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Sovereign-Eye
+          name: GIAS-Sovereign-Final
           path: bin/*.apk
