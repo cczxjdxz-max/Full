@@ -1,4 +1,4 @@
-name: GIAS_Final_Sovereign_Fix
+name: GIAS_Sovereign_Final_Fixed
 on: [push, workflow_dispatch]
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Create main.py (Fixed Visibility)
+      - name: 3. Create main.py (The Sovereign Body)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -26,9 +26,8 @@ jobs:
           from kivy.utils import platform
           import os
 
-          # إعدادات النافذة للظهور فوق الكل
+          # إعدادات النافذة للظهور فوق التطبيقات
           Window.borderless = True
-          Window.fullscreen = False
 
           class GiasEye(FloatLayout):
               def __init__(self, is_left=True, **kwargs):
@@ -47,7 +46,7 @@ jobs:
                       "kill": get_p("KILL")
                   }
 
-                  # الشفافية الآن 1.0 (وضوح كامل)
+                  # وضوح كامل (شفافية 1.0) كما طلبت
                   self.pupil = Image(source=self.states["talk"], size_hint=(0.8, 0.8), 
                                    pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=1.0)
                   self.frame = Image(source=self.states["frame"], size_hint=(1, 1), 
@@ -56,27 +55,37 @@ jobs:
                   self.add_widget(self.frame)
 
               def blink(self, *args):
+                  # حركة الرمش مع العودة للوضوح الكامل
                   close_eye = Animation(opacity=0, duration=0.1)
                   open_eye = Animation(opacity=1.0, duration=0.1)
                   (close_eye + Animation(duration=0.5) + open_eye).start(self.pupil)
 
+              def set_mood(self, mood_name):
+                  if mood_name in self.states:
+                      self.pupil.source = self.states[mood_name]
+
           class GiasSovereignCore(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  Window.clearcolor = (0, 0, 0, 0) # الخلفية المحيطة فقط شفافة
+                  Window.clearcolor = (0, 0, 0, 0) # خلفية النظام شفافة
                   self.left_eye = GiasEye(is_left=True)
                   self.right_eye = GiasEye(is_left=False)
                   self.add_widget(self.left_eye)
                   self.add_widget(self.right_eye)
                   Clock.schedule_interval(self.trigger_blink, 3.5)
+                  Clock.schedule_once(self.go_angry, 300)
 
               def trigger_blink(self, dt):
                   self.left_eye.blink()
                   self.right_eye.blink()
 
+              def go_angry(self, dt):
+                  self.left_eye.set_mood("angry")
+                  self.right_eye.set_mood("angry")
+
           class GIAS_SovereignApp(App):
               def build(self):
-                  self.title = "GIAS"
+                  self.title = "GIAS Sovereign"
                   if platform == 'android':
                       from android.permissions import request_permissions, Permission
                       request_permissions([Permission.SYSTEM_ALERT_WINDOW])
@@ -86,27 +95,36 @@ jobs:
               GIAS_SovereignApp().run()
           EOF
 
-      - name: 4. Build APK with Clean Specs
+      - name: 4. Build APK (Smart Specification Update)
         run: |
           pip install buildozer Cython==0.29.33
-          buildozer init
-          # تغيير اسم التطبيق والأيقونة إجبارياً
-          sed -i 's/^title = .*/title = GIAS_Sovereign/' buildozer.spec
+          
+          # التحقق من وجود الملف لتجنب خطأ التكرار
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+
+          # تحديث الإعدادات (الاسم، الأيقونة، الوضع، الشفافية)
+          sed -i 's/^title = .*/title = GIAS Sovereign/' buildozer.spec
           sed -i 's/^package.name = .*/package.name = gias.sovereign/' buildozer.spec
-          sed -i 's/^#icon.filename = .*/icon.filename = build\/LAUNCHER.jpeg/' buildozer.spec
+          sed -i 's|^#icon.filename = .*|icon.filename = build/LAUNCHER.jpeg|' buildozer.spec
+          sed -i 's|^icon.filename = .*|icon.filename = build/LAUNCHER.jpeg|' buildozer.spec
           sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
-          # حذف شاشة كينفي بالكامل
+          
+          # إزالة شاشة Kivy (Presplash)
+          sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
           sed -i 's/^#presplash.filename = .*/presplash.filename = /' buildozer.spec
-          # إضافة الصلاحيات الفتاكة
-          sed -i 's/^android.permissions = .*/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,ACTION_MANAGE_OVERLAY_PERMISSION/' buildozer.spec
           
-          # تنظيف التخزين المؤقت قبل البناء لضمان تغير الأيقونة
+          # إضافة الصلاحيات والمتطلبات التقنية (OpenCV & Numpy)
+          sed -i 's|^android.permissions = .*|android.permissions = INTERNET,SYSTEM_ALERT_WINDOW,ACTION_MANAGE_OVERLAY_PERMISSION|' buildozer.spec
+          sed -i 's/^requirements = .*/requirements = python3,kivy==2.3.0,kivy-garden,requests,pillow,opencv-python,numpy/' buildozer.spec
+
+          # تنظيف وبناء النسخة النهائية
           rm -rf .buildozer/android/platform/build-armeabi-v7a/dists/gias_sovereign
-          
           yes | buildozer android debug
 
-      - name: 5. Upload Final Fixed APK
+      - name: 5. Upload Final Sovereign APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Final-Fixed-Visible
+          name: GIAS-Sovereign-Body-Final
           path: bin/*.apk
