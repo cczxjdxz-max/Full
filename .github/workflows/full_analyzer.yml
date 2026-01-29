@@ -1,4 +1,4 @@
-name: GIAS_Ghost_Sovereign_Fixed
+name: GIAS_Final_Sovereign_Build
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,7 +8,7 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
 
-      - name: 2. Cache Buildozer
+      - name: 2. Smart Cache (Speed Boost)
         uses: actions/cache@v3
         with:
           path: |
@@ -16,8 +16,6 @@ jobs:
             ~/.buildozer
             .buildozer
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            ${{ runner.os }}-buildozer-
 
       - name: 3. Setup Java 17
         uses: actions/setup-java@v4
@@ -25,14 +23,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 4. Auto-Accept Android Licenses (The Fix)
+      - name: 4. Auto-Accept Android Licenses
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          # قبول جميع التراخيص قبل بدء buildozer
           yes | sdkmanager --licenses || true
 
-      - name: 5. Create main.py
+      - name: 5. Create main.py (Blinking & 5-Min Anger)
         run: |
           cat << 'EOF' > main.py
           from kivy.app import App
@@ -41,64 +38,87 @@ jobs:
           from kivy.animation import Animation
           from kivy.clock import Clock
           from kivy.core.window import Window
+          import os
 
           class GiasEye(FloatLayout):
               def __init__(self, is_left=True, **kwargs):
                   super().__init__(**kwargs)
-                  self.size_hint = (0.5, 0.5)
-                  self.pos_hint = {'center_x': 0.25 if is_left else 0.75, 'center_y': 0.7}
+                  self.size_hint = (0.45, 0.45)
+                  self.pos_hint = {'center_x': 0.28 if is_left else 0.72, 'center_y': 0.82}
+                  
+                  def get_p(name):
+                      path = os.path.join("build", f"{name}.png")
+                      return path if os.path.exists(path) else f"{name}.png"
+
                   self.states = {
-                      "frame": "build/1000301700.png",
-                      "talk": "build/1000301710.png",
-                      "angry": "build/1000301712.png",
-                      "learn": "build/1000301713.png",
-                      "predator": "build/1000301709.png",
-                      "arrogant": "build/1000301714.png"
+                      "frame": get_p("GFN"),
+                      "talk": get_p("SPEAK"),
+                      "angry": get_p("ANGRY")
                   }
-                  self.pupil = Image(source=self.states["talk"], size_hint=(0.7, 0.7), pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.4)
-                  self.frame = Image(source=self.states["frame"], size_hint=(1, 1), pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.5)
+
+                  self.pupil = Image(source=self.states["talk"], size_hint=(0.75, 0.75), 
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.4)
+                  self.frame = Image(source=self.states["frame"], size_hint=(1, 1), 
+                                   pos_hint={'center_x': 0.5, 'center_y': 0.5}, opacity=0.6)
+                  
                   self.add_widget(self.pupil)
                   self.add_widget(self.frame)
                   self.disabled = True 
 
-              def change_mood(self, mood):
-                  if mood in self.states: self.pupil.source = self.states[mood]
+              def blink(self, *args):
+                  # إغلاق لنصف ثانية كل 3 ثواني
+                  close_eye = Animation(opacity=0, duration=0.1)
+                  open_eye = Animation(opacity=0.4, duration=0.1)
+                  (close_eye + Animation(duration=0.5) + open_eye).start(self.pupil)
 
-          class NirvanaCore(FloatLayout):
+              def set_angry(self, *args):
+                  self.pupil.source = self.states["angry"]
+                  self.pupil.opacity = 0.6 # زيادة الحدة عند الغضب
+
+          class BlinkingNirvana(FloatLayout):
               def __init__(self, **kwargs):
                   super().__init__(**kwargs)
-                  Window.clearcolor = (0, 0, 0, 1)
                   self.left_eye = GiasEye(is_left=True)
                   self.right_eye = GiasEye(is_left=False)
                   self.add_widget(self.left_eye)
                   self.add_widget(self.right_eye)
-                  anim = Animation(opacity=0.7, duration=2) + Animation(opacity=0.3, duration=2)
-                  anim.repeat = True
-                  anim.start(self.left_eye)
-                  anim.start(self.right_eye)
-                  Clock.schedule_once(lambda dt: self.set_mood("predator"), 8)
+                  
+                  # رمش العيون كل 3 ثواني
+                  Clock.schedule_interval(self.trigger_blink, 3.5)
+                  
+                  # التحول للغضب (ANGRY) بعد 5 دقائق (300 ثانية)
+                  Clock.schedule_once(self.go_angry, 300)
 
-              def set_mood(self, mood):
-                  self.left_eye.change_mood(mood)
-                  self.right_eye.change_mood(mood)
+              def trigger_blink(self, dt):
+                  self.left_eye.blink()
+                  self.right_eye.blink()
+
+              def go_angry(self, dt):
+                  self.left_eye.set_angry()
+                  self.right_eye.set_angry()
 
           class GIAS_Sovereign(App):
-              def build(self): return NirvanaCore()
+              def build(self): return BlinkingNirvana()
 
           if __name__ == "__main__": GIAS_Sovereign().run()
           EOF
 
-      - name: 6. Build APK
+      - name: 6. Build APK (Set Icon & Fast Mode)
         run: |
           pip install buildozer Cython==0.29.33
           [ ! -f buildozer.spec ] && buildozer init
-          sed -i 's/#source.include_patterns = assets/*,build\/*.png/' buildozer.spec
-          sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg,kv,atlas/' buildozer.spec
-          # أمر القبول النهائي للأمان داخل buildozer
+          # تعيين أيقونة التطبيق (LAUNCHER.jpeg)
+          sed -i 's/#icon.filename = %(source.dir)s\/data\/icon.png/icon.filename = build\/LAUNCHER.jpeg/' buildozer.spec
+          # إعدادات الشاشة والظهور فوق التطبيقات
+          sed -i 's/orientation = landscape/orientation = portrait/' buildozer.spec
+          sed -i 's/^presplash.filename = .*/presplash.filename = /' buildozer.spec
+          sed -i 's/#android.permissions = android.permission.INTERNET/android.permissions = INTERNET,SYSTEM_ALERT_WINDOW/' buildozer.spec
+          sed -i 's/#source.include_patterns = assets/source.include_patterns = build\/*.png,build\/*.jpeg,*.png,*.jpeg/' buildozer.spec
+          
           yes | buildozer android debug
 
       - name: 7. Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Ghost-Fixed-APK
+          name: GIAS-Final-Icon-APK
           path: bin/*.apk
