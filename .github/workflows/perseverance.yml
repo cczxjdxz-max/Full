@@ -1,4 +1,4 @@
-name: GIAS_MASTER_PIPELINE_V7_DYNAMIC_RELIABLE
+name: GIAS_MASTER_PIPELINE_V8_ASSETRIPPER
 
 on:
   workflow_dispatch:
@@ -6,18 +6,16 @@ on:
 jobs:
   build_and_release_assets:
     runs-on: ubuntu-latest
-    # إضافة الصلاحيات اللازمة للوصول إلى الـ API
     permissions:
       contents: write
-      packages: write
 
     steps:
       # الخطوة 1: تجهيز البيئة
       - name: 1. Prepare Environment
         run: |
-          echo "--- Installing all required tools: unzip, wget, jq ---"
+          echo "--- Installing all required tools: unzip, wget ---"
           sudo apt-get update
-          sudo apt-get install -y unzip wget jq
+          sudo apt-get install -y unzip wget
           echo "--- Environment is ready ---"
 
       # الخطوة 2: تنزيل الحزمة الكاملة للعبة
@@ -35,39 +33,30 @@ jobs:
           unzip GamePackage.apk -d ./game_assets
           echo "--- Package Unpacked ---"
 
-      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول (الحل الديناميكي الموثوق)
-      - name: 4. Download and Prepare AssetStudioCLI (Dynamic Reliable Fix)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # استخدام التوكن للمصادقة
+      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول (الحل الصحيح: AssetRipper)
+      - name: 4. Download and Prepare AssetRipper
         run: |
-          echo "--- Downloading LATEST AssetStudioCLI using authenticated API call ---"
-          # استخدام الـ API مع التوكن للحصول على الرابط بشكل موثوق
-          ASSET_URL=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Perfare/AssetStudio/releases/latest | jq -r ".assets[] | select(.name | contains(\"linux\")) | .browser_download_url")
+          echo "--- Downloading LATEST AssetRipper for Linux ---"
+          # استخدام رابط مباشر وموثوق لأحدث إصدار من AssetRipper
+          wget "https://github.com/AssetRipper/AssetRipper/releases/download/0.3.0.6/AssetRipper_linux_x64.zip" -O assetripper.zip
           
-          if [ -z "$ASSET_URL" ]; then
-            echo "::error::Failed to get the download URL for AssetStudioCLI. The API call might have failed."
-            exit 1
-          fi
+          echo "--- Unpacking AssetRipper ---"
+          unzip assetripper.zip -d AssetRipper
+          chmod +x ./AssetRipper/AssetRipper
+          echo "--- AssetRipper is ready ---"
 
-          echo "--- Latest Asset URL is: $ASSET_URL ---"
-          wget "$ASSET_URL" -O assetstudio.zip
-          
-          echo "--- Unpacking AssetStudioCLI ---"
-          unzip assetstudio.zip -d AssetStudioCLI
-          chmod +x ./AssetStudioCLI/AssetStudio.CLI
-          echo "--- AssetStudioCLI is ready ---"
-
-      # الخطوة 5: استخراج الأصول
-      - name: 5. Export Usable Assets
+      # الخطوة 5: استخراج الأصول باستخدام AssetRipper
+      - name: 5. Export Usable Assets with AssetRipper
         run: |
           echo "--- Starting automated asset export ---"
-          mkdir exported_assets
-          ./AssetStudioCLI/AssetStudio.CLI ./game_assets ./exported_assets
+          # تشغيل AssetRipper على ملف APK مباشرة (هو أذكى من AssetStudio)
+          ./AssetRipper/AssetRipper GamePackage.apk -o exported_assets --no-stripping
           echo "--- Asset Export Finished ---"
 
       # الخطوة 6: ضغط الأصول
       - name: 6. Compress Assets for Release
         run: |
+          echo "--- Compressing all exported assets ---"
           zip -r Digital-Twin-Assets.zip ./exported_assets
           ls -lh Digital-Twin-Assets.zip
 
@@ -77,5 +66,5 @@ jobs:
         with:
           tag_name: assets-v${{ github.run_number }}
           name: "Digital Twin Assets v${{ github.run_number }}"
-          body: "Automated export of game assets for GIAS training."
+          body: "Automated export of game assets for GIAS training using AssetRipper."
           files: Digital-Twin-Assets.zip
