@@ -1,63 +1,49 @@
-name: GIAS_AUTOMATED_ASSET_PIPELINE
+name: GIAS_MASTER_PIPELINE
 
 on:
-  workflow_dispatch: # يسمح بتشغيل الـ Workflow يدويًا
+  workflow_dispatch: # للسماح بالتشغيل اليدوي
 
 jobs:
-  download_unpack_and_export:
+  build_digital_twin_assets:
     runs-on: ubuntu-latest
 
     steps:
-      # الخطوة 1: تنزيل ملف XAPK الكامل تلقائيًا
-      - name: 1. Download Full XAPK
+      # الخطوة 1: تنزيل الحزمة الكاملة مباشرة
+      - name: 1. Download Full Game Package
         run: |
-          echo "--- Starting download from APKPure server ---"
-          # هذا هو الأمر السحري الذي اكتشفناه. سيقوم بتنزيل الملف الكامل.
-          curl -L "https://d.apkpure.com/b/XAPK/com.dts.freefireth?version=latest" \
-          -H "User-Agent: APKPure/3.19.72 (com.apkpure.aegon; 11197202) Android/11 (samsung; SM-G998B)" \
-          -o FreeFire.xapk --progress-bar
-          echo "\n--- Download Complete ---"
-          ls -lh FreeFire.xapk # عرض حجم الملف للتأكد
+          echo "--- Downloading the 501MB unified APK from Garena's CDN ---"
+          # استخدام الرابط الذي أثبتت أنه يعمل
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o GamePackage.apk --progress-bar
+          echo "\n--- Download Complete. Verifying size... ---"
+          ls -lh GamePackage.apk
 
-      # الخطوة 2: تفكيك حزمة XAPK
-      - name: 2. Unpack XAPK file
+      # الخطوة 2: تفكيك الحزمة للوصول إلى الأصول
+      - name: 2. Unpack the Game Package
         run: |
-          echo "--- Installing unzip utility ---"
           sudo apt-get update && sudo apt-get install -y unzip
+          mkdir game_assets
+          # هذا الملف الكبير هو في الأساس ملف ZIP
+          unzip GamePackage.apk -d ./game_assets
+          echo "--- Package Unpacked ---"
+          ls -lR ./game_assets
 
-          echo "--- Unpacking XAPK to access OBB and APK ---"
-          mkdir game_files
-          unzip FreeFire.xapk -d ./game_files
-          echo "--- XAPK Unpacked ---"
-          ls -l ./game_files # عرض المحتويات (يجب أن نرى APK و OBB)
-
-      # الخطوة 3: تحديد موقع ملف OBB وتجهيزه للتحليل
-      - name: 3. Locate OBB and Prepare for Analysis
-        run: |
-          # ملف OBB سيكون داخل مجلد Android/obb/com.dts.freefireth
-          # سنقوم بنقله إلى مكان أسهل للوصول إليه
-          mv ./game_files/Android/obb/com.dts.freefireth/*.obb ./main.obb
-          echo "--- OBB file located and renamed to main.obb ---"
-          ls -lh main.obb
-
-      # الخطوة 4: تفكيك ملف OBB واستخراج الأصول
-      - name: 4. Unpack OBB and Export Assets
+      # الخطوة 3: استخراج الأصول القابلة للاستخدام
+      - name: 3. Export Usable Assets
         run: |
           echo "--- Downloading AssetStudioCLI ---"
           curl -L "https://github.com/Perfare/AssetStudio/releases/download/v0.17.25/AssetStudio.CLI_net6_linux-x64.zip" -o assetstudio.zip
           unzip assetstudio.zip -d AssetStudioCLI
           chmod +x ./AssetStudioCLI/AssetStudio.CLI
 
-          echo "--- Starting automated asset export from OBB ---"
+          echo "--- Starting automated asset export ---"
           mkdir exported_assets
-          # استخدام AssetStudioCLI لتفكيك ملف main.obb
-          ./AssetStudioCLI/AssetStudio.CLI main.obb ./exported_assets
+          # مسح المجلد بأكمله الذي يحتوي على الأصول المفككة
+          ./AssetStudioCLI/AssetStudio.CLI ./game_assets ./exported_assets
           echo "--- Asset Export Finished ---"
 
-      # الخطوة 5: رفع الأصول النهائية للتحميل
-      - name: 5. Upload Final Assets as Artifact
+      # الخطوة 4: رفع الأصول النهائية لمشروعك
+      - name: 4. Upload Final Assets for Digital Twin
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS-Extracted-Game-Assets
+          name: Digital-Twin-Assets
           path: ./exported_assets/
-
