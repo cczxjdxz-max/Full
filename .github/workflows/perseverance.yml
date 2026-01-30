@@ -1,49 +1,50 @@
-name: GIAS_MASTER_PIPELINE_V5_RELIABLE
+name: GIAS_MASTER_PIPELINE_V6_WGET_FIX
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # يسمح بالتشغيل اليدوي من تبويب Actions
 
 jobs:
   build_and_release_assets:
     runs-on: ubuntu-latest
 
     steps:
-      # الخطوة 1: تجهيز البيئة
+      # الخطوة 1: تجهيز البيئة وتثبيت كل الأدوات المطلوبة
       - name: 1. Prepare Environment
         run: |
-          echo "--- Installing prerequisite: unzip ---"
+          echo "--- Installing all required tools: unzip, wget ---"
           sudo apt-get update
-          sudo apt-get install -y unzip
+          sudo apt-get install -y unzip wget
           echo "--- Environment is ready ---"
 
-      # الخطوة 2: تنزيل الحزمة الكاملة للعبة
+      # الخطوة 2: تنزيل الحزمة الكاملة للعبة (APK المدمج بحجم 501 ميغابايت)
       - name: 2. Download Full Game Package
         run: |
           echo "--- Downloading the 501MB unified APK from Garena's CDN ---"
+          # استخدام curl هنا لأنه يعمل بشكل مثالي مع خادم غارينا
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o GamePackage.apk --progress-bar
           echo "\n--- Download Complete ---"
           ls -lh GamePackage.apk
 
-      # الخطوة 3: تفكيك حزمة اللعبة
+      # الخطوة 3: تفكيك حزمة اللعبة (APK هو ملف ZIP متنكر)
       - name: 3. Unpack the Game Package
         run: |
           mkdir game_assets
           unzip GamePackage.apk -d ./game_assets
           echo "--- Package Unpacked ---"
 
-      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول (الحل الثابت)
-      - name: 4. Download and Prepare AssetStudioCLI (Reliable Static Link)
+      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول (الحل باستخدام wget)
+      - name: 4. Download and Prepare AssetStudioCLI (wget fix)
         run: |
-          echo "--- Downloading LATEST AssetStudioCLI using a reliable static link ---"
-          # استخدام رابط مباشر ومؤكد لأحدث إصدار حالي (v0.18.0)
-          curl -L "https://github.com/Perfare/AssetStudio/releases/download/v0.18.0/AssetStudio.CLI_net6_linux-x64.zip" -o assetstudio.zip --progress-bar
+          echo "--- Downloading AssetStudioCLI using wget for reliability ---"
+          # استخدام wget لأنه أفضل في التعامل مع إعادة توجيه GitHub
+          wget "https://github.com/Perfare/AssetStudio/releases/download/v0.18.0/AssetStudio.CLI_net6_linux-x64.zip" -O assetstudio.zip
           
           echo "--- Unpacking AssetStudioCLI ---"
           unzip assetstudio.zip -d AssetStudioCLI
           chmod +x ./AssetStudioCLI/AssetStudio.CLI
           echo "--- AssetStudioCLI is ready ---"
 
-      # الخطوة 5: استخراج الأصول القابلة للاستخدام
+      # الخطوة 5: استخراج الأصول القابلة للاستخدام من ملفات اللعبة
       - name: 5. Export Usable Assets
         run: |
           echo "--- Starting automated asset export ---"
@@ -51,7 +52,7 @@ jobs:
           ./AssetStudioCLI/AssetStudio.CLI ./game_assets ./exported_assets
           echo "--- Asset Export Finished ---"
 
-      # الخطوة 6: ضغط الأصول المستخرجة في ملف واحد
+      # الخطوة 6: ضغط الأصول المستخرجة في ملف واحد استعدادًا للرفع
       - name: 6. Compress Assets for Release
         run: |
           echo "--- Compressing all exported assets into a single zip file ---"
