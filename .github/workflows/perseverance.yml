@@ -1,4 +1,4 @@
-name: GIAS Hybrid Pipeline V10 - Fixed
+name: GIAS Hybrid Pipeline V11 - Terminal Fix
 
 on:
   workflow_dispatch:
@@ -11,7 +11,10 @@ jobs:
 
     steps:
       - name: 1. Prepare Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip
+        run: |
+          sudo apt-get update
+          # تثبيت util-linux لتوفير أداة script إذا لم تكن موجودة
+          sudo apt-get install -y unzip wget zip util-linux
 
       - name: 2. Download Game and AssetRipper
         run: |
@@ -23,33 +26,34 @@ jobs:
           unzip assetripper.zip -d AssetRipper
           chmod +x ./AssetRipper/AssetRipper
 
-      - name: 3. Full Asset Extraction (Fixed Command)
+      - name: 3. Full Asset Extraction (Terminal Emulation Mode)
         run: |
-          echo "--- Starting extraction ---"
-          # تم نقل ملف الـ APK ليكون أول وسيط، وإضافة إدخال وهمي لتعطيل طلب Console.ReadKey
-          echo -e "\n" | ./AssetRipper/AssetRipper GamePackage.apk -o temp_full_extract --silent
+          echo "--- Starting extraction using Terminal Emulation ---"
+          # أداة script تخدع البرنامج ليعتقد أنه يعمل داخل Terminal حقيقي لتجنب خطأ ReadKey
+          # قمنا بإزالة الأعلام التي سببت أخطاء في التعرف على المسارات
+          script -e -c "./AssetRipper/AssetRipper GamePackage.apk -o temp_full_extract" /dev/null
           echo "--- Extraction finished ---"
 
       - name: 4. Smart Filtering and Categorization
         run: |
+          echo "--- Organizing files ---"
           mkdir -p GIAS_Essentials/1_Data GIAS_Essentials/2_Assets GIAS_Essentials/3_Logic
           
-          # مسار التصدير الافتراضي لـ AssetRipper
-          ASSET_ROOT="temp_full_extract/ExportedProject/Assets"
-          
+          # البحث في كامل المجلد المستخرج لضمان الوصول للملفات مهما كانت الهيكلية
           echo "--- Finding Data files ---"
-          find "temp_full_extract" -type f \( -name "*.json" -o -name "*.xml" \) -exec cp --parents {} GIAS_Essentials/1_Data/ \; || true
+          find temp_full_extract -type f \( -name "*.json" -o -name "*.xml" \) -exec cp {} GIAS_Essentials/1_Data/ \; || true
           
           echo "--- Finding Visual Assets ---"
-          find "temp_full_extract" -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.png" \) -exec cp --parents {} GIAS_Essentials/2_Assets/ \; || true
+          find temp_full_extract -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.png" \) -exec cp {} GIAS_Essentials/2_Assets/ \; || true
           
           echo "--- Finding Logic (libil2cpp.so) ---"
-          find "temp_full_extract" -name "libil2cpp.so" -exec cp --parents {} GIAS_Essentials/3_Logic/ \; || true
+          find temp_full_extract -name "libil2cpp.so" -exec cp {} GIAS_Essentials/3_Logic/ \; || true
 
       - name: 5. Compress and Cleanup
         run: |
           zip -r GIAS_Essentials.zip GIAS_Essentials
           rm -rf temp_full_extract GamePackage.apk AssetRipper*
+          echo "--- Final package info: ---"
           ls -lh GIAS_Essentials.zip
 
       - name: 6. Create Release
@@ -57,5 +61,5 @@ jobs:
         with:
           tag_name: essentials-v${{ github.run_number }}
           name: "GIAS Essentials v${{ github.run_number }}"
-          body: "Auto-extracted assets using AssetRipper v0.3.0.6. Organized for mobile development."
+          body: "Extracted using Terminal Emulation to bypass Console restrictions. Ready for dev."
           files: GIAS_Essentials.zip
