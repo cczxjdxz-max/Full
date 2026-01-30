@@ -1,51 +1,65 @@
-name: GIAS_MASTER_PIPELINE_V2
+name: GIAS_MASTER_PIPELINE_V3_WITH_RELEASE
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # يسمح بالتشغيل اليدوي
 
 jobs:
-  build_digital_twin_assets:
+  build_and_release_assets:
     runs-on: ubuntu-latest
 
     steps:
-      # الخطوة 1: تنزيل الحزمة الكاملة (تعمل بشكل صحيح الآن)
+      # الخطوة 1: تنزيل الحزمة الكاملة للعبة
       - name: 1. Download Full Game Package
         run: |
           echo "--- Downloading the 501MB unified APK from Garena's CDN ---"
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o GamePackage.apk --progress-bar
-          echo "\n--- Download Complete. Verifying size... ---"
+          echo "\n--- Download Complete ---"
           ls -lh GamePackage.apk
 
-      # الخطوة 2: تفكيك الحزمة (تعمل بشكل صحيح الآن)
+      # الخطوة 2: تفكيك حزمة اللعبة
       - name: 2. Unpack the Game Package
         run: |
           sudo apt-get update && sudo apt-get install -y unzip
           mkdir game_assets
           unzip GamePackage.apk -d ./game_assets
           echo "--- Package Unpacked ---"
-          ls -lR ./game_assets
 
-      # الخطوة 3: استخراج الأصول (النسخة المصححة)
-      - name: 3. Export Usable Assets (Corrected)
+      # الخطوة 3: تنزيل وتجهيز أداة استخراج الأصول (النسخة المصححة)
+      - name: 3. Download and Prepare AssetStudioCLI
         run: |
+          sudo apt-get install -y jq
           echo "--- Downloading LATEST AssetStudioCLI ---"
-          # --- هذا هو الرابط الجديد والمصحح ---
-          # إنه يستخدم واجهة GitHub API للحصول على رابط أحدث إصدار تلقائيًا
           ASSET_URL=$(curl -s https://api.github.com/repos/Perfare/AssetStudio/releases/latest | jq -r ".assets[] | select(.name | contains(\"linux\")) | .browser_download_url")
-          curl -L "$ASSET_URL" -o assetstudio.zip
-
-          echo "--- Unpacking AssetStudioCLI ---"
+          echo "--- Latest Asset URL is: $ASSET_URL ---"
+          curl -L "$ASSET_URL" -o assetstudio.zip --progress-bar
           unzip assetstudio.zip -d AssetStudioCLI
           chmod +x ./AssetStudioCLI/AssetStudio.CLI
+          echo "--- AssetStudioCLI is ready ---"
 
+      # الخطوة 4: استخراج الأصول القابلة للاستخدام
+      - name: 4. Export Usable Assets
+        run: |
           echo "--- Starting automated asset export ---"
           mkdir exported_assets
           ./AssetStudioCLI/AssetStudio.CLI ./game_assets ./exported_assets
           echo "--- Asset Export Finished ---"
 
-      # الخطوة 4: رفع الأصول النهائية
-      - name: 4. Upload Final Assets for Digital Twin
-        uses: actions/upload-artifact@v4
+      # الخطوة 5: ضغط الأصول المستخرجة في ملف واحد
+      - name: 5. Compress Assets for Release
+        run: |
+          echo "--- Compressing all exported assets into a single zip file ---"
+          zip -r Digital-Twin-Assets.zip ./exported_assets
+          echo "--- Compression complete ---"
+          ls -lh Digital-Twin-Assets.zip
+
+      # الخطوة 6: إنشاء "Release" ورفع ملف الأصول المضغوط
+      - name: 6. Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          name: Digital-Twin-Assets
-          path: ./exported_assets/
+          tag_name: assets-v${{ github.run_number }}
+          name: "Digital Twin Assets v${{ github.run_number }}"
+          body: |
+            Automated export of game assets for GIAS training.
+            - Triggered by: ${{ github.actor }}
+            - Workflow Run: ${{ github.run_id }}
+          files: Digital-Twin-Assets.zip
