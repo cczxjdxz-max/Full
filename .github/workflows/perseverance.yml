@@ -1,4 +1,4 @@
-name: GIAS Hybrid Pipeline V11 - Terminal Fix
+name: GIAS Hybrid Pipeline V13 - Multi-Strategy
 
 on:
   workflow_dispatch:
@@ -11,14 +11,11 @@ jobs:
 
     steps:
       - name: 1. Prepare Environment
-        run: |
-          sudo apt-get update
-          # تثبيت util-linux لتوفير أداة script إذا لم تكن موجودة
-          sudo apt-get install -y unzip wget zip util-linux
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip util-linux p7zip-full
 
-      - name: 2. Download Game and AssetRipper
+      - name: 2. Download Tools and Game
         run: |
-          echo "--- Downloading Game Package (501 MB) ---"
+          echo "--- Downloading Free Fire APK ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           
           echo "--- Downloading AssetRipper ---"
@@ -26,40 +23,45 @@ jobs:
           unzip assetripper.zip -d AssetRipper
           chmod +x ./AssetRipper/AssetRipper
 
-      - name: 3. Full Asset Extraction (Terminal Emulation Mode)
+      - name: 3. Extraction Strategy A (AssetRipper)
         run: |
-          echo "--- Starting extraction using Terminal Emulation ---"
-          # أداة script تخدع البرنامج ليعتقد أنه يعمل داخل Terminal حقيقي لتجنب خطأ ReadKey
-          # قمنا بإزالة الأعلام التي سببت أخطاء في التعرف على المسارات
-          script -e -c "./AssetRipper/AssetRipper GamePackage.apk -o temp_full_extract" /dev/null
-          echo "--- Extraction finished ---"
+          echo "--- Attempting AssetRipper Extraction ---"
+          script -e -c "./AssetRipper/AssetRipper GamePackage.apk -o temp_extract_ripper" /dev/null || true
 
-      - name: 4. Smart Filtering and Categorization
+      - name: 4. Extraction Strategy B (Manual Unzip)
         run: |
-          echo "--- Organizing files ---"
+          echo "--- Extracting Raw Files as Backup ---"
+          mkdir -p temp_raw_extract
+          7z x GamePackage.apk -otemp_raw_extract -y
+
+      - name: 5. Smart Filtering (Collecting from all sources)
+        run: |
           mkdir -p GIAS_Essentials/1_Data GIAS_Essentials/2_Assets GIAS_Essentials/3_Logic
           
-          # البحث في كامل المجلد المستخرج لضمان الوصول للملفات مهما كانت الهيكلية
-          echo "--- Finding Data files ---"
-          find temp_full_extract -type f \( -name "*.json" -o -name "*.xml" \) -exec cp {} GIAS_Essentials/1_Data/ \; || true
+          # البحث في كل المجلدات المستخرجة (الريبر واليدوي)
+          echo "--- Collecting Data (.json, .xml, .dat) ---"
+          find . -type f \( -name "*.json" -o -name "*.xml" -o -name "*.dat" -o -name "*.bin" \) -exec cp {} GIAS_Essentials/1_Data/ \; 2>/dev/null || true
           
-          echo "--- Finding Visual Assets ---"
-          find temp_full_extract -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.png" \) -exec cp {} GIAS_Essentials/2_Assets/ \; || true
+          echo "--- Collecting Visuals (.png, .jpg, .obj, .fbx) ---"
+          find . -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.obj" -o -name "*.fbx" \) -exec cp {} GIAS_Essentials/2_Assets/ \; 2>/dev/null || true
           
-          echo "--- Finding Logic (libil2cpp.so) ---"
-          find temp_full_extract -name "libil2cpp.so" -exec cp {} GIAS_Essentials/3_Logic/ \; || true
+          echo "--- Collecting Logic (libil2cpp.so, metadata) ---"
+          find . -name "libil2cpp.so" -exec cp {} GIAS_Essentials/3_Logic/ \; 2>/dev/null || true
+          find . -name "global-metadata.dat" -exec cp {} GIAS_Essentials/3_Logic/ \; 2>/dev/null || true
 
-      - name: 5. Compress and Cleanup
+      - name: 6. Integrity Check
+        run: |
+          echo "--- Checking Captured Files ---"
+          ls -R GIAS_Essentials/
+          du -sh GIAS_Essentials/
+
+      - name: 7. Compress and Release
         run: |
           zip -r GIAS_Essentials.zip GIAS_Essentials
-          rm -rf temp_full_extract GamePackage.apk AssetRipper*
-          echo "--- Final package info: ---"
-          ls -lh GIAS_Essentials.zip
-
-      - name: 6. Create Release
+          
+      - name: 8. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: essentials-v${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
           name: "GIAS Essentials v${{ github.run_number }}"
-          body: "Extracted using Terminal Emulation to bypass Console restrictions. Ready for dev."
           files: GIAS_Essentials.zip
