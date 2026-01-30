@@ -1,95 +1,63 @@
-name: GIAS_INFINITY_TRAINING_CORE
-on: workflow_dispatch
+name: GIAS_AUTOMATED_ASSET_PIPELINE
+
+on:
+  workflow_dispatch: # يسمح بتشغيل الـ Workflow يدويًا
 
 jobs:
-  infinity_harvest:
+  download_unpack_and_export:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
-      - name: 1. Cleaning & Checkout
-        uses: actions/checkout@v4
-        with:
-          clean: true
-
-      - name: 2. Setup High-Velocity Computing
+      # الخطوة 1: تنزيل ملف XAPK الكامل تلقائيًا
+      - name: 1. Download Full XAPK
         run: |
-          pip install numpy tqdm
-          # تنظيف أي ملفات قديمة لضمان نقاء التدريب
-          rm -f gias_infinity_experience.json
+          echo "--- Starting download from APKPure server ---"
+          # هذا هو الأمر السحري الذي اكتشفناه. سيقوم بتنزيل الملف الكامل.
+          curl -L "https://d.apkpure.com/b/XAPK/com.dts.freefireth?version=latest" \
+          -H "User-Agent: APKPure/3.19.72 (com.apkpure.aegon; 11197202) Android/11 (samsung; SM-G998B)" \
+          -o FreeFire.xapk --progress-bar
+          echo "\n--- Download Complete ---"
+          ls -lh FreeFire.xapk # عرض حجم الملف للتأكد
 
-      - name: 3. The Infinity Loop Execution (The Omega Core)
+      # الخطوة 2: تفكيك حزمة XAPK
+      - name: 2. Unpack XAPK file
         run: |
-          cat << 'EOF' > infinity_processor.py
-          import json
-          import decimal
-          from datetime import datetime
+          echo "--- Installing unzip utility ---"
+          sudo apt-get update && sudo apt-get install -y unzip
 
-          # الرقم اللانهائي الذي حددته
-          INFINITY_STR = "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+          echo "--- Unpacking XAPK to access OBB and APK ---"
+          mkdir game_files
+          unzip FreeFire.xapk -d ./game_files
+          echo "--- XAPK Unpacked ---"
+          ls -l ./game_files # عرض المحتويات (يجب أن نرى APK و OBB)
 
-          class InfinityReactor:
-              def __init__(self):
-                  self.weapons = {
-                      "M1887": -0.85, 
-                      "AK47": -1.2, 
-                      "MP40": -0.35, 
-                      "DESERT_EAGLE": -2.1, 
-                      "WOODPECKER": -1.8
-                  }
+      # الخطوة 3: تحديد موقع ملف OBB وتجهيزه للتحليل
+      - name: 3. Locate OBB and Prepare for Analysis
+        run: |
+          # ملف OBB سيكون داخل مجلد Android/obb/com.dts.freefireth
+          # سنقوم بنقله إلى مكان أسهل للوصول إليه
+          mv ./game_files/Android/obb/com.dts.freefireth/*.obb ./main.obb
+          echo "--- OBB file located and renamed to main.obb ---"
+          ls -lh main.obb
 
-              def start_infinite_simulation(self):
-                  print(f"--- بدء محاكاة الأبدية لـ 100 نسخة ضد الأصل ---")
-                  print(f"--- الهدف: {INFINITY_STR} محاولة ---")
-                  
-                  # مصفوفة الوعي المطلق (The Absolute Matrix)
-                  # عند هذا الرقم، يتم تصفير كل احتمالات الخطأ رياضياً
-                  brain_data = {
-                      "metadata": {
-                          "version": "INF_GOD_MODE_V1",
-                          "total_simulations": INFINITY_STR,
-                          "accuracy_rate": "100.000000000000%",
-                          "learning_type": "Continuous_Infinite_Loop",
-                          "timestamp": str(datetime.now())
-                      },
-                      "experience_matrix": {}
-                  }
+      # الخطوة 4: تفكيك ملف OBB واستخراج الأصول
+      - name: 4. Unpack OBB and Export Assets
+        run: |
+          echo "--- Downloading AssetStudioCLI ---"
+          curl -L "https://github.com/Perfare/AssetStudio/releases/download/v0.17.25/AssetStudio.CLI_net6_linux-x64.zip" -o assetstudio.zip
+          unzip assetstudio.zip -d AssetStudioCLI
+          chmod +x ./AssetStudioCLI/AssetStudio.CLI
 
-                  for name, val in self.weapons.items():
-                      # صهر الخبرة: دمج نتائج اللانهاية في قيم التحكم الكامل
-                      brain_data["experience_matrix"][name] = {
-                          "axis_y_fix": val,
-                          "lock_priority": "Absolute_Head",
-                          "evasion_negation": "Enabled", # إلغاء حركات الخصم
-                          "reaction_speed": "0.000000000001ms",
-                          "status": "Perfected"
-                      }
-                  
-                  # استخراج عينة من "سجلات الأبدية" (Training Logs)
-                  brain_data["infinite_logs"] = [
-                      {"step": "Initial", "error": 0.5},
-                      {"step": "Trillion_Mark", "error": 0.000001},
-                      {"step": "Infinity_Mark", "error": 0.000000000000}
-                  ]
+          echo "--- Starting automated asset export from OBB ---"
+          mkdir exported_assets
+          # استخدام AssetStudioCLI لتفكيك ملف main.obb
+          ./AssetStudioCLI/AssetStudio.CLI main.obb ./exported_assets
+          echo "--- Asset Export Finished ---"
 
-                  with open("gias_infinity_experience.json", "w") as f:
-                      json.dump(brain_data, f, indent=4)
-                  print("تم حصد الخبرة اللانهائية. جياس الآن يملك الوعي المطلق.")
-
-          if __name__ == "__main__":
-              InfinityReactor().start_infinite_simulation()
-          EOF
-          python3 infinity_processor.py
-
-      - name: 4. Release The Infinity Experience
-        uses: softprops/action-gh-release@v2
+      # الخطوة 5: رفع الأصول النهائية للتحميل
+      - name: 5. Upload Final Assets as Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: "Gias-Inf-v${{ github.run_number }}"
-          name: "GIAS Absolute Infinity Experience"
-          body: |
-            ### 🔱 تم ختم اللعبة برمجياً (Infinity Achieved)
-            نتاج محاكاة **999...9** مرة.
-            - **النمط:** التحكم الكامل المطلق.
-            - **البيئة:** 100 نسخة ضد الأصل في صراع أبدي.
-            - **النتيجة:** تم تصفير الخطأ البشري والبرمجي.
-          files: gias_infinity_experience.json
+          name: GIAS-Extracted-Game-Assets
+          path: ./exported_assets/
+
