@@ -1,80 +1,61 @@
-name: GIAS Hybrid Pipeline V10
+name: GIAS Hybrid Pipeline V10 - Fixed
 
 on:
-  workflow_dispatch: # يسمح بالتشغيل اليدوي من تبويب Actions
+  workflow_dispatch:
 
 jobs:
   prepare_essentials_for_mobile:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # إعطاء الإذن للكتابة في Releases
+      contents: write
 
     steps:
-      # الخطوة 1: تجهيز البيئة بالأدوات الأساسية
       - name: 1. Prepare Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip
 
-      # الخطوة 2: تنزيل ملف اللعبة وأداة التحليل المتخصصة
       - name: 2. Download Game and AssetRipper
         run: |
           echo "--- Downloading Game Package (501 MB) ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           
-          echo "--- Downloading AssetRipper (The Smart Tool) ---"
+          echo "--- Downloading AssetRipper ---"
           wget "https://github.com/AssetRipper/AssetRipper/releases/download/0.3.0.6/AssetRipper_linux_x64.zip" -O assetripper.zip
           unzip assetripper.zip -d AssetRipper
           chmod +x ./AssetRipper/AssetRipper
 
-      # الخطوة 3: الاستخراج الكامل باستخدام AssetRipper
-      # هذه هي الخطوة السحرية التي ستفتح مجلد 'bin' وتحول محتوياته
-      - name: 3. Full Asset Extraction with AssetRipper
+      - name: 3. Full Asset Extraction (Fixed Command)
         run: |
-          echo "--- Starting full extraction. This will take a while... ---"
-          # تشغيل الأداة على ملف اللعبة لاستخراج كل شيء إلى مجلد مؤقت
-          ./AssetRipper/AssetRipper -o temp_full_extract --no-stripping --silent GamePackage.apk
-          echo "--- Full extraction finished. ---"
+          echo "--- Starting extraction ---"
+          # تم نقل ملف الـ APK ليكون أول وسيط، وإضافة إدخال وهمي لتعطيل طلب Console.ReadKey
+          echo -e "\n" | ./AssetRipper/AssetRipper GamePackage.apk -o temp_full_extract --silent
+          echo "--- Extraction finished ---"
 
-      # الخطوة 4: البحث الذكي وتصنيف الملفات الأساسية فقط
       - name: 4. Smart Filtering and Categorization
         run: |
-          echo "--- Searching for essential files and categorizing them ---"
-          # إنشاء بنية المجلدات النهائية النظيفة
           mkdir -p GIAS_Essentials/1_Data GIAS_Essentials/2_Assets GIAS_Essentials/3_Logic
           
-          # تحديد المسار الرئيسي الذي يحتوي على الأصول المحولة
-          ASSET_ROOT="temp_full_extract/Assets/ExportedProject/Assets"
+          # مسار التصدير الافتراضي لـ AssetRipper
+          ASSET_ROOT="temp_full_extract/ExportedProject/Assets"
           
-          # البحث عن ملفات البيانات ونسخها
-          echo "--- Finding Data files (.json, .xml)... ---"
-          find "$ASSET_ROOT" -type f \( -name "*.json" -o -name "*.xml" \) -exec cp --parents {} GIAS_Essentials/1_Data/ \;
+          echo "--- Finding Data files ---"
+          find "temp_full_extract" -type f \( -name "*.json" -o -name "*.xml" \) -exec cp --parents {} GIAS_Essentials/1_Data/ \; || true
           
-          # البحث عن ملفات الأصول المرئية (الآن سيجدها!)
-          echo "--- Finding Asset files (.obj, .fbx, .png)... ---"
-          find "$ASSET_ROOT" -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.png" \) -exec cp --parents {} GIAS_Essentials/2_Assets/ \;
+          echo "--- Finding Visual Assets ---"
+          find "temp_full_extract" -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.png" \) -exec cp --parents {} GIAS_Essentials/2_Assets/ \; || true
           
-          # البحث عن ملف المنطق
-          echo "--- Finding Logic file (libil2cpp.so)... ---"
-          find "temp_full_extract" -name "libil2cpp.so" -exec cp --parents {} GIAS_Essentials/3_Logic/ \;
-          
-          echo "--- Categorization complete. ---"
+          echo "--- Finding Logic (libil2cpp.so) ---"
+          find "temp_full_extract" -name "libil2cpp.so" -exec cp --parents {} GIAS_Essentials/3_Logic/ \; || true
 
-      # الخطوة 5: ضغط الملفات الأساسية النظيفة وحذف الباقي
-      - name: 5. Compress Essentials and Cleanup
+      - name: 5. Compress and Cleanup
         run: |
-          echo "--- Compressing essential files into GIAS_Essentials.zip ---"
           zip -r GIAS_Essentials.zip GIAS_Essentials
-          
-          echo "--- Cleaning up temporary files ---"
           rm -rf temp_full_extract GamePackage.apk AssetRipper*
-          
-          echo "--- Final package size: ---"
           ls -lh GIAS_Essentials.zip
 
-      # الخطوة 6: رفع الحزمة النهائية إلى قسم Releases
-      - name: 6. Create Release with Clean Data
+      - name: 6. Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: essentials-v${{ github.run_number }}
           name: "GIAS Essentials v${{ github.run_number }}"
-          body: "Cleaned and categorized game assets (Data, Assets, and Logic), ready for local development. Extracted using AssetRipper."
+          body: "Auto-extracted assets using AssetRipper v0.3.0.6. Organized for mobile development."
           files: GIAS_Essentials.zip
