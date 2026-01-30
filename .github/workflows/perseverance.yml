@@ -10,19 +10,19 @@ jobs:
       contents: write
 
     steps:
-      # الخطوة 1: تجهيز البيئة
+      # الخطوة 1: تجهيز البيئة وتثبيت الأدوات الأساسية
       - name: 1. Prepare Environment
         run: |
           sudo apt-get update && sudo apt-get install -y unzip wget zip
           echo "--- Environment is ready ---"
 
-      # الخطوة 2: تنزيل اللعبة
+      # الخطوة 2: تنزيل ملف اللعبة
       - name: 2. Download Game Package
         run: |
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o GamePackage.apk --progress-bar
           echo "--- Download Complete ---"
 
-      # الخطوة 3: تنزيل أداة التحليل
+      # الخطوة 3: تنزيل وتجهيز أداة AssetRipper
       - name: 3. Download AssetRipper
         run: |
           wget "https://github.com/AssetRipper/AssetRipper/releases/download/0.3.0.6/AssetRipper_linux_x64.zip" -O assetripper.zip
@@ -30,28 +30,30 @@ jobs:
           chmod +x ./AssetRipper/AssetRipper
           echo "--- AssetRipper is ready ---"
 
-      # الخطوة 4: استخراج الأصول (الأمر المصحح)
+      # الخطوة 4: استخراج الأصول مع حل مشكلة الـ Console
       - name: 4. Export Assets
         run: |
           echo "--- Starting asset export ---"
-          # تم وضع ملف الـ APK كأول مدخل لتجنب خطأ المسار، واستخدام --silent لمنع انهيار الكونسول
-          ./AssetRipper/AssetRipper GamePackage.apk -o exported_assets --silent
+          # استخدام echo لإرسال ضغطة Enter تلقائياً للبرنامج لمنع الانهيار
+          # تم اختصار الأوامر للمسارات الأساسية فقط لضمان التوافق
+          echo -e "\n" | ./AssetRipper/AssetRipper GamePackage.apk -o exported_assets
           echo "--- Asset Export Finished ---"
 
-      # الخطوة 5: ضغط الأصول وتنظيف المساحة
+      # الخطوة 5: ضغط الملفات الناتجة وتنظيف البيئة
       - name: 5. Compress Assets
         run: |
+          echo "--- Compressing files, please wait ---"
           zip -r Digital-Twin-Assets.zip ./exported_assets
-          # تنظيف لضمان عدم تجاوز مساحة القرص في الـ Runner
+          # حذف الملفات الكبيرة لتجنب امتلاء مساحة الـ Runner
           rm -rf ./exported_assets
           rm GamePackage.apk
-          echo "--- Compression Done and Workspace Cleaned ---"
+          echo "--- Assets compressed and cleanup finished ---"
 
-      # الخطوة 6: إنشاء Release ورفع الملف
+      # الخطوة 6: رفع الملفات إلى قسم Releases في GitHub
       - name: 6. Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: assets-v${{ github.run_number }}
           name: "Digital Twin Assets v${{ github.run_number }}"
-          body: "Automated export of game assets for GIAS training using AssetRipper."
+          body: "Automated export of game assets for GIAS training. Build Number: ${{ github.run_number }}"
           files: Digital-Twin-Assets.zip
