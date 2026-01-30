@@ -1,4 +1,4 @@
-name: GIAS_MASTER_PIPELINE_V4_STABLE
+name: GIAS_MASTER_PIPELINE_V5_RELIABLE
 
 on:
   workflow_dispatch:
@@ -8,12 +8,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # الخطوة 1: تجهيز البيئة وتثبيت كل الأدوات المطلوبة
-      - name: 1. Prepare Environment and Install Tools
+      # الخطوة 1: تجهيز البيئة
+      - name: 1. Prepare Environment
         run: |
-          echo "--- Installing all required tools: unzip, jq ---"
+          echo "--- Installing prerequisite: unzip ---"
           sudo apt-get update
-          sudo apt-get install -y unzip jq
+          sudo apt-get install -y unzip
           echo "--- Environment is ready ---"
 
       # الخطوة 2: تنزيل الحزمة الكاملة للعبة
@@ -31,13 +31,14 @@ jobs:
           unzip GamePackage.apk -d ./game_assets
           echo "--- Package Unpacked ---"
 
-      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول
-      - name: 4. Download and Prepare AssetStudioCLI
+      # الخطوة 4: تنزيل وتجهيز أداة استخراج الأصول (الحل الثابت)
+      - name: 4. Download and Prepare AssetStudioCLI (Reliable Static Link)
         run: |
-          echo "--- Downloading LATEST AssetStudioCLI ---"
-          ASSET_URL=$(curl -s https://api.github.com/repos/Perfare/AssetStudio/releases/latest | jq -r ".assets[] | select(.name | contains(\"linux\")) | .browser_download_url")
-          echo "--- Latest Asset URL is: $ASSET_URL ---"
-          curl -L "$ASSET_URL" -o assetstudio.zip --progress-bar
+          echo "--- Downloading LATEST AssetStudioCLI using a reliable static link ---"
+          # استخدام رابط مباشر ومؤكد لأحدث إصدار حالي (v0.18.0)
+          curl -L "https://github.com/Perfare/AssetStudio/releases/download/v0.18.0/AssetStudio.CLI_net6_linux-x64.zip" -o assetstudio.zip --progress-bar
+          
+          echo "--- Unpacking AssetStudioCLI ---"
           unzip assetstudio.zip -d AssetStudioCLI
           chmod +x ./AssetStudioCLI/AssetStudio.CLI
           echo "--- AssetStudioCLI is ready ---"
