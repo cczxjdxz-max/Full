@@ -10,17 +10,17 @@ jobs:
       contents: write
 
     steps:
-      # الخطوة 1: تثبيت الأدوات
+      # الخطوة 1: تجهيز البيئة
       - name: 1. Prepare Environment
         run: |
-          sudo apt-get update && sudo apt-get install -y unzip wget
+          sudo apt-get update && sudo apt-get install -y unzip wget zip
           echo "--- Environment is ready ---"
 
       # الخطوة 2: تنزيل اللعبة
       - name: 2. Download Game Package
         run: |
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o GamePackage.apk --progress-bar
-          echo "\n--- Download Complete ---"
+          echo "--- Download Complete ---"
 
       # الخطوة 3: تنزيل أداة التحليل
       - name: 3. Download AssetRipper
@@ -30,20 +30,24 @@ jobs:
           chmod +x ./AssetRipper/AssetRipper
           echo "--- AssetRipper is ready ---"
 
-      # الخطوة 4: استخراج الأصول (باستخدام الأمر الصحيح)
-      - name: 4. Export Assets (Corrected Command)
+      # الخطوة 4: استخراج الأصول (الأمر المصحح)
+      - name: 4. Export Assets
         run: |
           echo "--- Starting asset export ---"
-          # هذا هو الأمر الصحيح الذي يحل المشكلة
-          ./AssetRipper/AssetRipper -o exported_assets --no-stripping --silent GamePackage.apk
+          # تم وضع ملف الـ APK كأول مدخل لتجنب خطأ المسار، واستخدام --silent لمنع انهيار الكونسول
+          ./AssetRipper/AssetRipper GamePackage.apk -o exported_assets --silent
           echo "--- Asset Export Finished ---"
 
-      # الخطوة 5: ضغط الأصول
+      # الخطوة 5: ضغط الأصول وتنظيف المساحة
       - name: 5. Compress Assets
         run: |
           zip -r Digital-Twin-Assets.zip ./exported_assets
+          # تنظيف لضمان عدم تجاوز مساحة القرص في الـ Runner
+          rm -rf ./exported_assets
+          rm GamePackage.apk
+          echo "--- Compression Done and Workspace Cleaned ---"
 
-      # الخطوة 6: إنشاء Release
+      # الخطوة 6: إنشاء Release ورفع الملف
       - name: 6. Create Release
         uses: softprops/action-gh-release@v2
         with:
