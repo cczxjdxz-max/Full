@@ -1,4 +1,4 @@
-name: GIAS PRO WORKFLOW (V-Pro - Separate Files Release)
+Name: GIAS PRO WORKFLOW (Final Stable Build)
 
 on:
   workflow_dispatch:
@@ -10,29 +10,26 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز البيئة وتنصيب .NET و Git
+      # 1. تجهيز بيئة .NET 8.0
       - name: 1. Setup Environment & .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x' # يمكنك استخدام '6.0.x' أو '7.0.x' إذا كان المشروع يتطلب ذلك
+          dotnet-version: '8.0.x'
 
       - name: Install Tools
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq git
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq
 
-      # 2. بناء Il2CppDumper من الكود المصدري مباشرة
+      # 2. بناء الأداة مع تحديد الـ Framework لتجنب خطأ NETSDK1129
       - name: 2. Build Il2CppDumper from Source
         run: |
-          # استخدام --depth=1 لتنزيل أسرع
           git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
           cd Il2CppDumper
-          # بناء نسخة مخصصة لنظام لينكس
-          dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
-          # نقل الملف الناتج لمجلد العمل الرئيسي
-          cp bin/Release/net*/linux-x64/publish/Il2CppDumper ../Il2CppDumper
+          dotnet publish -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
+          cp bin/Release/net8.0/linux-x64/publish/Il2CppDumper ../Il2CppDumper
           cd ..
           chmod +x ./Il2CppDumper
 
-      # 3. تحميل واستخراج ملفات اللعبة
+      # 3. جلب ملفات اللعبة (رابط CDN المباشر)
       - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
@@ -43,46 +40,41 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل الأداة (التي صنعناها في الخطوة 2)
+      # 4. تشغيل الأداة
       - name: 4. Run Il2CppDumper
         run: |
-          # تمرير ضغطات Enter تلقائياً لتجاوز أي طلبات تفاعلية
           printf "\n\n" | ./Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
 
-      # 5. توليد التقرير الاستخباراتي المتقدم
-      - name: 5. Generate Advanced Report
+      # 5. استخراج استخبارات الشبكة المتقدمة (WSS, UDP, TCP)
+      - name: 5. Generate Advanced Network Intelligence Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
-          REPORT_FILE="Advanced_Network_Report.txt"
+          REPORT_FILE="Network_Intel_Report.txt"
           
-          echo "=== GIAS ADVANCED NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
-          echo "Date: $(date)" >> $REPORT_FILE
-          echo "Objective: Identify function addresses (RVA) for network operations." >> $REPORT_FILE
+          echo "=== GIAS NETWORK INTELLIGENCE REPORT (V2) ===" > $REPORT_FILE
+          echo "Generated on: $(date)" >> $REPORT_FILE
+          echo "--------------------------------------------" >> $REPORT_FILE
           
-          # استخدام || true لضمان عدم فشل الخطوة إذا لم يجد grep أي تطابق
-          echo -e "\n\n[1] CONNECTION & PROTOCOL METHODS" >> $REPORT_FILE
-          echo "===================================" >> $REPORT_FILE
-          grep -E -i "Socket|Connect|Host|Port|Address|wss://|https://|udp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
+          # استخراج روابط الويب سوكيت والبروتوكولات المشفرة
+          echo "[#] WEB-SOCKETS & SECURE ENDPOINTS:" >> $REPORT_FILE
+          grep -E -i "wss://|https://|http://|udp://|tcp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No direct URLs found." >> $REPORT_FILE
+          
+          echo -e "\n[#] NETWORK SOCKETS & CONNECT METHODS:" >> $REPORT_FILE
+          grep -E -i "Socket|Connect|SendTo|ReceiveFrom|RemoteEndPoint" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No Socket methods found." >> $REPORT_FILE
+          
+          echo -e "\n[#] CRYPTO & SECURITY (SSL/TLS):" >> $REPORT_FILE
+          grep -E -i "SSL|TLS|AuthenticateAsClient|Certificate" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No SSL methods found." >> $REPORT_FILE
+          
+          echo -e "\n[#] PHOTON ENGINE & MULTIPLAYER:" >> $REPORT_FILE
+          grep -i "Photon" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No Photon components found." >> $REPORT_FILE
 
-          echo -e "\n\n[2] AUTHENTICATION & LOGIN METHODS" >> $REPORT_FILE
-          echo "====================================" >> $REPORT_FILE
-          grep -E -i "Login|Auth|Token|User|Password|Session" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
-
-          echo -e "\n\n[3] ENCRYPTION & DECRYPTION METHODS" >> $REPORT_FILE
-          echo "=====================================" >> $REPORT_FILE
-          grep -E -i "AES|RSA|Encrypt|Decrypt|Cipher|Key|IV" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
-          
-      # 6. إنشاء Release ورفع الملفات بشكل منفصل
-      - name: 6. Create Release with Separate Files
+      # 6. رفع النتائج كـ Release
+      - name: 6. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: pro-intel-v${{ github.run_number }}
-          name: "GIAS Pro Network Intel v${{ github.run_number }}"
-          body: |
-            تم إنشاء تقرير استخباراتي متقدم. يمكنك تنزيل كل ملف على حدة.
-            - **Advanced_Network_Report.txt**: قائمة الأهداف (دوال الشبكة وعناوينها).
-            - **script.json**: خريطة العناوين الكاملة لاستيرادها في Ghidra/IDA.
-          # رفع كل ملف بشكل منفصل بدلاً من ضغطها
+          tag_name: intel-v${{ github.run_number }}
+          name: "Network Intel Report v${{ github.run_number }}"
           files: |
-            Advanced_Network_Report.txt
+            Network_Intel_Report.txt
             ./Analysis_Output/script.json
+            ./Analysis_Output/dummy.cs
