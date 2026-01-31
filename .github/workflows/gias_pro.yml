@@ -1,12 +1,7 @@
-name: GIAS-TRILLION-TRAINER
+name: GIAS-TRILLION-AUTO-TRAINER
 
 on:
   workflow_dispatch:
-    inputs:
-      game_url:
-        description: 'رابط APK اللعبة'
-        default: 'https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk'
-        required: true
 
 jobs:
   ultra_brain:
@@ -16,25 +11,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-      
-      - name: 2. Install AI Tools (نسخة 2026)
-        run: |
-          pip install numpy torch stable-baselines3[torch] gymnasium
+      - run: pip install numpy torch stable-baselines3[torch] gymnasium
 
-      - name: 3. Surgical Extraction (استخراج ملفات اللعبة)
+      - name: 2. Download & Force Extract (الاستخراج القسري)
         run: |
-          wget -q -O game.apk "${{ github.event.inputs.game_url }}"
-          unzip -j game.apk "*.so" -d ./libs
+          wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          # أضفنا -o لمنع السؤال عن الاستبدال
+          unzip -o -j game.apk "*.so" -d ./libs
+          
+          # نأخذ نسخة واحدة فقط للتدريب
           FOUND_LIB=$(find ./libs -name "libil2cpp.so" | head -n 1)
           cp "$FOUND_LIB" ./libil2cpp.so
-          echo "✅ Game files extracted!"
+          echo "✅ تم استخراج الملفات بنجاح دون توقف!"
 
-      - name: 4. The Trillion Steps Script (سكريبت المليارات)
+      - name: 3. The Trillion Steps Machine
         run: |
           cat << 'EOF' > train.py
-          import os, gymnasium as gym, numpy as np
+          import gymnasium as gym, numpy as np
           from stable_baselines3 import PPO
-          from stable_baselines3.common.callbacks import CheckpointCallback
 
           class TrillionEnv(gym.Env):
               def __init__(self):
@@ -42,31 +36,25 @@ jobs:
                   self.observation_space = gym.spaces.Box(0, 1, (4,), np.float32)
                   self.action_space = gym.spaces.Discrete(5)
               def step(self, action):
-                  # محاكاة فائقة السرعة للوصول للترليون
                   obs = np.random.rand(4).astype(np.float32)
-                  # مكافأة ذكية جداً لتعليمه الاحتراف
-                  reward = 5.0 if action == 4 else -0.1 
+                  # مكافأة أسطورية للفعل رقم 4 (بناء الجدار)
+                  reward = 10.0 if action == 4 else -0.5
                   return obs, reward, False, False, {}
               def reset(self, seed=None):
                   super().reset(seed=seed)
                   return np.zeros(4, np.float32), {}
 
-          # حفظ نسخة من "العقل" كل 100 ألف خطوة احتياطاً
-          checkpoint_callback = CheckpointCallback(save_freq=100000, save_path='./logs/', name_prefix='gias_model')
-
-          print("--- 🌀 بدأت رحلة الترليون خطوة.. الروبوت الآن يكتسب قوى خارقة ---")
-          model = PPO("MlpPolicy", TrillionEnv(), verbose=1, device="cpu")
+          print("--- 🧠 بدأ تدريب الترليون خطوة.. الروبوت يتحول لأسطورة ---")
+          model = PPO("MlpPolicy", TrillionEnv(), verbose=1)
           
-          # وضعنا رقماً هائلاً (مليار خطوة كمرحلة أولى)
-          model.learn(total_timesteps=1000000000, callback=checkpoint_callback)
+          # 1,000,000,000,000 خطوة (سيتدرب حتى يغلق GitHub السيرفر تلقائياً)
+          model.learn(total_timesteps=1000000000000)
           model.save("gias_trillion_brain")
           EOF
           python3 train.py
 
-      - name: 5. Save the God-Mode Brain
+      - name: 4. Export the Legend
         uses: actions/upload-artifact@v4
         with:
-          name: GOD_MODE_BRAIN
-          path: |
-            gias_trillion_brain.zip
-            logs/
+          name: TRILLION_BRAIN_RESULT
+          path: gias_trillion_brain.zip
