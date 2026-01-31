@@ -10,7 +10,7 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز بيئة العمل ودعم .NET 8 (معايير 2026)
+      # 1. تجهيز بيئة .NET 8.0 المستقرة لعام 2026
       - name: 1. Setup Environment & .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -21,48 +21,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y unzip wget zip p7zip-full jq
 
-      # 2. بناء الأداة من المصدر مع البحث الذكي عن الملف الناتج
+      # 2. بناء الأداة باستخدام المسار المباشر للمشروع (حل مشكلة المسارات المتداخلة)
       - name: 2. Build Il2CppDumper from Source
         run: |
           git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
-          cd Il2CppDumper
-          dotnet publish -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
           
-          # البحث عن الملف التنفيذي الناتج في أي مكان داخل مجلد bin ونقله للمجلد الرئيسي
-          EXECUTABLE_PATH=$(find bin/ -type f -executable ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" | head -n 1)
-          echo "Found executable at: $EXECUTABLE_PATH"
-          cp "$EXECUTABLE_PATH" ../Il2CppDumper
+          # بناء المشروع مباشرة من خلال الإشارة لملف .csproj
+          dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
           
-          cd ..
-          chmod +x ./Il2CppDumper
+          # نسخ الملف التنفيذي للمجلد الرئيسي بناءً على مسار السجلات (Logs)
+          cp Il2CppDumper/Il2CppDumper/bin/Release/net8.0/linux-x64/publish/Il2CppDumper ./Il2CppDumper_Executable
+          
+          chmod +x ./Il2CppDumper_Executable
+          echo "Success! Executable created at ./Il2CppDumper_Executable"
 
-      # 3. تحميل اللعبة (Free Fire) واستخراج ملفات المنطق (Logic)
+      # 3. جلب ملفات اللعبة (Free Fire) وتحضيرها للتحليل
       - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           mkdir -p temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث عن المكتبة وملف الميتاداتا بشكل مرن
+          # البحث الديناميكي عن المكتبات لضمان التوافق مع تحديثات اللعبة
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل الأداة (تمرير ضغطات Enter تلقائياً)
+      # 4. تشغيل عملية الـ Dumping (الاستخراج)
       - name: 4. Run Il2CppDumper
         run: |
-          printf "\n\n" | ./Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
+          # تمرير ضغطات Enter آلياً لتجاوز أسئلة الأداة
+          printf "\n\n" | ./Il2CppDumper_Executable libil2cpp.so global-metadata.dat ./Analysis_Output
 
-      # 5. تحليل استخبارات الشبكة وتوليد التقرير المتقدم
+      # 5. تحليل ملف الـ Dump وتوليد تقرير استخبارات الشبكة
       - name: 5. Generate Network Intelligence Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
           REPORT_FILE="Network_Intel_Report.txt"
           
           echo "=== GIAS NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
-          echo "Generated on: $(date)" >> $REPORT_FILE
+          echo "Date: $(date)" >> $REPORT_FILE
           echo "---------------------------------------" >> $REPORT_FILE
           
           echo -e "\n[#] ENDPOINTS & URLS (WSS/HTTP/UDP):" >> $REPORT_FILE
@@ -74,12 +74,12 @@ jobs:
           echo -e "\n[#] SECURITY & ENCRYPTION METHODS:" >> $REPORT_FILE
           grep -E -i "SSL|TLS|AES|RSA|Encrypt|Decrypt" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
 
-      # 6. رفع النتائج كـ Release على GitHub
+      # 6. رفع النتائج كـ Release للتحميل المباشر
       - name: 6. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: intel-v${{ github.run_number }}
-          name: "GIAS Intel Report v${{ github.run_number }}"
+          tag_name: pro-v${{ github.run_number }}
+          name: "GIAS Network Intelligence v${{ github.run_number }}"
           files: |
             Network_Intel_Report.txt
             ./Analysis_Output/script.json
