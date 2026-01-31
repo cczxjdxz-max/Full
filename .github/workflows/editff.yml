@@ -1,54 +1,84 @@
-name: GIAS AI-TRAINING-ENV (OFFLINE & HEADLESS)
+name: GIAS AUTO-AI-ENVIRONMENT-BUILDER
 
 on:
   workflow_dispatch:
-    inputs:
-      offset_network:
-        description: 'عنوان تعطيل فحص الإنترنت'
-        required: true
-        default: '0x1A2B3C' # مثال: يتم استبداله بالعنوان الحقيقي من التقرير
-      offset_render:
-        description: 'عنوان تعطيل الرسوميات'
-        required: true
-        default: '0x4D5E6F' # مثال: يتم استبداله بالعنوان الحقيقي من التقرير
 
 jobs:
   build_env:
     runs-on: ubuntu-latest
-    steps:
-      - name: 1. Setup & Tools
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
+    permissions: write-all
 
-      - name: 2. Download and Extract Game
+    steps:
+      # 1. تجهيز بيئة العمل والأدوات
+      - name: 1. Setup Environment
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full wget python3
+          # تجهيز الدوت نت لتشغيل أداة استخراج العناوين
+          uses: actions/setup-dotnet@v4
+          with:
+            dotnet-version: '8.0.x'
+
+      # 2. تحميل اللعبة وأداة الـ Dumper
+      - name: 2. Fetch Assets
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O Game.apk
           7z x Game.apk -oextracted_files -y
-          LIB_PATH=$(find extracted_files -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
-          cp "$LIB_PATH" ./libil2cpp.so
+          git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
+          # بناء الأداة (بشكل مختصر)
+          dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true -o ./dumper_bin
 
-      - name: 3. Surgical Patching (Offline + Headless)
+      # 3. استخراج العناوين وحقن الباتشات (المرحلة الذكية)
+      - name: 3. Smart Auto-Patching
         run: |
           python3 -c '
-          import os
+          import os, re, subprocess
+
+          # البحث عن ملفات اللعبة
+          lib_path = ""
+          meta_path = ""
+          for root, dirs, files in os.walk("extracted_files"):
+              if "libil2cpp.so" in files and "arm64" in root: lib_path = os.path.join(root, "libil2cpp.so")
+              if "global-metadata.dat" in files: meta_path = os.path.join(root, "global-metadata.dat")
+
+          if not lib_path or not meta_path:
+              print("Critical Error: Files not found!")
+              exit(1)
+
+          # تشغيل الـ Dumper لاستخراج العناوين
+          subprocess.run(["./dumper_bin/Il2CppDumper", lib_path, meta_path, "./DummyOutput"])
+
+          # البحث داخل ملف العناوين المولد (dump.cs)
+          offsets = {}
+          targets = {
+              "render": "UnityEngine.Canvas::set_enabled",
+              "network": "UnityServices::Initialize",
+              "ads": "AdsService::ShowAd" # مثال لتعطيل الإعلانات أيضاً
+          }
+
+          with open("./DummyOutput/dump.cs", "r") as f:
+              content = f.read()
+              for key, pattern in targets.items():
+                  match = re.search(r"// RVA: (0x[0-9A-Fa-f]+).*?" + re.escape(pattern), content)
+                  if match:
+                      offsets[key] = int(match.group(1), 16)
+                      print(f"FOUND {key} at {match.group(1)}")
+
+          # تنفيذ الباتشات (التحويل لنمط بياني وأوفلاين)
+          # MOV W0, #0 (للرندرة) و MOV W0, #1 (للنت) + RET
+          with open(lib_path, "r+b") as f:
+              if "render" in offsets:
+                  f.seek(offsets["render"])
+                  f.write(bytes.fromhex("00008052c0035fd6")) # Disable Render
+              if "network" in offsets:
+                  f.seek(offsets["network"])
+                  f.write(bytes.fromhex("20008052c0035fd6")) # Force Offline-On
           
-          def apply_patch(filename, offset, hex_bytes):
-              with open(filename, "r+b") as f:
-                  f.seek(int(offset, 16))
-                  f.write(bytes.fromhex(hex_bytes))
-          
-          # 1. باتش الأوفلاين: إجبار الدالة على إرجاع True (متصل دائماً)
-          # نستخدم MOV W0, #1 ثم RET
-          apply_patch("libil2cpp.so", "${{ github.event.inputs.offset_network }}", "20008052c0035fd6")
-          
-          # 2. باتش النمط البياني: تعطيل الرسوميات (Renderer Disable)
-          # نستخدم MOV W0, #0 ثم RET
-          apply_patch("libil2cpp.so", "${{ github.event.inputs.offset_render }}", "00008052c0035fd6")
-          
-          print("Patches applied successfully: Environment is now Offline and Headless.")
+          print("Environment is now Ready: Headless & Offline.")
           '
 
-      - name: 4. Export Training Environment
+      # 4. حفظ النسخة النهائية "البيانية" لتدريب الذكاء الاصطناعي
+      - name: 4. Upload Training Environment
         uses: actions/upload-artifact@v4
         with:
-          name: AI_Training_Lib
-          path: libil2cpp.so
+          name: Headless_Training_Lib
+          path: extracted_files/lib/arm64-v8a/libil2cpp.so
