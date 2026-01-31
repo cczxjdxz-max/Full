@@ -1,4 +1,4 @@
-name: GIAS V26 - Ultimate Build & Bypass
+name: GIAS V27 - Force Build & Clean Scan
 
 on:
   workflow_dispatch:
@@ -10,74 +10,76 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز النظام
+      # 1. تجهيز البيئة
       - name: 1. Setup Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full git
 
-      # 2. تثبيت .NET SDK (نسخة 8 ضرورية للبناء)
+      # 2. تثبيت .NET SDK
       - name: 2. Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '6.0.x'
 
-      # 3. بناء أداة Cpp2IL من المصدر (للهروب من الـ 404 والحظر)
-      - name: 3. Clone and Build Cpp2IL
+      # 3. بناء Il2CppDumper من السورس (بدون Submodules معقدة)
+      - name: 3. Build Il2CppDumper from Source
         run: |
-          git clone --recursive https://github.com/LibCpp2IL/Cpp2IL.git
-          cd Cpp2IL
+          git clone https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
           dotnet build -c Release
           cd ..
-          mkdir -p Cpp2ILTool
-          cp -r Cpp2IL/Cpp2IL/bin/Release/net8.0/* Cpp2ILTool/
+          mkdir -p DumperTool
+          cp -r Il2CppDumper/Il2CppDumper/bin/Release/net6.0/* DumperTool/
 
-      # 4. تحميل اللعبة
-      - name: 4. Download Game
+      # 4. تحميل واستخراج اللعبة
+      - name: 4. Process Game APK
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
-
-      # 5. استخراج الملفات بنظام البحث الشامل
-      - name: 5. Deep Extraction
-        run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث عن ملف الـ SO والـ Metadata
+          # البحث عن ملفات libil2cpp و metadata
           LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64" | head -n 1)
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 6. تشغيل محرك التجاوز (Cpp2IL)
-      - name: 6. Run Bypass Analysis
+      # 5. تشغيل المحرك (مع تجاوز خطأ Metadata المحمية)
+      - name: 5. Run Dumper with Force Logic
         run: |
           mkdir -p Results
-          # استخدام المحرك الذي بنيناه يدوياً لتوليد ملفات الـ DLL حتى لو الميتاداتا مشفرة
-          dotnet ./Cpp2ILTool/Cpp2IL.dll --game-path ./ --output-as-dll --output-root ./Results || echo "Analysis continued with warnings"
+          # استخدام "Script" لتمرير الأوامر وتجنب توقف البرنامج عند طلب مفتاح
+          echo -e "\n\n" > inputs.txt
+          dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results < inputs.txt || echo "Dumper finished with potential encryption warnings"
 
-      # 7. التقرير الاستخباراتي (برمودا والأسلحة)
-      - name: 7. GIAS Intelligence Report
+      # 6. البحث الاستخباراتي الشامل
+      - name: 6. GIAS Deep Scan (Bermuda & Weapons)
         run: |
+          DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Final_Bermuda_Bypass.txt"
+          REPORT="$REPORT_DIR/Bermuda_Intelligence.txt"
           
-          echo "=== GIAS V26 ANALYSIS REPORT ===" > $REPORT
-          echo "Bypass Strategy: On-the-fly Build & Cpp2IL Reconstruction" >> $REPORT
-          echo "------------------------------------------------------" >> $REPORT
+          echo "=== GIAS V27 FINAL INTELLIGENCE ===" > $REPORT
+          # الكلمات المفتاحية الدقيقة لخريطة برمودا والمنطق الأساسي
+          KEYWORDS="Health|Damage|Jump|Speed|Bermuda|Vector3|Position|Get_Transform|Static_Field"
           
-          # البحث عن الكلمات المفتاحية داخل النتائج المستخرجة
-          # سنبحث في أي ملف نصي ناتج عن العملية
-          grep -rE -i "Health|Damage|Jump|Bermuda|Vector3|Position" ./Results >> $REPORT || echo "No direct text found, manual analysis of DLLs recommended." >> $REPORT
+          if [ -f "$DUMP" ]; then
+            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 2000 >> $REPORT
+          else
+             echo "Critical: Metadata is likely encrypted. Alternative scan needed." >> $REPORT
+             # محاولة البحث عن نصوص خام داخل ملف الـ SO نفسه كحل أخير
+             strings libil2cpp.so | grep -E "Bermuda|Health" | head -n 100 >> $REPORT
+          fi
 
-      # 8. الرفع النهائي
-      - name: 8. Archive and Release
+      # 7. التعبئة والرفع
+      - name: 7. Archive and Release
         run: |
-          zip -r GIAS_V26_Results.zip Results/ GIAS_Final_Output/
+          zip -r GIAS_V27_Final.zip Results/ GIAS_Final_Output/
           
-      - name: 9. Upload Release
+      - name: 8. Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V26"
-          files: GIAS_V26_Results.zip
+          name: "GIAS Bermuda Final V27"
+          files: GIAS_V27_Final.zip
