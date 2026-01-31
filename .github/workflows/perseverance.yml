@@ -10,38 +10,37 @@ jobs:
       contents: write
 
     steps:
-      # الخطوة 1: تجهيز البيئة وأدوات الضغط والتحميل
+      # الخطوة 1: تجهيز البيئة
       - name: 1. Prepare Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
 
-      # الخطوة 2: تنزيل اللعبة وأداة التحليل (Il2CppDumper)
+      # الخطوة 2: تنزيل اللعبة وأداة التحليل (تم تصحيح الرابط هنا)
       - name: 2. Download Game and Tools
         run: |
           echo "--- Downloading Game Package ---"
-          # رابط APK (تأكد من تحديث الرابط إذا لزم الأمر)
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           
-          echo "--- Downloading Il2CppDumper (Linux Version) ---"
-          wget "https://github.com/Perfare/Il2CppDumper/releases/latest/download/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip
+          echo "--- Downloading Il2CppDumper (Stable Version) ---"
+          # استخدام إصدار مستقر لضمان عدم حدوث خطأ 404
+          wget "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip
           unzip il2cppdumper.zip -d Il2CppDumper
           chmod +x ./Il2CppDumper/Il2CppDumper
 
-      # الخطوة 3: استخراج الملفات الخام من الـ APK
+      # الخطوة 3: استخراج الملفات الخام
       - name: 3. Raw File Extraction
         run: |
           echo "--- Extracting APK Contents ---"
           mkdir temp_raw_extract
           7z x GamePackage.apk -otemp_raw_extract -y
 
-      # الخطوة 4: تحديد ملفات المنطق (استهداف معمارية 64-بت لدقة الإحداثيات)
+      # الخطوة 4: تحديد ملفات المنطق
       - name: 4. Locate Core Logic Files
         run: |
           echo "--- Locating libil2cpp.so and global-metadata.dat ---"
-          # البحث عن نسخة 64-بت لأنها الأفضل لتحليل الخرائط والإحداثيات
+          # البحث عن معمارية arm64 لأنها الأدق في الإحداثيات
           LIB_PATH=$(find temp_raw_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           META_PATH=$(find temp_raw_extract -name "global-metadata.dat" | head -n 1)
           
-          # إذا لم يجد 64-بت، يبحث عن أي نسخة متاحة
           if [ -z "$LIB_PATH" ]; then
             LIB_PATH=$(find temp_raw_extract -name "libil2cpp.so" | head -n 1)
           fi
@@ -54,33 +53,33 @@ jobs:
             exit 1
           fi
 
-      # الخطوة 5: تشغيل محرك التحليل (Il2CppDumper)
+      # الخطوة 5: تشغيل محرك التحليل
       - name: 5. Run Analysis Engine
         run: |
           echo "--- Running Il2CppDumper ---"
-          # تمرير إدخالات وهمية لتجاوز طلبات البرنامج التفاعلية
+          # تمرير إدخالات وهمية لتجاوز الأسئلة التفاعلية
           printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Results
 
-      # الخطوة 6: محرك البحث الذكي عن المميزات (برمودا، الإحداثيات، الأسلحة)
-      - name: 6. GIAS Deep Search (Maps, Health, Weapons)
+      # الخطوة 6: محرك البحث الذكي (الصحة، الأسلحة، برمودا)
+      - name: 6. GIAS Deep Search Engine
         run: |
-          echo "--- Scanning for Offsets and Patterns ---"
+          echo "--- Scanning for Logic Patterns ---"
           DUMP_FILE="./Analysis_Results/dump.cs"
           REPORT_DIR="GIAS_Final_Package"
           mkdir -p $REPORT_DIR
           REPORT="$REPORT_DIR/Search_Report.txt"
           
           echo "=== GIAS V14 ANALYSIS REPORT ===" > $REPORT
-          echo "Target: Logic, Coordinates & Bermuda Map" >> $REPORT
+          echo "Target: Health, Weapons, Security & Bermuda Map" >> $REPORT
           echo "Date: $(date)" >> $REPORT
           echo "----------------------------------------" >> $REPORT
 
           declare -A keywords
           keywords=( 
-            ["[1] Health & Life"]="Health|Damage|Life|Die|HitPoints|Heal|GodMode|Invincible"
-            ["[2] Movement & Physics"]="Jump|Gravity|Speed|Velocity|Fly|Walk|Move|Dash|Sprint"
+            ["[1] Health & GodMode"]="Health|Damage|Life|Die|HitPoints|Heal|GodMode|Invincible"
+            ["[2] Movement & Speed"]="Jump|Gravity|Speed|Velocity|Fly|Walk|Move|Dash|Sprint"
             ["[3] Weapons & Combat"]="Weapon|Ammo|Reload|FireRate|Recoil|Spread|Bullet|Aim|NoSpread|NoRecoil"
-            ["[4] Security & Anti-Cheat"]="Security|AntiCheat|Detect|Check|Ban|Cheat|Report|Emulator|Root|VPN"
+            ["[4] Anti-Cheat & Security"]="Security|AntiCheat|Detect|Check|Ban|Cheat|Report|Emulator|Root|VPN"
             ["[5] Visuals & ESP"]="Outline|Chams|Wallhack|Visible|Renderer|ESP|LineOfSight|WorldToScreen"
             ["[6] Coordinates (Bermuda)"]="Vector3|Vector2|GetPosition|SetPosition|Coordinate|Transform|LocalPosition"
             ["[7] Bermuda Map Logic"]="Bermuda|Map|Zone|SafeZone|Shrink|Location|SpawnPoint|Distance"
@@ -97,26 +96,25 @@ jobs:
             echo "----------------------------" >> $REPORT
           done
 
-      # الخطوة 7: تنظيم الحزمة النهائية وضغطها
-      - name: 7. Organize Final Package
+      # الخطوة 7: تنظيم الحزمة النهائية
+      - name: 7. Organize and Zip
         run: |
-          echo "--- Packaging Files ---"
-          mkdir -p GIAS_Final_Package/Analysis_Raw
-          cp -r Analysis_Results/* GIAS_Final_Package/Analysis_Raw/
-          # تنظيف الملفات الكبيرة غير الضرورية لتوفير المساحة
+          echo "--- Finalizing Package ---"
+          mkdir -p GIAS_Final_Package/Analysis_Files
+          cp -r Analysis_Results/* GIAS_Final_Package/Analysis_Files/
+          # حذف الملفات الكبيرة لتسريع الرفع
           rm -rf temp_raw_extract GamePackage.apk
-          # ضغط الحزمة
-          zip -r GIAS_Complete_v${{ github.run_number }}.zip GIAS_Final_Package
+          zip -r GIAS_Complete.zip GIAS_Final_Package
 
-      # الخطوة 8: رفع النتائج كـ Release (بجودة 720P افتراضياً في ذهن الأتمتة)
+      # الخطوة 8: رفع النتائج كـ Release
       - name: 8. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: "GIAS Analysis v${{ github.run_number }}"
           body: |
-            تم استخراج وتحليل منطق اللعبة بنجاح.
-            المحتويات:
-            - Search_Report.txt: العناوين (Offsets) الخاصة بالصحة، الأسلحة، وإحداثيات برمودا.
-            - Analysis_Raw: ملفات DummyDll و dump.cs للتحليل العميق.
-          files: GIAS_Complete_v${{ github.run_number }}.zip
+            التكتيك المتبع:
+            - تم استخراج إحداثيات خريطة برمودا.
+            - تم جلب عناوين الأسلحة والصحة.
+            - تم تجاوز أخطاء روابط التحميل السابقة.
+          files: GIAS_Complete.zip
