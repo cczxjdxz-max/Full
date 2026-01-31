@@ -10,24 +10,31 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز البيئة
+      # 1. تجهيز بيئة .NET
       - name: 1. Setup Environment
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # 2. جلب الأدوات واللعبة
-      - name: 2. Prepare Tools & APK
+      # 2. بناء الأداة وجلب اللعبة (حل مشكلة رابط 404)
+      - name: 2. Build Tool & Download APK
         run: |
           sudo apt-get update && sudo apt-get install -y p7zip-full wget python3
-          # تحميل Il2CppDumper
-          wget "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -O tool.zip
-          unzip tool.zip -d ./dumper
-          # تحميل APK اللعبة (Free Fire)
+          
+          # بناء الأداة من المصدر مباشرة لضمان عدم تعطل الروابط
+          git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
+          dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true
+          
+          # تجهيز الملفات في المجلد الرئيسي
+          cp Il2CppDumper/Il2CppDumper/bin/Release/net8.0/linux-x64/publish/Il2CppDumper ./dumper_bin
+          cp Il2CppDumper/Il2CppDumper/config.json ./config.json
+          chmod +x ./dumper_bin
+          
+          # تحميل اللعبة (Free Fire)
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O game.apk
           7z x game.apk -ogame_files -y
 
-      # 3. سكريبت إصلاح الميتاداتا المتقدم
+      # 3. سكريبت إصلاح الميتاداتا (Python)
       - name: 3. Advanced Metadata Fixer
         run: |
           python3 -c '
@@ -41,54 +48,47 @@ jobs:
               if not meta_path: return
               with open(meta_path, "rb") as f:
                   data = bytearray(f.read())
-              # إصلاح توقيع الملف (Header Fix)
+              # إصلاح توقيع الملف (Magic Number)
               data[0:4] = bytearray([0xAF, 0x1B, 0xB1, 0xFA])
               with open("fixed_metadata.dat", "wb") as f:
                   f.write(data)
               print("Metadata Fixed Successfully")
           fix() '
 
-      # 4. محاولة استخراج ملف الـ Dump
-      - name: 4. Try Il2Cpp Dump
+      # 4. محاولة الاستخراج (Dump)
+      - name: 4. Run Dump Process
         run: |
           LIB=$(find game_files -name "libil2cpp.so" | head -n 1)
-          chmod +x ./dumper/Il2CppDumper
-          printf "\n\n" | ./dumper/Il2CppDumper "$LIB" fixed_metadata.dat ./Output || echo "Standard Dump Failed, shifting to Binary Intelligence..."
+          # تمرير Enter آلياً لتجاوز الأسئلة
+          printf "\n\n" | ./dumper_bin "$LIB" fixed_metadata.dat ./Output || echo "Dump Failed, shifting to Binary Intelligence..."
 
-      # 5. الاستخراج الاستخباراتي (القوة الضاربة بدون روت أو محاكي)
+      # 5. استخراج استخبارات الشبكة (حتى لو فشل الـ Dump)
       - name: 5. Binary Intelligence Extraction
         run: |
           LIB=$(find game_files -name "libil2cpp.so" | head -n 1)
           REPORT="GIAS_INTEL_REPORT.txt"
           
           echo "=== GIAS NETWORK & SECURITY INTELLIGENCE 2026 ===" > $REPORT
-          echo "Target File: $LIB" >> $REPORT
+          echo "Target Binary: $LIB" >> $REPORT
           echo "------------------------------------------------" >> $REPORT
 
-          echo -e "\n[!] EXTRACTING NETWORK ENDPOINTS (WSS/UDP/HTTP):" >> $REPORT
-          strings "$LIB" | grep -E "wss://|https://|http://|udp://|tcp://" | grep -v "example.com" | sort -u >> $REPORT
+          echo -e "\n[!] NETWORK ENDPOINTS FOUND (WSS/UDP/HTTP):" >> $REPORT
+          strings "$LIB" | grep -E "wss://|https://|http://|udp://|tcp://" | sort -u >> $REPORT
 
-          echo -e "\n[!] SEARCHING FOR CRYPTO KEYS & SALTS (AES/RSA/XOR):" >> $REPORT
-          # البحث عن مفاتيح التشفير المحتملة (نصوص بطول 16 أو 32 حرفاً)
+          echo -e "\n[!] CRYPTO KEYS & SECURITY STRINGS:" >> $REPORT
           strings "$LIB" | grep -E "^[a-zA-Z0-9+/]{16,44}$" | head -n 50 >> $REPORT
           strings "$LIB" | grep -Ei "key|secret|salt|iv|cipher|encrypt" | head -n 30 >> $REPORT
 
-          echo -e "\n[!] GARENA SERVER COMMANDS & PROTOCOLS:" >> $REPORT
-          strings "$LIB" | grep -Ei "onConnect|onDisconnect|onMessage|SendPacket|RecvPacket" >> $REPORT
-          
-          echo -e "\n[!] FIREBASE & CLOUD CONFIGS:" >> $REPORT
-          strings "$LIB" | grep -Ei "google_app_id|firebase_url|project_id" >> $REPORT
+          echo -e "\n[!] SERVER COMMANDS & PROTOCOLS:" >> $REPORT
+          strings "$LIB" | grep -Ei "onConnect|onDisconnect|onMessage|SendPacket|RecvPacket" | head -n 20 >> $REPORT
 
-      # 6. رفع النتائج كـ Release للتحميل على هاتفك
-      - name: 6. Create Release
+      # 6. رفع النتائج كـ Release
+      - name: 6. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: intel-v${{ github.run_number }}
-          name: "GIAS Intel Results v${{ github.run_number }}"
+          name: "GIAS Intelligence Report v${{ github.run_number }}"
           files: |
             GIAS_INTEL_REPORT.txt
             ./Output/dump.cs
             ./Output/script.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
