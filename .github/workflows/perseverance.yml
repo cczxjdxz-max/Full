@@ -1,4 +1,4 @@
-name: GIAS V22 - The Bulletproof Solution
+name: GIAS V23 - No More Links
 
 on:
   workflow_dispatch:
@@ -12,9 +12,9 @@ jobs:
     steps:
       # 1. تجهيز النظام
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
 
-      # 2. تثبيت .NET (نحتاج إصدار 6.0)
+      # 2. تثبيت .NET الرسمي
       - name: 2. Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
@@ -25,29 +25,26 @@ jobs:
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      # 4. تحميل الأداة (استخدام رابط ثابت ورأس متصفح لتجنب الحظر)
-      - name: 4. Download Dumper (Ultra-Stable Link)
+      # 4. تحميل الأداة عبر "الإجراء الرسمي" للـ Actions (حل مشكلة الـ 9 بايت)
+      - name: 4. Get Il2CppDumper via Reliable Action
+        uses: dsaltares/fetch-gh-release-asset@master
+        with:
+          repo: 'Perfare/Il2CppDumper'
+          version: 'latest'
+          file: 'Il2CppDumper-net6-v6.7.48.zip' # استهداف الملف بدقة
+          target: 'dumper.zip'
+          token: ${{ github.token }}
+
+      - name: 5. Unzip Tool
         run: |
-          echo "--- Downloading Dumper Core ---"
-          # الرابط المباشر للنسخة v6.7.40 وهي الأكثر استقراراً وموجودة دائماً
-          curl -H "User-Agent: Mozilla/5.0" -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-net-v6.7.40.zip" -o dumper.zip
-          
-          # التأكد من حجم الملف (إذا كان أقل من 100 بايت فهو تالف)
-          FILESIZE=$(stat -c%s "dumper.zip")
-          if [ $FILESIZE -lt 1000 ]; then
-            echo "Direct link failed, trying official mirror..."
-            curl -H "User-Agent: Mozilla/5.0" -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-net6-v6.7.48.zip" -o dumper.zip
-          fi
-          
           unzip -o dumper.zip -d DumperTool
 
-      # 5. استخراج ملفات اللعبة
-      - name: 5. Extract Game Files
+      # 6. استخراج ملفات اللعبة
+      - name: 6. Extract Game Files
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث العميق عن الملفات
           LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
           [ -z "$LIB_PATH" ] && LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1)
           
@@ -56,41 +53,41 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 6. تشغيل المحرك
-      - name: 6. Run Analysis
+      # 7. تشغيل المحرك (باستخدام dotnet)
+      - name: 7. Run Analysis
         run: |
           mkdir -p Results
-          # تشغيل وتمرير الأوامر تلقائياً لتجاوز الانتظار
+          # محاكاة الضغط على Enter لتجاوز الأسئلة
           dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results <<EOF
           
           
           EOF
 
-      # 7. التقرير النهائي (خريطة برمودا ومنطق اللعبة)
-      - name: 7. GIAS Intelligence Report
+      # 8. التقرير النهائي (برمودا، أسلحة، صحة)
+      - name: 8. GIAS Intelligence Report
         run: |
           DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Final_Bermuda_Report.txt"
+          REPORT="$REPORT_DIR/Bermuda_Logic_Report.txt"
           
-          echo "=== GIAS V22 ANALYSIS SUCCESSFUL ===" > $REPORT
+          echo "=== GIAS V23 ANALYSIS SUCCESSFUL ===" > $REPORT
           KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position"
           
           if [ -f "$DUMP" ]; then
             grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1500 >> $REPORT
           else
-            echo "Logic dump failed! See dotnet logs." >> $REPORT
+            echo "Logic dump failed! Check dotnet output." >> $REPORT
           fi
 
-      # 8. الرفع كـ Release
-      - name: 8. Archive and Release
+      # 9. الرفع النهائي
+      - name: 9. Archive and Release
         run: |
-          zip -r GIAS_V22_Results.zip Results/ GIAS_Final_Output/
+          zip -r GIAS_V23_Results.zip Results/ GIAS_Final_Output/
           
-      - name: 9. Upload to Release
+      - name: 10. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V22"
-          files: GIAS_V22_Results.zip
+          name: "GIAS Bermuda Final V23"
+          files: GIAS_V23_Results.zip
