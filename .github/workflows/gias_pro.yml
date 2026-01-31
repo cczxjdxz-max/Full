@@ -11,11 +11,11 @@ jobs:
   everything_machine:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup (احضار الأدوات)
+      - name: 1. Setup (تجهيز الأدوات)
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-      - run: pip install numpy torch stable-baselines3[torch] gym pyelftools
+      - run: pip install numpy torch stable-baselines3[torch] gymnasium pyelftools
 
       - name: 2. Get Game (إحضار اللعبة)
         uses: dawidd6/action-download-artifact@v3
@@ -24,69 +24,73 @@ jobs:
           name: AI_Data_Ready_Lib
           path: ./training_env
 
-      - name: 3. The Magic Script (المدرب الذكي)
+      - name: 3. The Magic Script (المدرب الذكي المصحح)
         run: |
           cat << 'EOF' > train.py
-          import os, ctypes, numpy as np, gym
+          import os, ctypes, numpy as np
+          import gymnasium as gym
           from elftools.elf.elffile import ELFFile
           from stable_baselines3 import PPO
 
-          # --- وظيفة اكتشاف حواس اللاعب (الأسلحة، الجدران، الصحة) ---
           def find_game_logic(lib_path):
               found = {}
               targets = ['GetHealth', 'GetAmmo', 'GetGlooWalls', 'GetEnemyDist', 'DoAction']
-              with open(lib_path, 'rb') as f:
-                  elf = ELFFile(f)
-                  symtab = elf.get_section_by_name('.dynsym')
-                  for s in symtab.iter_symbols():
-                      for t in targets:
-                          if t in s.name: found[t] = s.name
+              try:
+                  with open(lib_path, 'rb') as f:
+                      elf = ELFFile(f)
+                      symtab = elf.get_section_by_name('.dynsym') or elf.get_section_by_name('.symtab')
+                      if symtab:
+                          for s in symtab.iter_symbols():
+                              for t in targets:
+                                  if t in s.name: found[t] = s.name
+              except: pass
               return found
 
           class ProPlayerEnv(gym.Env):
               def __init__(self, lib_p):
                   super().__init__()
+                  # تصحيح المسار تلقائياً إذا كان الملف داخل مجلد فرعي
+                  if not os.path.exists(lib_p):
+                      for root, dirs, files in os.walk('./training_env'):
+                          if 'libil2cpp.so' in files:
+                              lib_p = os.path.join(root, 'libil2cpp.so')
+                              break
+                  
+                  print(f"--- Loading Library from: {lib_p} ---")
                   self.lib = ctypes.CDLL(lib_p)
                   self.symbols = find_game_logic(lib_p)
                   
-                  # [صحة، ذخيرة، جدران جلو، مسافة العدو]
                   self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                  # [0:انتظار، 1:حركة، 2:إطلاق، 3:قفز، 4:بناء جدار]
                   self.action_space = gym.spaces.Discrete(5)
 
               def step(self, action):
-                  # إرسال الفعل للمحرك
-                  do_act = getattr(self.lib, self.symbols.get('DoAction', 'print'), lambda x: None)
-                  do_act(action)
-                  
-                  # قراءة البيانات (تخيل أن الروبوت يقرأ الأرقام بسرعة البرق)
+                  getattr(self.lib, self.symbols.get('DoAction', ''), lambda x: None)(action)
                   h = getattr(self.lib, self.symbols.get('GetHealth', ''), lambda: 100)() / 100.0
                   a = getattr(self.lib, self.symbols.get('GetAmmo', ''), lambda: 30)() / 30.0
                   g = getattr(self.lib, self.symbols.get('GetGlooWalls', ''), lambda: 3)() / 5.0
                   d = getattr(self.lib, self.symbols.get('GetEnemyDist', ''), lambda: 100)() / 500.0
                   
                   obs = np.array([h, a, g, d], dtype=np.float32)
-                  
-                  # --- قانون المكافأة (Reward) ---
-                  reward = 0.1 # مكافأة للبقاء
-                  if action == 4 and d < 0.2: reward += 2.0 # مكافأة ذكية: بناء جدار لما العدو يقرب
-                  if h <= 0: reward, done = -10.0, True
-                  else: done = False
-                  
-                  return obs, reward, done, {}
+                  reward = 0.1
+                  if action == 4 and d < 0.2: reward += 2.0
+                  terminated = h <= 0 or d <= 0 # تم تغيير done إلى terminated لتناسب gymnasium
+                  return obs, reward, terminated, False, {}
 
-              def reset(self): return np.array([1.0, 1.0, 0.6, 1.0], dtype=np.float32)
+              def reset(self, seed=None):
+                  super().reset(seed=seed)
+                  return np.array([1.0, 1.0, 0.6, 1.0], dtype=np.float32), {}
 
-          # تدريب "اللاعب المحترف"
-          env = ProPlayerEnv(os.path.abspath("./training_env/libil2cpp.so"))
+          # تشغيل المدرب
+          lib_path = "./training_env/libil2cpp.so"
+          env = ProPlayerEnv(lib_path)
           model = PPO("MlpPolicy", env, verbose=1)
-          print("--- التدريب بدأ.. الروبوت يتعلم الآن كيف يصبح أسطورة ---")
+          print("--- التدريب بدأ من جديد بشكل صحيح ---")
           model.learn(total_timesteps=30000)
           model.save("gias_pro_brain")
           EOF
           python3 train.py
 
-      - name: 4. Finish (تصدير العقل الذكي)
+      - name: 4. Finish (حفظ العقل)
         uses: actions/upload-artifact@v4
         with:
           name: PRO_AI_BRAIN
