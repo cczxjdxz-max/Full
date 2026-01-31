@@ -1,0 +1,93 @@
+name: GIAS-ULTIMATE-AUTO-GYM
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_run_id:
+        description: 'رقم تشغيل البيئة'
+        required: true
+
+jobs:
+  everything_machine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Setup (احضار الأدوات)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - run: pip install numpy torch stable-baselines3[torch] gym pyelftools
+
+      - name: 2. Get Game (إحضار اللعبة)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.inputs.environment_run_id }}
+          name: AI_Data_Ready_Lib
+          path: ./training_env
+
+      - name: 3. The Magic Script (المدرب الذكي)
+        run: |
+          cat << 'EOF' > train.py
+          import os, ctypes, numpy as np, gym
+          from elftools.elf.elffile import ELFFile
+          from stable_baselines3 import PPO
+
+          # --- وظيفة اكتشاف حواس اللاعب (الأسلحة، الجدران، الصحة) ---
+          def find_game_logic(lib_path):
+              found = {}
+              targets = ['GetHealth', 'GetAmmo', 'GetGlooWalls', 'GetEnemyDist', 'DoAction']
+              with open(lib_path, 'rb') as f:
+                  elf = ELFFile(f)
+                  symtab = elf.get_section_by_name('.dynsym')
+                  for s in symtab.iter_symbols():
+                      for t in targets:
+                          if t in s.name: found[t] = s.name
+              return found
+
+          class ProPlayerEnv(gym.Env):
+              def __init__(self, lib_p):
+                  super().__init__()
+                  self.lib = ctypes.CDLL(lib_p)
+                  self.symbols = find_game_logic(lib_p)
+                  
+                  # [صحة، ذخيرة، جدران جلو، مسافة العدو]
+                  self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
+                  # [0:انتظار، 1:حركة، 2:إطلاق، 3:قفز، 4:بناء جدار]
+                  self.action_space = gym.spaces.Discrete(5)
+
+              def step(self, action):
+                  # إرسال الفعل للمحرك
+                  do_act = getattr(self.lib, self.symbols.get('DoAction', 'print'), lambda x: None)
+                  do_act(action)
+                  
+                  # قراءة البيانات (تخيل أن الروبوت يقرأ الأرقام بسرعة البرق)
+                  h = getattr(self.lib, self.symbols.get('GetHealth', ''), lambda: 100)() / 100.0
+                  a = getattr(self.lib, self.symbols.get('GetAmmo', ''), lambda: 30)() / 30.0
+                  g = getattr(self.lib, self.symbols.get('GetGlooWalls', ''), lambda: 3)() / 5.0
+                  d = getattr(self.lib, self.symbols.get('GetEnemyDist', ''), lambda: 100)() / 500.0
+                  
+                  obs = np.array([h, a, g, d], dtype=np.float32)
+                  
+                  # --- قانون المكافأة (Reward) ---
+                  reward = 0.1 # مكافأة للبقاء
+                  if action == 4 and d < 0.2: reward += 2.0 # مكافأة ذكية: بناء جدار لما العدو يقرب
+                  if h <= 0: reward, done = -10.0, True
+                  else: done = False
+                  
+                  return obs, reward, done, {}
+
+              def reset(self): return np.array([1.0, 1.0, 0.6, 1.0], dtype=np.float32)
+
+          # تدريب "اللاعب المحترف"
+          env = ProPlayerEnv(os.path.abspath("./training_env/libil2cpp.so"))
+          model = PPO("MlpPolicy", env, verbose=1)
+          print("--- التدريب بدأ.. الروبوت يتعلم الآن كيف يصبح أسطورة ---")
+          model.learn(total_timesteps=30000)
+          model.save("gias_pro_brain")
+          EOF
+          python3 train.py
+
+      - name: 4. Finish (تصدير العقل الذكي)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRO_AI_BRAIN
+          path: gias_pro_brain.zip
