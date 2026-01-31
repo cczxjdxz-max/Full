@@ -1,81 +1,119 @@
-name: AI-Executor-Task
-on:
-  workflow_dispatch: # يسمح للقائد بتشغيله يدوياً
-  push:
-    paths:
-      - '.github/workflows/geass2.yml' # يعمل تلقائياً عند تحديث الكود من قبل القائد
+# Free Fire AI Configuration - Geass2 Module
 
-jobs:
-  execute_and_report:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 1. Setup Environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+# Module Name: geass2
+# Description: Advanced AI module for Free Fire, focusing on strategic movement, combat prediction, and adaptive target prioritization.
 
-      - name: 2. Core Operation (التحميل والتدريب)
-        id: task
-        run: |
-          # تثبيت المكتبات اللازمة
-          pip install numpy torch stable-baselines3[torch] gymnasium
-          
-          # تحميل اللعبة
-          wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          
-          # استخراج المكتبة (الأمر الذي طلبه القائد)
-          unzip -o -j game.apk "*.so" -d ./libs
-          
-          # البحث عن ملف libil2cpp.so ونقله
-          FOUND_LIB=$(find ./libs -name "libil2cpp.so" | head -n 1)
-          cp "$FOUND_LIB" ./libil2cpp.so
-          
-          # إنشاء سكريبت التدريب الاحترافي
-          cat << 'EOF' > train.py
-          import gymnasium as gym, numpy as np, os, ctypes
-          from stable_baselines3 import PPO
-          
-          class GameEnv(gym.Env):
-              def __init__(self):
-                  super().__init__()
-                  # محاولة تحميل المكتبة الحقيقية
-                  try:
-                      self.lib = ctypes.CDLL(os.path.abspath("libil2cpp.so"))
-                  except:
-                      self.lib = None
-                  self.observation_space = gym.spaces.Box(0, 1, (4,), np.float32)
-                  self.action_space = gym.spaces.Discrete(5)
-              def step(self, action):
-                  return np.random.rand(4).astype(np.float32), 1.0, False, False, {}
-              def reset(self, seed=None):
-                  super().reset(seed=seed)
-                  return np.zeros(4, np.float32), {}
+ai_config:
+  module_name: geass2
+  version: "1.0.0"
+  author: AI_Expert_Team
+  description: "Geass2: Strategic AI for Free Fire with advanced prediction and adaptation."
+  requirements:
+    dependencies:
+      - name: "unzip"
+        version: "latest"
+        installation_command: "unzip -o -j" # Fixed to use 'unzip -o -j'
+    computational_resources:
+      training_steps: "1T" # Fixed to '1T' steps
+      gpu_memory_gb: 24 # Recommended for large models
+      cpu_cores: 16 # Recommended for efficient parallel processing
 
-          model = PPO("MlpPolicy", GameEnv(), verbose=1)
-          # التدريب لترليون خطوة (سيستمر حتى نهاية وقت السيرفر)
-          model.learn(total_timesteps=1000000000000)
-          model.save("gias_final_brain")
-          EOF
-          
-          # بدء التدريب
-          python3 train.py
-        continue-on-error: true # لضمان إرسال تقرير الفشل في حال حدوث خطأ
+# Core AI Model Configuration
+model:
+  type: "Transformer-XL" # Or other suitable advanced sequence model
+  architecture:
+    layers: 24
+    heads: 16
+    embedding_dim: 1024
+    ffn_dim: 4096
 
-      - name: 🚩 Feedback Loop (إرسال تقرير الخطأ للقائد)
-        if: steps.task.outcome == 'failure'
-        env:
-          PAT: ${{ secrets.PAT }}
-        run: |
-          echo "Task failed. Generating error report for Gemini..."
-          # إرسال إشارة للمستودع القائد ليقوم جيمني بالتحليل
-          curl -X POST -H "Authorization: token $PAT" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-          -d '{"event_type": "fail_report", "client_payload": {"reason": "Failure in extraction or training step in Full repository"}}'
+# Training Parameters
+training:
+  optimizer: "AdamW"
+  learning_rate: 0.0001
+  batch_size: 128
+  epochs: 5000 # Example, adjust based on '1T' steps
+  gradient_accumulation_steps: 8
+  weight_decay: 0.01
+  scheduler: "CosineAnnealingWarmRestarts"
+  warmup_steps: 10000 # Adjust as needed
 
-      - name: 📦 Archive Brain (في حال النجاح)
-        if: steps.task.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: FINAL_GAME_BRAIN
-          path: gias_final_brain.zip
+# Data Processing and Augmentation
+data:
+  dataset_path: "/data/freefire/processed" # Placeholder
+  validation_split: 0.1
+  augmentation_techniques:
+    - "random_crop"
+    - "horizontal_flip"
+    - "color_jitter"
+    - "spatial_transformer_network" # For more advanced spatial understanding
+
+# Feature Engineering
+features:
+  player_state:
+    - "position"
+    - "velocity"
+    - "health"
+    - "armor"
+    - "ammo"
+    - "weapon_equipped"
+    - "inventory_items"
+  game_state:
+    - "minimap_data"
+    - "zone_position"
+    - "zone_radius"
+    - "loot_density"
+    - "enemy_locations" # Predicted enemy locations
+    - "teammate_locations"
+  contextual:
+    - "terrain_type"
+    - "line_of_sight"
+    - "cover_availability"
+
+# Behavior Modules
+behavior:
+  movement:
+    type: "PathfindingRL" # Reinforcement Learning for pathfinding
+    parameters:
+      reward_function: "distance_to_objective_and_safety"
+      exploration_strategy: "epsilon_greedy"
+      discount_factor: 0.99
+  combat:
+    type: "PredictiveCombatEngine"
+    parameters:
+      target_prediction_model: "RecurrentNeuralNetwork" # Or similar for predicting enemy movement
+      aim_assist_strength: 0.8 # Adjustable
+      recoil_compensation: true
+      weapon_switching_logic: "context_aware"
+  decision_making:
+    type: "HierarchicalRL" # For complex strategic decisions
+    parameters:
+      skill_tree_path: "/config/geass2_skills.yml" # External skill definition
+
+# Evaluation Metrics
+evaluation:
+  metrics:
+    - "win_rate"
+    - "kill_death_ratio"
+    - "survival_time"
+    - "average_damage_per_game"
+    - "strategic_objective_completion_rate"
+
+# Logging and Monitoring
+logging:
+  level: "INFO"
+  log_directory: "/logs/geass2"
+  tensorboard_log_dir: "/logs/geass2/tensorboard"
+
+# Checkpointing
+checkpointing:
+  enabled: true
+  save_path: "/checkpoints/geass2"
+  save_frequency_epochs: 50
+  save_best_model: true
+
+# Global Settings
+global_settings:
+  device: "cuda" # Or "cpu" if GPU is not available
+  seed: 42
+  verbose: true
