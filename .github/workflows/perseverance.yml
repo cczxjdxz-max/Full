@@ -1,4 +1,4 @@
-name: GIAS PRO WORKFLOW (V-Pro-Fallback - More Robust)
+name: GIAS PRO WORKFLOW (V-Pro - Separate Files Release)
 
 on:
   workflow_dispatch:
@@ -10,33 +10,30 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز البيئة
-      - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq
+      # 1. تجهيز البيئة وتنصيب .NET و Git
+      - name: 1. Setup Environment & .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x' # يمكنك استخدام '6.0.x' أو '7.0.x' إذا كان المشروع يتطلب ذلك
 
-      # 2. تنزيل Il2CppDumper (مع خطة بديلة)
-      - name: 2. Download Il2CppDumper (with Fallback)
+      - name: Install Tools
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq git
+
+      # 2. بناء Il2CppDumper من الكود المصدري مباشرة
+      - name: 2. Build Il2CppDumper from Source
         run: |
-          echo "--- Attempting to fetch the latest Il2CppDumper URL via API... ---"
-          LATEST_URL=$(curl -s https://api.github.com/repos/Perfare/Il2CppDumper/releases/latest | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
-          
-          # التحقق مما إذا كان الرابط صالحًا
-          if [[ -z "$LATEST_URL" || ! "$LATEST_URL" == https* ]]; then
-            echo "::warning::Failed to fetch latest URL via API. Using a reliable fallback static URL."
-            # استخدام رابط ثابت لإصدار معروف ومستقر كخطة بديلة
-            LATEST_URL="https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-linux-x64.zip"
-          fi
-          
-          echo "--- Downloading from URL: $LATEST_URL ---"
-          wget "$LATEST_URL" -O il2cppdumper.zip
-          
-          unzip il2cppdumper.zip -d Il2CppDumper
-          chmod +x ./Il2CppDumper/Il2CppDumper
+          # استخدام --depth=1 لتنزيل أسرع
+          git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
+          # بناء نسخة مخصصة لنظام لينكس
+          dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
+          # نقل الملف الناتج لمجلد العمل الرئيسي
+          cp bin/Release/net*/linux-x64/publish/Il2CppDumper ../Il2CppDumper
+          cd ..
+          chmod +x ./Il2CppDumper
 
-      # (بقية الخطوات تبقى كما هي تمامًا)
-
-      # 3. تحميل واستخراج ملفات المنطق
-      - name: 3. Download and Extract Logic Files
+      # 3. تحميل واستخراج ملفات اللعبة
+      - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           mkdir temp_extract
@@ -46,43 +43,46 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل Il2CppDumper للحصول على العناوين الحقيقية
-      - name: 4. Run Il2CppDumper for Real Addresses
+      # 4. تشغيل الأداة (التي صنعناها في الخطوة 2)
+      - name: 4. Run Il2CppDumper
         run: |
-          printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
+          # تمرير ضغطات Enter تلقائياً لتجاوز أي طلبات تفاعلية
+          printf "\n\n" | ./Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
 
-      # 5. إنشاء تقرير استخباراتي منظم ومتقدم
-      - name: 5. Generate Advanced Intelligence Report
+      # 5. توليد التقرير الاستخباراتي المتقدم
+      - name: 5. Generate Advanced Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
           REPORT_FILE="Advanced_Network_Report.txt"
+          
           echo "=== GIAS ADVANCED NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
           echo "Date: $(date)" >> $REPORT_FILE
-          grep -E -i "Socket|Connect|Host|Port|Address|wss://|https://|udp://" $DUMP_FILE | grep "// RVA:" > $REPORT_FILE
-          grep -E -i "Login|Auth|Token|User|Password|Session" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
-          grep -E -i "AES|RSA|Encrypt|Decrypt|Cipher|Key|IV" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
-          grep -i "Photon" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
+          echo "Objective: Identify function addresses (RVA) for network operations." >> $REPORT_FILE
+          
+          # استخدام || true لضمان عدم فشل الخطوة إذا لم يجد grep أي تطابق
+          echo -e "\n\n[1] CONNECTION & PROTOCOL METHODS" >> $REPORT_FILE
+          echo "===================================" >> $REPORT_FILE
+          grep -E -i "Socket|Connect|Host|Port|Address|wss://|https://|udp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
 
-      # 6. تجهيز الملفات النهائية للرفع
-      - name: 6. Prepare Release Files
-        run: |
-          mkdir -p Final_Intel
-          mv Advanced_Network_Report.txt Final_Intel/
-          cp ./Analysis_Output/script.json Final_Intel/
-          zip -r GIAS_Pro_Intel.zip Final_Intel/
+          echo -e "\n\n[2] AUTHENTICATION & LOGIN METHODS" >> $REPORT_FILE
+          echo "====================================" >> $REPORT_FILE
+          grep -E -i "Login|Auth|Token|User|Password|Session" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
 
-      # 7. إنشاء Release
-      - name: 7. Create GitHub Release
+          echo -e "\n\n[3] ENCRYPTION & DECRYPTION METHODS" >> $REPORT_FILE
+          echo "=====================================" >> $REPORT_FILE
+          grep -E -i "AES|RSA|Encrypt|Decrypt|Cipher|Key|IV" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
+          
+      # 6. إنشاء Release ورفع الملفات بشكل منفصل
+      - name: 6. Create Release with Separate Files
         uses: softprops/action-gh-release@v2
         with:
           tag_name: pro-intel-v${{ github.run_number }}
           name: "GIAS Pro Network Intel v${{ github.run_number }}"
-          files: GIAS_Pro_Intel.zip
-
-      # 8. رفع الملفات الضخمة كـ Artifact
-      - name: 8. Upload Large Files as Temporary Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: large-binary-files
-          path: libil2cpp.so
-          retention-days: 7
+          body: |
+            تم إنشاء تقرير استخباراتي متقدم. يمكنك تنزيل كل ملف على حدة.
+            - **Advanced_Network_Report.txt**: قائمة الأهداف (دوال الشبكة وعناوينها).
+            - **script.json**: خريطة العناوين الكاملة لاستيرادها في Ghidra/IDA.
+          # رفع كل ملف بشكل منفصل بدلاً من ضغطها
+          files: |
+            Advanced_Network_Report.txt
+            ./Analysis_Output/script.json
