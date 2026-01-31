@@ -1,4 +1,4 @@
-name: GIAS V20 - The Final Solution
+name: GIAS V21 - The Official GitHub CLI Way
 
 on:
   workflow_dispatch:
@@ -12,9 +12,9 @@ jobs:
     steps:
       # 1. تجهيز النظام
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
 
-      # 2. تثبيت .NET باستخدام الأكشن الرسمي (أضمن طريقة)
+      # 2. تثبيت .NET الرسمي
       - name: 2. Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
@@ -25,11 +25,13 @@ jobs:
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      # 4. تحميل Il2CppDumper (إصدار الـ DLL العابر للمنصات)
-      - name: 4. Download Dumper
+      # 4. تحميل الأداة باستخدام GitHub CLI (هذا سيحل مشكلة الـ 9 بايت)
+      - name: 4. Download Dumper via GH CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # تحميل النسخة التي تعمل كـ DLL لأنها الأكثر استقراراً في الروابط
-          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-net6-v6.7.48.zip" -o dumper.zip
+          echo "--- Downloading Dumper using Official CLI ---"
+          gh release download v6.7.48 -R Perfare/Il2CppDumper -p "*net6*" -O dumper.zip
           unzip -o dumper.zip -d DumperTool
 
       # 5. استخراج ملفات اللعبة
@@ -38,7 +40,6 @@ jobs:
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث عن الملفات المطلوبة
           LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
           [ -z "$LIB_PATH" ] && LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1)
           
@@ -47,42 +48,41 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 6. تشغيل المحرك (باستخدام dotnet)
+      # 6. تشغيل المحرك
       - name: 6. Run Analysis
         run: |
           mkdir -p Results
-          # تشغيل الأداة مع تمرير المسارات والضغط على Enter تلقائياً
+          # تشغيل وتمرير الأوامر تلقائياً
           dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results <<EOF
           
           
           EOF
 
-      # 7. محرك البحث الذكي (برمودا والمنطق)
-      - name: 7. GIAS Intelligence Report
+      # 7. التقرير الذكي
+      - name: 7. GIAS Final Report
         run: |
           DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Final_Bermuda_Report.txt"
+          REPORT="$REPORT_DIR/Bermuda_Logic_Report.txt"
           
-          echo "=== GIAS V20 SEARCH RESULTS ===" > $REPORT
-          # بحث مكثف عن كل ما يخص الصحة، السلاح، والخريطة
-          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position|Static_Map"
+          echo "=== GIAS V21 REPORT ===" > $REPORT
+          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position"
           
           if [ -f "$DUMP" ]; then
-            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1500 >> $REPORT
+            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1000 >> $REPORT
           else
-            echo "Error: Logic dump failed! Check dotnet output." >> $REPORT
+            echo "Logic dump failed! Check dotnet output." >> $REPORT
           fi
 
       # 8. الرفع كـ Release
       - name: 8. Archive and Release
         run: |
-          zip -r GIAS_V20_Results.zip Results/ GIAS_Final_Output/
+          zip -r GIAS_V21_Results.zip Results/ GIAS_Final_Output/
           
       - name: 9. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V20"
-          files: GIAS_V20_Results.zip
+          name: "GIAS Bermuda Final V21"
+          files: GIAS_V21_Results.zip
