@@ -10,7 +10,7 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز بيئة .NET 8.0 المستقرة لعام 2026
+      # 1. تجهيز بيئة .NET 8.0
       - name: 1. Setup Environment & .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -21,41 +21,43 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y unzip wget zip p7zip-full jq
 
-      # 2. بناء الأداة باستخدام المسار المباشر للمشروع (حل مشكلة المسارات المتداخلة)
+      # 2. بناء الأداة ونسخ ملف config.json الضروري
       - name: 2. Build Il2CppDumper from Source
         run: |
           git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
           
-          # بناء المشروع مباشرة من خلال الإشارة لملف .csproj
+          # بناء المشروع
           dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true
           
-          # نسخ الملف التنفيذي للمجلد الرئيسي بناءً على مسار السجلات (Logs)
+          # نسخ الملف التنفيذي
           cp Il2CppDumper/Il2CppDumper/bin/Release/net8.0/linux-x64/publish/Il2CppDumper ./Il2CppDumper_Executable
           
+          # نسخ ملف config.json الأصلي من المجلد المصدري للمجلد الرئيسي
+          cp Il2CppDumper/Il2CppDumper/config.json ./config.json || echo "{}" > config.json
+          
           chmod +x ./Il2CppDumper_Executable
-          echo "Success! Executable created at ./Il2CppDumper_Executable"
+          echo "Success! Executable and Config are ready."
 
-      # 3. جلب ملفات اللعبة (Free Fire) وتحضيرها للتحليل
+      # 3. جلب ملفات اللعبة (Free Fire)
       - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           mkdir -p temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث الديناميكي عن المكتبات لضمان التوافق مع تحديثات اللعبة
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل عملية الـ Dumping (الاستخراج)
+      # 4. تشغيل عملية الـ Dumping
       - name: 4. Run Il2CppDumper
         run: |
-          # تمرير ضغطات Enter آلياً لتجاوز أسئلة الأداة
+          # الآن الأداة ستجد ملف config.json في نفس المسار ولن تنهار
           printf "\n\n" | ./Il2CppDumper_Executable libil2cpp.so global-metadata.dat ./Analysis_Output
 
-      # 5. تحليل ملف الـ Dump وتوليد تقرير استخبارات الشبكة
+      # 5. تحليل استخبارات الشبكة وتوليد التقرير
       - name: 5. Generate Network Intelligence Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
@@ -74,7 +76,7 @@ jobs:
           echo -e "\n[#] SECURITY & ENCRYPTION METHODS:" >> $REPORT_FILE
           grep -E -i "SSL|TLS|AES|RSA|Encrypt|Decrypt" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
 
-      # 6. رفع النتائج كـ Release للتحميل المباشر
+      # 6. رفع النتائج كـ Release
       - name: 6. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
