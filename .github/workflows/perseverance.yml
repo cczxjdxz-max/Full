@@ -1,4 +1,4 @@
-name: GIAS V23 - No More Links
+name: GIAS V24 - The Nuclear Build Solution
 
 on:
   workflow_dispatch:
@@ -10,37 +10,36 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز النظام
+      # 1. تجهيز النظام والاعتمادات
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
 
-      # 2. تثبيت .NET الرسمي
-      - name: 2. Setup .NET Core
+      # 2. تثبيت .NET (نحتاج إصدار 6 و 8 لضمان البناء)
+      - name: 2. Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: |
+            6.0.x
+            8.0.x
 
-      # 3. تحميل اللعبة
-      - name: 3. Download Game
+      # 3. تحميل السورس كود وبناء الأداة (بدلاً من التحميل)
+      - name: 3. Clone and Build Il2CppDumper
+        run: |
+          git clone https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
+          dotnet build -c Release -f net6.0
+          cd ..
+          # نقل الملفات الناتجة لمجلد الأداة
+          mkdir -p DumperTool
+          cp -r Il2CppDumper/Il2CppDumper/bin/Release/net6.0/* DumperTool/
+
+      # 4. تحميل اللعبة
+      - name: 4. Download Game
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      # 4. تحميل الأداة عبر "الإجراء الرسمي" للـ Actions (حل مشكلة الـ 9 بايت)
-      - name: 4. Get Il2CppDumper via Reliable Action
-        uses: dsaltares/fetch-gh-release-asset@master
-        with:
-          repo: 'Perfare/Il2CppDumper'
-          version: 'latest'
-          file: 'Il2CppDumper-net6-v6.7.48.zip' # استهداف الملف بدقة
-          target: 'dumper.zip'
-          token: ${{ github.token }}
-
-      - name: 5. Unzip Tool
-        run: |
-          unzip -o dumper.zip -d DumperTool
-
-      # 6. استخراج ملفات اللعبة
-      - name: 6. Extract Game Files
+      # 5. استخراج ملفات اللعبة
+      - name: 5. Extract Game Files
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
@@ -53,41 +52,42 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 7. تشغيل المحرك (باستخدام dotnet)
-      - name: 7. Run Analysis
+      # 6. تشغيل المحرك
+      - name: 6. Run Analysis
         run: |
           mkdir -p Results
-          # محاكاة الضغط على Enter لتجاوز الأسئلة
+          # تشغيل النسخة التي بنيناها للتو
           dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results <<EOF
           
           
           EOF
 
-      # 8. التقرير النهائي (برمودا، أسلحة، صحة)
-      - name: 8. GIAS Intelligence Report
+      # 7. التقرير النهائي (برمودا، أسلحة، صحة)
+      - name: 7. GIAS Intelligence Report
         run: |
           DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
           REPORT="$REPORT_DIR/Bermuda_Logic_Report.txt"
           
-          echo "=== GIAS V23 ANALYSIS SUCCESSFUL ===" > $REPORT
+          echo "=== GIAS V24 ANALYSIS SUCCESSFUL ===" > $REPORT
+          # بحث شامل عن العناوين المطلوبة
           KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position"
           
           if [ -f "$DUMP" ]; then
-            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1500 >> $REPORT
+            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 2000 >> $REPORT
           else
-            echo "Logic dump failed! Check dotnet output." >> $REPORT
+            echo "Logic dump failed! Check dotnet build output." >> $REPORT
           fi
 
-      # 9. الرفع النهائي
-      - name: 9. Archive and Release
+      # 8. الرفع كـ Release
+      - name: 8. Archive and Release
         run: |
-          zip -r GIAS_V23_Results.zip Results/ GIAS_Final_Output/
+          zip -r GIAS_V24_Results.zip Results/ GIAS_Final_Output/
           
-      - name: 10. Upload to Release
+      - name: 9. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V23"
-          files: GIAS_V23_Results.zip
+          name: "GIAS Bermuda Nuclear V24"
+          files: GIAS_V24_Results.zip
