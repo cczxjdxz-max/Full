@@ -1,4 +1,4 @@
-name: GIAS V27 - Force Build & Clean Scan
+name: GIAS V29 - Ultimate Raw Binary Hunter
 
 on:
   workflow_dispatch:
@@ -10,76 +10,62 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز البيئة
+      # 1. تجهيز بيئة العمل بأدوات Linux الأساسية
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full git
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full binutils grep
 
-      # 2. تثبيت .NET SDK
-      - name: 2. Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '6.0.x'
-
-      # 3. بناء Il2CppDumper من السورس (بدون Submodules معقدة)
-      - name: 3. Build Il2CppDumper from Source
+      # 2. تحميل ملف اللعبة (APK)
+      - name: 2. Download Game
         run: |
-          git clone https://github.com/Perfare/Il2CppDumper.git
-          cd Il2CppDumper
-          dotnet build -c Release
-          cd ..
-          mkdir -p DumperTool
-          cp -r Il2CppDumper/Il2CppDumper/bin/Release/net6.0/* DumperTool/
-
-      # 4. تحميل واستخراج اللعبة
-      - name: 4. Process Game APK
-        run: |
+          echo "--- Downloading Free Fire APK ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
+
+      # 3. استخراج ملف المنطق الأساسي (libil2cpp.so)
+      - name: 3. Extract Game Logic
+        run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
-          
-          # البحث عن ملفات libil2cpp و metadata
-          LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64" | head -n 1)
-          META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
-          
+          # البحث عن نسخة ARM64 لأنها الأكثر دقة في العناوين
+          LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
+          if [ -z "$LIB_PATH" ]; then LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1); fi
           cp "$LIB_PATH" ./libil2cpp.so
-          cp "$META_PATH" ./global-metadata.dat
+          echo "Logic file extracted successfully."
 
-      # 5. تشغيل المحرك (مع تجاوز خطأ Metadata المحمية)
-      - name: 5. Run Dumper with Force Logic
+      # 4. محرك استخراج العناوين (Raw Hex Offset Scanner)
+      - name: 4. Execute GIAS Raw Scanner
         run: |
-          mkdir -p Results
-          # استخدام "Script" لتمرير الأوامر وتجنب توقف البرنامج عند طلب مفتاح
-          echo -e "\n\n" > inputs.txt
-          dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results < inputs.txt || echo "Dumper finished with potential encryption warnings"
-
-      # 6. البحث الاستخباراتي الشامل
-      - name: 6. GIAS Deep Scan (Bermuda & Weapons)
-        run: |
-          DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Bermuda_Intelligence.txt"
+          REPORT="$REPORT_DIR/Bermuda_Raw_Offsets.txt"
           
-          echo "=== GIAS V27 FINAL INTELLIGENCE ===" > $REPORT
-          # الكلمات المفتاحية الدقيقة لخريطة برمودا والمنطق الأساسي
-          KEYWORDS="Health|Damage|Jump|Speed|Bermuda|Vector3|Position|Get_Transform|Static_Field"
-          
-          if [ -f "$DUMP" ]; then
-            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 2000 >> $REPORT
-          else
-             echo "Critical: Metadata is likely encrypted. Alternative scan needed." >> $REPORT
-             # محاولة البحث عن نصوص خام داخل ملف الـ SO نفسه كحل أخير
-             strings libil2cpp.so | grep -E "Bermuda|Health" | head -n 100 >> $REPORT
-          fi
+          echo "=== GIAS V29 RAW BINARY INTELLIGENCE ===" > $REPORT
+          echo "Target: libil2cpp.so (ARM64)" >> $REPORT
+          echo "Extraction Date: $(date)" >> $REPORT
+          echo "----------------------------------------" >> $REPORT
 
-      # 7. التعبئة والرفع
-      - name: 7. Archive and Release
+          # البحث عن الرموز البرمجية (Symbols)
+          echo -e "\n[!] Potential Logic Offsets (Method Names):" >> $REPORT
+          nm -D libil2cpp.so | grep -E "Health|Damage|Jump|Speed|Bermuda|Weapon|Recoil|Aim" >> $REPORT || echo "No public symbols found (Obfuscated)" >> $REPORT
+
+          # البحث عن العناوين الست عشرية (Hex Offsets) للنصوص الهامة
+          echo -e "\n[!] Direct Hex Offsets for Map & Logic:" >> $REPORT
+          # 'strings -t x' يعطيك العنوان بالـ Hex بجانب الكلمة المكتشفة
+          strings -t x libil2cpp.so | grep -E -i "Bermuda|Island|Map_101|Vector3|GetPosition|SetJump|MoveSpeed" | head -n 1000 >> $REPORT
+
+      # 5. ضغط النتائج وتجهيزها للرفع
+      - name: 5. Archive Results
         run: |
-          zip -r GIAS_V27_Final.zip Results/ GIAS_Final_Output/
-          
-      - name: 8. Create Release
+          # سنرفع التقرير وملف الـ SO لكي تستخدمه في البحث اليدوي إذا أردت
+          zip -r GIAS_V29_Final_Results.zip GIAS_Final_Output/ libil2cpp.so
+
+      # 6. إنشاء Release ورفع الملفات
+      - name: 6. Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V27"
-          files: GIAS_V27_Final.zip
+          name: "GIAS Bermuda Final V29"
+          body: |
+            تم استخراج العناوين بنجاح!
+            افتح ملف 'Bermuda_Raw_Offsets.txt' لرؤية الـ Offsets.
+            الرقم الموجود بجانب الكلمة هو عنوان الـ Hex الذي تضعه في Game Guardian.
+          files: GIAS_V29_Final_Results.zip
