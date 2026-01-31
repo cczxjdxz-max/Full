@@ -1,4 +1,4 @@
-name: GIAS V19 - Final Fix
+name: GIAS V20 - The Final Solution
 
 on:
   workflow_dispatch:
@@ -10,30 +10,35 @@ jobs:
       contents: write
 
     steps:
+      # 1. تجهيز النظام
       - name: 1. Setup Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
 
-      - name: 2. Download Game
+      # 2. تثبيت .NET باستخدام الأكشن الرسمي (أضمن طريقة)
+      - name: 2. Setup .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      # 3. تحميل اللعبة
+      - name: 3. Download Game
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      - name: 3. Download Il2CppDumper (Confirmed Link)
+      # 4. تحميل Il2CppDumper (إصدار الـ DLL العابر للمنصات)
+      - name: 4. Download Dumper
         run: |
-          echo "--- Downloading Dumper from Mirror ---"
-          # استخدام رابط مباشر من موقع خارجي موثوق أو رابط GitHub الثابت الجديد
+          # تحميل النسخة التي تعمل كـ DLL لأنها الأكثر استقراراً في الروابط
           curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-net6-v6.7.48.zip" -o dumper.zip
-          
-          # تثبيت الـ .NET Runtime لتشغيل النسخة الحديثة والأكثر استقراراً
-          sudo apt-get install -y dotnet-sdk-6.0
-          
-          unzip dumper.zip -d Il2CppDumper
-          # لا نحتاج chmod هنا لأننا سنشغلها عبر dotnet
+          unzip -o dumper.zip -d DumperTool
 
-      - name: 4. Extraction
+      # 5. استخراج ملفات اللعبة
+      - name: 5. Extract Game Files
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
+          # البحث عن الملفات المطلوبة
           LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
           [ -z "$LIB_PATH" ] && LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1)
           
@@ -42,35 +47,42 @@ jobs:
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      - name: 5. Execute Analysis (dotnet version)
+      # 6. تشغيل المحرك (باستخدام dotnet)
+      - name: 6. Run Analysis
         run: |
-          # تشغيل النسخة الحديثة عبر محرك dotnet لضمان التوافق
           mkdir -p Results
-          printf "\n\n" | dotnet ./Il2CppDumper/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results
+          # تشغيل الأداة مع تمرير المسارات والضغط على Enter تلقائياً
+          dotnet ./DumperTool/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results <<EOF
+          
+          
+          EOF
 
-      - name: 6. GIAS Search Report
+      # 7. محرك البحث الذكي (برمودا والمنطق)
+      - name: 7. GIAS Intelligence Report
         run: |
           DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Bermuda_Logic_Report.txt"
+          REPORT="$REPORT_DIR/Final_Bermuda_Report.txt"
           
-          echo "=== GIAS V19 SEARCH RESULTS ===" > $REPORT
-          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position"
+          echo "=== GIAS V20 SEARCH RESULTS ===" > $REPORT
+          # بحث مكثف عن كل ما يخص الصحة، السلاح، والخريطة
+          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position|Static_Map"
           
           if [ -f "$DUMP" ]; then
-            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1000 >> $REPORT
+            grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1500 >> $REPORT
           else
-            echo "Error: Logic dump failed!" >> $REPORT
+            echo "Error: Logic dump failed! Check dotnet output." >> $REPORT
           fi
 
-      - name: 7. Archive & Release
+      # 8. الرفع كـ Release
+      - name: 8. Archive and Release
         run: |
-          zip -r Final_Results.zip Results/ GIAS_Final_Output/
+          zip -r GIAS_V20_Results.zip Results/ GIAS_Final_Output/
           
-      - name: 8. Upload Release
+      - name: 9. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final v${{ github.run_number }}"
-          files: Final_Results.zip
+          name: "GIAS Bermuda Final V20"
+          files: GIAS_V20_Results.zip
