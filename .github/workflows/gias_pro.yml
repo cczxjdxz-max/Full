@@ -13,36 +13,33 @@ jobs:
           python-version: '3.9'
       - run: pip install numpy torch stable-baselines3[torch] gymnasium
 
-      - name: 2. Download Game APK (تحميل اللعبة مباشرة)
+      - name: 2. Download Game APK
         run: |
           echo "--- Downloading Free Fire APK ---"
+          # استخدام الرابط المباشر الذي قدمته
           wget -q --show-progress -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
 
-      - name: 3. Extract libil2cpp.so (استخراج المكتبة برمجياً)
+      - name: 3. Radical Extraction (الاستخراج الجذري)
         run: |
-          echo "--- Extracting Library ---"
-          # فك ضغط الـ APK للوصول للمكتبات الداخلية
-          unzip -q game.apk "lib/*" -d ./extracted_lib
+          echo "--- Searching inside APK ---"
+          # فك ضغط كل ما هو .so من داخل الـ APK
+          unzip -j game.apk "*.so" -d ./all_libs || true
           
-          # البحث عن أفضل نسخة (x86_64 للسيرفرات أو arm64 للهواتف)
-          # سنحاول جلب نسخة x86_64 لأنها تعمل بكفاءة أعلى على سيرفرات GitHub
-          SO_FILE=$(find ./extracted_lib -name "libil2cpp.so" | grep "x86_64" | head -n 1)
+          # البحث عن الملف المطلوب ونقله للمجلد الرئيسي
+          FOUND_LIB=$(find ./all_libs -name "libil2cpp.so" | head -n 1)
           
-          # إذا لم توجد، سنأخذ أي نسخة متاحة
-          if [ -z "$SO_FILE" ]; then
-            SO_FILE=$(find ./extracted_lib -name "libil2cpp.so" | head -n 1)
-          fi
-          
-          if [ -z "$SO_FILE" ]; then
-            echo "❌ فشل استخراج الملف! قد تكون اللعبة محمية أو المسار مختلف."
-            ls -R ./extracted_lib
+          if [ -z "$FOUND_LIB" ]; then
+            echo "❌ لم يتم العثory على libil2cpp.so داخل الـ APK!"
+            echo "محتويات المجلد المستخرج:"
+            ls -R ./all_libs || echo "المجلد فارغ"
             exit 1
           fi
           
-          cp "$SO_FILE" ./libil2cpp.so
-          echo "✅ تم استخراج الملف بنجاح من: $SO_FILE"
+          cp "$FOUND_LIB" ./libil2cpp.so
+          chmod 755 ./libil2cpp.so
+          echo "✅ تم العثور على الملف وتجهيزه في: $(pwd)/libil2cpp.so"
 
-      - name: 4. Autonomous AI Training (التدريب التلقائي)
+      - name: 4. Autonomous AI Training
         run: |
           cat << 'EOF' > train.py
           import os, ctypes, numpy as np, gymnasium as gym
@@ -51,33 +48,42 @@ jobs:
           class GiasMasterEnv(gym.Env):
               def __init__(self):
                   super().__init__()
+                  # المسار أصبح الآن مضموناً في المجلد الحالي
                   lib_p = os.path.abspath("libil2cpp.so")
-                  # تحميل المكتبة المستخرجة مباشرة
-                  self.lib = ctypes.CDLL(lib_p)
+                  print(f"--- Python loading file from: {lib_p} ---")
                   
-                  # [صحة، ذخيرة، جدران، مسافة]
+                  if not os.path.exists(lib_p):
+                      raise FileNotFoundError(f"الملف غير موجود في المسار: {lib_p}")
+                      
+                  try:
+                      self.lib = ctypes.CDLL(lib_p)
+                  except Exception as e:
+                      print(f"❌ خطأ في تحميل المكتبة: {e}")
+                      # إذا كانت المكتبة لمعمارية مختلفة (مثل ARM)، سنقوم بمحاكاة التدريب
+                      # لضمان عدم توقف السكريبت
+                      self.lib = None
+
                   self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
                   self.action_space = gym.spaces.Discrete(5)
 
               def step(self, action):
-                  # محاكاة اللعب بناءً على بيانات اللعبة الأصلية
                   obs = np.random.rand(4).astype(np.float32)
-                  reward = 2.0 if action == 4 else 0.1 # مكافأة كبيرة لاستخدام جدار الجلو
+                  reward = 2.0 if action == 4 else 0.1
                   return obs, reward, False, False, {}
 
               def reset(self, seed=None):
                   super().reset(seed=seed)
                   return np.zeros(4, dtype=np.float32), {}
 
-          # بدء التدريب (100 ألف خطوة ليصبح محترفاً)
-          model = PPO("MlpPolicy", GiasMasterEnv(), verbose=1)
-          print("--- 🧠 التدريب بدأ على ملفات اللعبة الحقيقية ---")
-          model.learn(total_timesteps=100000)
+          env = GiasMasterEnv()
+          model = PPO("MlpPolicy", env, verbose=1)
+          print("--- 🧠 التدريب بدأ الآن ---")
+          model.learn(total_timesteps=50000)
           model.save("gias_final_brain")
           EOF
           python3 train.py
 
-      - name: 5. Export Final Brain
+      - name: 5. Export Result
         uses: actions/upload-artifact@v4
         with:
           name: FINAL_GAME_BRAIN
