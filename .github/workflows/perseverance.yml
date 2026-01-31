@@ -1,4 +1,4 @@
-name: GIAS V16 - Final Stable Engine
+name: GIAS V17 - Force Final Solution
 
 on:
   workflow_dispatch:
@@ -10,83 +10,63 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز النظام
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
 
-      # 2. تحميل اللعبة والأداة (رابط مباشر لضمان النجاح)
-      - name: 2. Download Core Files
+      - name: 2. Download Game
         run: |
-          echo "--- Downloading Free Fire APK ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
+
+      - name: 3. Download Il2CppDumper (Multi-Source Fallback)
+        run: |
+          echo "--- Trying Source A ---"
+          # استخدام API الخاص بـ GitHub لجلب أحدث نسخة فعالة
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/Perfare/Il2CppDumper/releases/latest | grep "browser_download_url.*linux-x64.zip" | cut -d '"' -f 4)
+          wget "$LATEST_RELEASE" -O il2cppdumper.zip || \
+          (echo "Source A Failed, trying Source B..." && \
+          wget "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip)
           
-          echo "--- Downloading Il2CppDumper ---"
-          # رابط مباشر لنسخة Linux المستقرة v6.7.40
-          wget "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip
           unzip il2cppdumper.zip -d Il2CppDumper
           chmod +x ./Il2CppDumper/Il2CppDumper
 
-      # 3. استخراج المحتويات
-      - name: 3. Extract APK
+      - name: 4. Extraction & Logic Mapping
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
-
-      # 4. نقل ملفات المنطق للتحليل
-      - name: 4. Prepare Logic Files
-        run: |
-          # البحث عن ملفات الـ Il2Cpp
-          LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1)
+          
+          # البحث الذكي عن الملفات
+          LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64" | head -n 1)
+          if [ -z "$LIB_PATH" ]; then LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1); fi
+          
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
-          
-          if [ ! -f "libil2cpp.so" ]; then echo "Error: libil2cpp.so not found"; exit 1; fi
 
-      # 5. تشغيل عملية الاستخراج (Dumping)
-      - name: 5. Run Dumper
+      - name: 5. Execute Analysis
         run: |
-          # تشغيل البرنامج وتجاوز الأسئلة
+          # إدخال تلقائي للمجلدات المطلوبة
           printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Results
 
-      # 6. محرك بحث GIAS (برمودا، أسلحة، صحة)
-      - name: 6. GIAS Deep Search
+      - name: 6. GIAS Deep Search (Bermuda & Logic)
         run: |
           DUMP="./Results/dump.cs"
-          FINAL_DIR="GIAS_Final_Output"
-          mkdir -p $FINAL_DIR
-          REPORT="$FINAL_DIR/Full_Report.txt"
+          RESULT_DIR="GIAS_Final_Output"
+          mkdir -p $RESULT_DIR
+          REPORT="$RESULT_DIR/Full_Report.txt"
           
-          echo "=== GIAS V16 ANALYSIS REPORT ===" > $REPORT
-          echo "Generated on: $(date)" >> $REPORT
-          echo "--------------------------------" >> $REPORT
-
-          # مصفوفة البحث الشامل
-          declare -A categories
-          categories=(
-            ["[1] Health/GodMode"]="Health|Damage|Life|Die|Heal|GodMode|Invincible"
-            ["[2] Speed/Jump"]="Jump|Gravity|Speed|Velocity|Fly|Walk|Sprint"
-            ["[3] Weapons/Recoil"]="Weapon|Ammo|Reload|FireRate|Recoil|Spread|Aim|Bullet"
-            ["[4] Security/Ban"]="Security|AntiCheat|Detect|Check|Ban|Emulator|Cheat"
-            ["[5] Coordinates/Map"]="Vector3|Vector2|Position|Location|Coordinate|Bermuda|Zone"
-          )
-
-          for cat in "${!categories[@]}"; do
-            echo -e "\n$cat" >> $REPORT
-            echo "========================" >> $REPORT
-            grep -E -i "${categories[$cat]}" $DUMP | grep "// RVA:" | head -n 100 >> $REPORT || echo "No data found." >> $REPORT
-          done
-
-      # 7. ضغط النتائج ورفعها
-      - name: 7. Archive and Upload
-        run: |
-          cp -r Results/* GIAS_Final_Output/
-          zip -r GIAS_V16_Results.zip GIAS_Final_Output
+          echo "=== GIAS V17 FINAL REPORT ===" > $REPORT
           
-      - name: 8. Create Release
+          # الكلمات المفتاحية المركزة
+          KEYWORDS="Health|Damage|Jump|Speed|Recoil|Spread|Aim|Bermuda|Position|Vector3|AntiCheat"
+          
+          grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 500 >> $REPORT
+
+      - name: 7. Upload Results
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Results - Bermuda Edition v${{ github.run_number }}"
-          files: GIAS_V16_Results.zip
+          name: "GIAS Final Successful v${{ github.run_number }}"
+          files: |
+            ./Results/dump.cs
+            ./GIAS_Final_Output/Full_Report.txt
