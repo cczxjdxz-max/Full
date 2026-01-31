@@ -1,64 +1,99 @@
-name: GIAS V30 - Separate Report Release
+name: GIAS PRO WORKFLOW (V-Pro - Advanced Network Analysis)
 
 on:
   workflow_dispatch:
 
 jobs:
-  analyze:
+  advanced_network_analysis:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      # 1. تجهيز النظام
+      # 1. تجهيز البيئة والأدوات
       - name: 1. Setup Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full binutils grep
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq
 
-      # 2. تحميل اللعبة
-      - name: 2. Download Game
+      # 2. تنزيل Il2CppDumper (باستخدام API لتجنب الأخطاء)
+      - name: 2. Download Il2CppDumper
+        run: |
+          LATEST_URL=$(curl -s https://api.github.com/repos/Perfare/Il2CppDumper/releases/latest | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
+          wget "$LATEST_URL" -O il2cppdumper.zip
+          unzip il2cppdumper.zip -d Il2CppDumper
+          chmod +x ./Il2CppDumper/Il2CppDumper
+
+      # 3. تحميل واستخراج ملفات المنطق
+      - name: 3. Download and Extract Logic Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
-
-      # 3. استخراج ملف المنطق (SO)
-      - name: 3. Extract Game Logic
-        run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
-          if [ -z "$LIB_PATH" ]; then LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1); fi
+          META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           cp "$LIB_PATH" ./libil2cpp.so
+          cp "$META_PATH" ./global-metadata.dat
 
-      # 4. مسح البيانات واستخراج العناوين (Bermuda & Logic)
-      - name: 4. Execute GIAS Raw Scanner
+      # 4. تشغيل Il2CppDumper للحصول على العناوين الحقيقية
+      - name: 4. Run Il2CppDumper for Real Addresses
         run: |
-          REPORT_NAME="Bermuda_Raw_Offsets.txt"
+          # تمرير إدخالات وهمية لتجاوز أي طلبات تفاعلية
+          printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
+
+      # 5. إنشاء تقرير استخباراتي منظم ومتقدم
+      - name: 5. Generate Advanced Intelligence Report
+        run: |
+          DUMP_FILE="./Analysis_Output/dump.cs"
+          REPORT_FILE="Advanced_Network_Report.txt"
           
-          echo "=== GIAS V30 RAW BINARY INTELLIGENCE ===" > $REPORT_NAME
-          echo "Target: libil2cpp.so (ARM64)" >> $REPORT_NAME
-          echo "Date: $(date)" >> $REPORT_NAME
-          echo "----------------------------------------" >> $REPORT_NAME
+          echo "=== GIAS ADVANCED NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
+          echo "Date: $(date)" >> $REPORT_FILE
+          echo "Objective: Identify function addresses (RVA) for network operations." >> $REPORT_FILE
+          
+          # [1] دوال الاتصال والبروتوكولات
+          echo -e "\n\n[1] CONNECTION & PROTOCOL METHODS" >> $REPORT_FILE
+          echo "===================================" >> $REPORT_FILE
+          grep -E -i "Socket|Connect|Host|Port|Address|wss://|https://|udp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
 
-          echo -e "\n[!] Potential Method Offsets (Symbols):" >> $REPORT_NAME
-          nm -D libil2cpp.so | grep -E "Health|Damage|Jump|Speed|Bermuda|Weapon" >> $REPORT_NAME || echo "No public symbols found" >> $REPORT_NAME
+          # [2] دوال المصادقة وتسجيل الدخول
+          echo -e "\n\n[2] AUTHENTICATION & LOGIN METHODS" >> $REPORT_FILE
+          echo "====================================" >> $REPORT_FILE
+          grep -E -i "Login|Auth|Token|User|Password|Session" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
 
-          echo -e "\n[!] Direct Hex Offsets (Map & Logic):" >> $REPORT_NAME
-          # استخراج العناوين بنظام Hex بجانب الكلمات المفتاحية
-          strings -t x libil2cpp.so | grep -E -i "Bermuda|Island|Map_101|Vector3|GetPosition|SetJump|MoveSpeed" | head -n 1000 >> $REPORT_NAME
+          # [3] دوال التشفير وفك التشفير
+          echo -e "\n\n[3] ENCRYPTION & DECRYPTION METHODS" >> $REPORT_FILE
+          echo "=====================================" >> $REPORT_FILE
+          grep -E -i "AES|RSA|Encrypt|Decrypt|Cipher|Key|IV" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
+          
+          # [4] دوال محرك الشبكات (Photon)
+          echo -e "\n\n[4] PHOTON ENGINE METHODS" >> $REPORT_FILE
+          echo "===========================" >> $REPORT_FILE
+          grep -i "Photon" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE
 
-      # 5. ضغط ملف الـ SO فقط (اختياري)
-      - name: 5. Archive Binary
+      # 6. تجهيز الملفات النهائية للرفع
+      - name: 6. Prepare Release Files
         run: |
-          zip -r Logic_Binary.zip libil2cpp.so
+          mkdir -p Final_Intel
+          mv Advanced_Network_Report.txt Final_Intel/
+          # نسخ ملف script.json لأنه يحتوي على كل العناوين
+          cp ./Analysis_Output/script.json Final_Intel/
+          zip -r GIAS_Pro_Intel.zip Final_Intel/
 
-      # 6. الرفع (التقرير كملف منفصل + الملف المضغوط)
-      - name: 6. Upload To Release
+      # 7. رفع التقرير وملف العناوين فقط إلى Release
+      - name: 7. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: "GIAS Intelligence v${{ github.run_number }}"
+          tag_name: pro-intel-v${{ github.run_number }}
+          name: "GIAS Pro Network Intel v${{ github.run_number }}"
           body: |
-            ✅ تم استخراج التقرير بنجاح.
-            يمكنك تحميل 'Bermuda_Raw_Offsets.txt' مباشرة لرؤية العناوين.
-          files: |
-            Bermuda_Raw_Offsets.txt
-            Logic_Binary.zip
+            تم إنشاء تقرير استخباراتي متقدم يحتوي على عناوين الدوال الفعلية (RVA).
+            - **Advanced_Network_Report.txt**: تقرير منظم لأهم دوال الشبكة.
+            - **script.json**: ملف كامل بكل عناوين اللعبة لاستيراده في أدوات التحليل.
+          files: GIAS_Pro_Intel.zip
+
+      # 8. (اختياري) رفع ملف اللعبة الضخم كـ Artifact مؤقت
+      - name: 8. Upload Large Files as Temporary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: large-binary-files
+          path: libil2cpp.so
+          retention-days: 7 # حذف الملف بعد 7 أيام لتوفير المساحة
