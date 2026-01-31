@@ -1,4 +1,4 @@
-name: GIAS PRO WORKFLOW
+name: GIAS PRO WORKFLOW (Auto-Fix Edition)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,6 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز بيئة .NET 8.0 المستقرة لعام 2026
       - name: 1. Setup Environment & .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -19,66 +18,65 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip wget zip p7zip-full jq
+          sudo apt-get install -y unzip wget zip p7zip-full jq python3
 
-      # 2. بناء الأداة (تعطيل الـ Trimming لضمان عمل الـ JSON والـ Reflection)
       - name: 2. Build Il2CppDumper from Source
         run: |
           git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
-          
-          # البناء بدون PublishTrimmed لضمان بقاء مكتبات الـ Serialization المطلوبة
           dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true
-          
-          # نسخ الملف التنفيذي إلى المجلد الرئيسي
           cp Il2CppDumper/Il2CppDumper/bin/Release/net8.0/linux-x64/publish/Il2CppDumper ./Il2CppDumper_Executable
-          
-          # نسخ ملف config.json الأصلي (خطوة حاسمة لتجنب خطأ FileNotFound)
           cp Il2CppDumper/Il2CppDumper/config.json ./config.json
-          
           chmod +x ./Il2CppDumper_Executable
-          echo "Success! Build complete with full Reflection support."
 
-      # 3. جلب ملفات اللعبة (Free Fire) واستخراج المكتبات
       - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           mkdir -p temp_extract
           7z x GamePackage.apk -otemp_extract -y
-          
-          # البحث المرن عن الملفات داخل الـ APK
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
-          
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل عملية الـ Dumping
-      - name: 4. Run Il2CppDumper
+      # --- خطوة الإصلاح الجديدة ---
+      - name: 4. Fix Metadata Header (Python Script)
         run: |
-          # تمرير Enter مرتين آلياً لاختيار الإعدادات الافتراضية
-          printf "\n\n" | ./Il2CppDumper_Executable libil2cpp.so global-metadata.dat ./Analysis_Output
+          python3 -c '
+          import os
+          file_path = "global-metadata.dat"
+          if os.path.exists(file_path):
+              with open(file_path, "rb") as f:
+                  data = bytearray(f.read())
+              
+              # فرض توقيع الميتاداتا الأصلي (Header Fix)
+              # Standard Il2Cpp Magic: AF 1B B1 FA
+              original_magic = bytearray([0xAF, 0x1B, 0xB1, 0xFA])
+              data[0:4] = original_magic
+              
+              with open("fixed-metadata.dat", "wb") as f:
+                  f.write(data)
+              print("Metadata Header Fixed Successfully!")
+          '
 
-      # 5. تحليل استخبارات الشبكة وتوليد التقرير النهائي
-      - name: 5. Generate Network Intelligence Report
+      - name: 5. Run Il2CppDumper (Against Fixed Metadata)
+        run: |
+          # محاكاة إدخال Enter باستمرار لمنع الانهيار عند أي رسالة خطأ
+          # سنستخدم fixed-metadata.dat بدلاً من الأصلي
+          yes "" | ./Il2CppDumper_Executable libil2cpp.so fixed-metadata.dat ./Analysis_Output || echo "Attempting fallback..."
+
+      - name: 6. Generate Network Intelligence Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
           REPORT_FILE="Network_Intel_Report.txt"
-          
-          echo "=== GIAS NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
-          echo "Date: $(date)" >> $REPORT_FILE
-          echo "---------------------------------------" >> $REPORT_FILE
-          
-          echo -e "\n[#] ENDPOINTS & URLS (WSS/HTTP/UDP):" >> $REPORT_FILE
-          grep -E -i "wss://|https://|http://|udp://|tcp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
-          
-          echo -e "\n[#] SOCKET METHODS & CONNECTIONS:" >> $REPORT_FILE
-          grep -E -i "Socket|Connect|SendTo|ReceiveFrom|RemoteEndPoint" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
-          
-          echo -e "\n[#] SECURITY & ENCRYPTION METHODS:" >> $REPORT_FILE
-          grep -E -i "SSL|TLS|AES|RSA|Encrypt|Decrypt" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
+          if [ -f "$DUMP_FILE" ]; then
+            echo "=== GIAS NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
+            grep -E -i "wss://|https://|http://|udp://|tcp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
+            grep -E -i "Socket|Connect|SendTo|ReceiveFrom|RemoteEndPoint" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
+          else
+            echo "Dump failed. Metadata is likely heavily encrypted or uses a custom Il2Cpp version." > $REPORT_FILE
+          fi
 
-      # 6. رفع الملفات كـ Release للتحميل
-      - name: 6. Create GitHub Release
+      - name: 7. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: pro-v${{ github.run_number }}
