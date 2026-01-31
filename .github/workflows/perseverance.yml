@@ -1,4 +1,4 @@
-name: GIAS V18 - Final Stable Solution
+name: GIAS V19 - Final Fix
 
 on:
   workflow_dispatch:
@@ -10,82 +10,67 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز النظام
       - name: 1. Setup Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full curl
 
-      # 2. تحميل اللعبة
       - name: 2. Download Game
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      # 3. تحميل الأداة (استخدام رابط RAW من مستودع مستقر)
-      - name: 3. Download Il2CppDumper
+      - name: 3. Download Il2CppDumper (Confirmed Link)
         run: |
-          echo "--- Downloading Stable Dumper Core ---"
-          # استخدام رابط من إصدار محفوظ لضمان عدم حدوث 404
-          wget "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip" || \
-          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip" -o il2cppdumper.zip
+          echo "--- Downloading Dumper from Mirror ---"
+          # استخدام رابط مباشر من موقع خارجي موثوق أو رابط GitHub الثابت الجديد
+          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.48/Il2CppDumper-net6-v6.7.48.zip" -o dumper.zip
           
-          unzip -o il2cppdumper.zip -d Il2CppDumper || unzip -o Il2CppDumper-linux-x64.zip -d Il2CppDumper
-          chmod +x ./Il2CppDumper/Il2CppDumper
+          # تثبيت الـ .NET Runtime لتشغيل النسخة الحديثة والأكثر استقراراً
+          sudo apt-get install -y dotnet-sdk-6.0
+          
+          unzip dumper.zip -d Il2CppDumper
+          # لا نحتاج chmod هنا لأننا سنشغلها عبر dotnet
 
-      # 4. استخراج الملفات بنظام البحث العميق
-      - name: 4. Deep Scan Logic Files
+      - name: 4. Extraction
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
           
-          # البحث عن libil2cpp.so في كل المجلدات (خاصة arm64)
           LIB_PATH=$(find temp_extract -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
-          if [ -z "$LIB_PATH" ]; then LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1); fi
+          [ -z "$LIB_PATH" ] && LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1)
           
-          # البحث عن global-metadata.dat
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
-          
-          echo "Found Lib: $LIB_PATH"
-          echo "Found Meta: $META_PATH"
           
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 5. تشغيل المحرك وتوليد البيانات
-      - name: 5. Execute Core Analysis
+      - name: 5. Execute Analysis (dotnet version)
         run: |
-          # تجاوز واجهة المستخدم عبر printf
+          # تشغيل النسخة الحديثة عبر محرك dotnet لضمان التوافق
           mkdir -p Results
-          printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Results
+          printf "\n\n" | dotnet ./Il2CppDumper/Il2CppDumper.dll libil2cpp.so global-metadata.dat ./Results
 
-      # 6. محرك البحث الذكي (التقرير النهائي)
-      - name: 6. GIAS Intelligence Report
+      - name: 6. GIAS Search Report
         run: |
           DUMP="./Results/dump.cs"
           REPORT_DIR="GIAS_Final_Output"
           mkdir -p $REPORT_DIR
           REPORT="$REPORT_DIR/Bermuda_Logic_Report.txt"
           
-          echo "=== GIAS V18 REPORT ===" > $REPORT
-          echo "Targeting: Health, Weapons, and Bermuda Coordinates" >> $REPORT
-          echo "------------------------------------------------" >> $REPORT
-
-          # مصفوفة الكلمات المفتاحية
-          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|GetPosition|SecurityCheck"
+          echo "=== GIAS V19 SEARCH RESULTS ===" > $REPORT
+          KEYWORDS="Health|Damage|JumpHeight|MoveSpeed|Recoil|Spread|AimBot|Bermuda|Vector3|Position"
           
           if [ -f "$DUMP" ]; then
             grep -E -i "$KEYWORDS" $DUMP | grep "// RVA:" | head -n 1000 >> $REPORT
           else
-            echo "Error: dump.cs was not generated!" >> $REPORT
+            echo "Error: Logic dump failed!" >> $REPORT
           fi
 
-      # 7. الرفع النهائي
-      - name: 7. Final Archiving
+      - name: 7. Archive & Release
         run: |
-          zip -r GIAS_Results.zip Results/ GIAS_Final_Output/
+          zip -r Final_Results.zip Results/ GIAS_Final_Output/
           
-      - name: 8. Create GitHub Release
+      - name: 8. Upload Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Engine v${{ github.run_number }}"
-          body: "تم استخراج البيانات بنجاح. ملف Bermuda_Logic_Report يحتوي على الإحداثيات والـ Offsets."
-          files: GIAS_Results.zip
+          name: "GIAS Bermuda Final v${{ github.run_number }}"
+          files: Final_Results.zip
