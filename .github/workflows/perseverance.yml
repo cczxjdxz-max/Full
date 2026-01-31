@@ -1,87 +1,76 @@
-name: GIAS CLOUD RADAR 2026 (Fixed Edition)
+name: GIAS TRAINING ARENA (V1 - Setup)
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'ادخل الـ Tag الخاص بالإصدار المعدل (مثال: patched-v123)'
+        required: true
 
 jobs:
-  cloud_analysis:
+  setup_training_environment:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: 1. Setup Environment
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: 2. Build Tools & Download Game
+      # 1. تجهيز البيئة وتفعيل المحاكاة الافتراضية
+      - name: 1. Enable KVM for Android Emulator
         run: |
-          sudo apt-get update && sudo apt-get install -y p7zip-full wget python3
-          git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
-          dotnet publish Il2CppDumper/Il2CppDumper/Il2CppDumper.csproj -c Release -r linux-x64 -f net8.0 --self-contained true /p:PublishSingleFile=true
-          cp Il2CppDumper/Il2CppDumper/bin/Release/net8.0/linux-x64/publish/Il2CppDumper ./dumper_bin
-          chmod +x ./dumper_bin
-          wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O game.apk
-          7z x game.apk -ogame_files -y
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger
+          sudo apt-get update
+          sudo apt-get install -y qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils cpu-checker
 
-      # --- الحل الجذري: إنشاء ملف بايثون مستقل لتجنب أخطاء الأقواس ---
-      - name: 3. Create Intelligence Script File
+      # 2. تنزيل وتثبيت أدوات سطر أوامر أندرويد
+      - name: 2. Install Android SDK Command-Line Tools
         run: |
-          cat << 'EOF' > intel_script.py
-          import os, re
-          
-          lib_path = ""
-          meta_path = ""
-          for root, dirs, files in os.walk("game_files"):
-              if "libil2cpp.so" in files and "arm64" in root: 
-                  lib_path = os.path.join(root, "libil2cpp.so")
-              if "global-metadata.dat" in files: 
-                  meta_path = os.path.join(root, "global-metadata.dat")
-          
-          if meta_path:
-              with open(meta_path, "rb") as f: data = bytearray(f.read())
-              data[0:4] = bytearray([0xAF, 0x1B, 0xB1, 0xFA])
-              with open("fixed_metadata.dat", "wb") as f: f.write(data)
-              print("Metadata fixed.")
-          
-          if lib_path:
-              with open(lib_path, "rb") as f: 
-                  content = f.read().decode("latin-1", "ignore")
-              
-              ips = set(re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", content))
-              urls = set(re.findall(r"https?://[\w\.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'()*+,;=]+", content))
-              
-              with open("IP_REPORT.txt", "w") as r:
-                  r.write("=== DIRECT IP ADDRESSES ===\n" + "\n".join(ips))
-                  r.write("\n\n=== URL ENDPOINTS ===\n" + "\n".join(urls))
-              print("Intelligence reports generated.")
-          EOF
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          mkdir -p android-sdk
+          unzip cmdline-tools.zip -d android-sdk
+          mv android-sdk/cmdline-tools android-sdk/latest
+          mkdir -p android-sdk/cmdline-tools
+          mv android-sdk/latest android-sdk/cmdline-tools/
+          # قبول التراخيص وتثبيت صورة النظام والمحاكي
+          yes | sdkmanager --sdk_root=./android-sdk "platform-tools" "platforms;android-30" "system-images;android-30;google_apis;x86_64" "emulator"
+          # إضافة أدوات SDK إلى مسار النظام
+          echo "$PWD/android-sdk/platform-tools" >> $GITHUB_PATH
+          echo "$PWD/android-sdk/emulator" >> $GITHUB_PATH
+          echo "$PWD/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        env:
+          ANDROID_SDK_ROOT: ./android-sdk
 
-      - name: 4. Execute Intelligence Script
-        run: python3 intel_script.py
-
-      - name: 5. Run Il2Cpp Dumper
+      # 3. إنشاء وتشغيل المحاكي
+      - name: 3. Create and Run Emulator
         run: |
-          LIB=$(find game_files -name "libil2cpp.so" | grep "arm64" | head -n 1)
-          if [ -f "fixed_metadata.dat" ]; then
-            printf "\n\n" | ./dumper_bin "$LIB" fixed_metadata.dat ./Output || echo "Dump Failed"
-          fi
+          # إنشاء جهاز افتراضي
+          echo "no" | avdmanager create avd -n test_avd -k "system-images;android-30;google_apis;x86_64"
+          # تشغيل المحاكي في الخلفية بدون واجهة رسومية
+          emulator -avd test_avd -no-window -no-audio -no-boot-anim &
+          # انتظار المحاكي حتى يعمل بالكامل
+          adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done; input keyevent 82'
+          adb devices
+          echo "Emulator is up and running."
 
-      - name: 6. Extract Security Keys
+      # 4. تنزيل وتثبيت اللعبة المعدلة
+      - name: 4. Download and Install Patched APK
         run: |
-          LIB=$(find game_files -name "libil2cpp.so" | grep "arm64" | head -n 1)
-          strings "$LIB" | grep -Ei "key|secret|token|cipher" | head -n 100 > SECURITY_KEYS.txt
-
-      - name: 7. Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: radar-v${{ github.run_number }}
-          name: "Analysis Result v${{ github.run_number }}"
-          files: |
-            IP_REPORT.txt
-            SECURITY_KEYS.txt
-            ./Output/dump.cs
-            ./Output/script.json
+          # تنزيل الـ APK من الـ Release الذي حددته
+          gh release download ${{ github.event.inputs.release_tag }} --pattern 'FreeFire_Patched.apk'
+          # تثبيت الـ APK على المحاكي
+          adb install FreeFire_Patched.apk
+          echo "Patched APK installed successfully."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. (اختياري) أخذ لقطة شاشة للتأكد
+      - name: 5. Take a Verification Screenshot
+        run: |
+          adb exec-out screencap -p > screen.png
+          echo "Screenshot taken."
+
+      # 6. رفع لقطة الشاشة كدليل
+      - name: 6. Upload Screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-screenshot
+          path: screen.png
