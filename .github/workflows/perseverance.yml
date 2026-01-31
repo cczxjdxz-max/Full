@@ -1,4 +1,4 @@
-Name: GIAS PRO WORKFLOW (Final Stable Build)
+name: GIAS PRO WORKFLOW
 
 on:
   workflow_dispatch:
@@ -10,16 +10,18 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز بيئة .NET 8.0
+      # 1. تجهيز بيئة العمل وتنصيب دوت نت 8
       - name: 1. Setup Environment & .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install Tools
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full jq
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget zip p7zip-full jq
 
-      # 2. بناء الأداة مع تحديد الـ Framework لتجنب خطأ NETSDK1129
+      # 2. بناء Il2CppDumper من المصدر لتجنب روابط التحميل الميتة
       - name: 2. Build Il2CppDumper from Source
         run: |
           git clone --depth=1 https://github.com/Perfare/Il2CppDumper.git
@@ -29,52 +31,48 @@ jobs:
           cd ..
           chmod +x ./Il2CppDumper
 
-      # 3. جلب ملفات اللعبة (رابط CDN المباشر)
+      # 3. تحميل اللعبة واستخراج الملفات المطلوبة
       - name: 3. Download and Extract Game Files
         run: |
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
-          mkdir temp_extract
+          mkdir -p temp_extract
           7z x GamePackage.apk -otemp_extract -y
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           META_PATH=$(find temp_extract -name "global-metadata.dat" | head -n 1)
           cp "$LIB_PATH" ./libil2cpp.so
           cp "$META_PATH" ./global-metadata.dat
 
-      # 4. تشغيل الأداة
+      # 4. تشغيل عملية الـ Dumping
       - name: 4. Run Il2CppDumper
         run: |
           printf "\n\n" | ./Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Output
 
-      # 5. استخراج استخبارات الشبكة المتقدمة (WSS, UDP, TCP)
-      - name: 5. Generate Advanced Network Intelligence Report
+      # 5. تحليل استخبارات الشبكة وتوليد التقرير
+      - name: 5. Generate Advanced Network Report
         run: |
           DUMP_FILE="./Analysis_Output/dump.cs"
           REPORT_FILE="Network_Intel_Report.txt"
           
-          echo "=== GIAS NETWORK INTELLIGENCE REPORT (V2) ===" > $REPORT_FILE
+          echo "=== GIAS NETWORK INTELLIGENCE REPORT ===" > $REPORT_FILE
           echo "Generated on: $(date)" >> $REPORT_FILE
-          echo "--------------------------------------------" >> $REPORT_FILE
+          echo "---------------------------------------" >> $REPORT_FILE
           
-          # استخراج روابط الويب سوكيت والبروتوكولات المشفرة
-          echo "[#] WEB-SOCKETS & SECURE ENDPOINTS:" >> $REPORT_FILE
-          grep -E -i "wss://|https://|http://|udp://|tcp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No direct URLs found." >> $REPORT_FILE
+          echo -e "\n[#] ENDPOINTS & URLS (WSS/HTTP/UDP):" >> $REPORT_FILE
+          grep -E -i "wss://|https://|http://|udp://|tcp://" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
           
-          echo -e "\n[#] NETWORK SOCKETS & CONNECT METHODS:" >> $REPORT_FILE
-          grep -E -i "Socket|Connect|SendTo|ReceiveFrom|RemoteEndPoint" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No Socket methods found." >> $REPORT_FILE
+          echo -e "\n[#] SOCKET METHODS & CONNECTIONS:" >> $REPORT_FILE
+          grep -E -i "Socket|Connect|SendTo|ReceiveFrom|RemoteEndPoint" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
           
-          echo -e "\n[#] CRYPTO & SECURITY (SSL/TLS):" >> $REPORT_FILE
-          grep -E -i "SSL|TLS|AuthenticateAsClient|Certificate" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No SSL methods found." >> $REPORT_FILE
-          
-          echo -e "\n[#] PHOTON ENGINE & MULTIPLAYER:" >> $REPORT_FILE
-          grep -i "Photon" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || echo "No Photon components found." >> $REPORT_FILE
+          echo -e "\n[#] SECURITY & ENCRYPTION METHODS:" >> $REPORT_FILE
+          grep -E -i "SSL|TLS|AES|RSA|Encrypt|Decrypt" $DUMP_FILE | grep "// RVA:" >> $REPORT_FILE || true
 
-      # 6. رفع النتائج كـ Release
+      # 6. رفع النتائج كـ Release على GitHub
       - name: 6. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: intel-v${{ github.run_number }}
-          name: "Network Intel Report v${{ github.run_number }}"
+          name: "GIAS Intel Report v${{ github.run_number }}"
           files: |
             Network_Intel_Report.txt
             ./Analysis_Output/script.json
-            ./Analysis_Output/dummy.cs
+            ./Analysis_Output/dump.cs
