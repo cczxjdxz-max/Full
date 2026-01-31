@@ -1,69 +1,125 @@
-name: GIAS-ONE-BILLION-BATTLES
+Name: GIAS AI-TRAINING-GYM (Final Stage)
 
 on:
   workflow_dispatch:
+    inputs:
+      environment_run_id:
+        description: 'Run ID الخاص ببيئة التدريب'
+        required: true
 
 jobs:
-  billion_battle_training:
+  train_agent:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 1. Setup High-Performance Environment
-        run: |
-          pip3 install torch numpy --break-system-packages
-
-      - name: 2. Execute 1,000,000,000 Simulations
-        run: |
-          python3 -c '
-          import torch
-          import torch.nn as nn
-          import time
-
-          # هيكل العقل السريع (عضلات رياضية)
-          class AlphaBrain(nn.Module):
-              def __init__(self):
-                  super().__init__()
-                  self.net = nn.Sequential(
-                      nn.Linear(6, 64), nn.ReLU(),
-                      nn.Linear(64, 4)
-                  )
-              def forward(self, x): return self.net(x)
-
-          device = "cpu" # استخدام المعالج للعمليات المتوازية المكثفة
-          model = AlphaBrain().to(device)
-          optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-          
-          total_battles = 1_000_000_000
-          batch_size = 100_000 # نعالج 100 ألف معركة في اللحظة الواحدة
-          iterations = total_battles // batch_size
-
-          print(f"Starting the Grand Simulation: {total_battles} battles...")
-          start_time = time.time()
-
-          for i in range(iterations):
-              # توليد 100 ألف حالة قتالية عشوائية بضربة واحدة
-              states = torch.randn(batch_size, 6).to(device)
-              
-              # الـ AI يتخذ 100 ألف قرار في جزء من الثانية
-              decisions = model(states)
-              
-              # حساب الربح والخسارة (Loss) بناءً على سرعة ودقة القرار الرقمي
-              # هنا "المكافأة" هي الوصول لزمن استجابة 0.00001
-              loss = (decisions - 1.0).pow(2).mean() 
-              
-              optimizer.zero_grad()
-              loss.backward()
-              optimizer.step()
-
-              if i % 1000 == 0:
-                  progress = (i * batch_size / total_battles) * 100
-                  print(f"Progress: {progress:.1f}% | Battles: {i * batch_size}")
-
-          print(f"Done! 1 Billion Battles completed in {time.time() - start_time:.2f}s")
-          torch.save(model.state_dict(), "god_mode_brain.pt")
-          '
-
-      - name: 3. Export God-Mode Brain
-        uses: upload-artifact@v4
+      - name: 1. Setup Python & AI Libraries
+        uses: actions/setup-python@v5
         with:
-          name: God_Mode_AI
-          path: god_mode_brain.pt
+          python-version: '3.9'
+      - run: pip install numpy torch stable-baselines3[torch] gym
+
+      - name: 2. Download AI Training Environment
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.inputs.environment_run_id }}
+          name: AI_Data_Ready_Lib
+          path: ./training_env
+
+      - name: 3. Execute Headless Training
+        run: |
+          cat << 'EOF' > train.py
+          import os
+          import ctypes
+          import numpy as np
+          import gym
+          from gym import spaces
+          from stable_baselines3 import PPO
+
+          class GiasEnv(gym.Env):
+              def __init__(self, lib_path):
+                  super(GiasEnv, self).__init__()
+                  
+                  if not os.path.exists(lib_path):
+                      raise FileNotFoundError(f"Could not find {lib_path}")
+
+                  # تحميل المكتبة
+                  self.lib = ctypes.CDLL(lib_path)
+                  
+                  # --- إعداد الربط البرمجي المباشر ---
+                  try:
+                      self.lib.InitializeGame.restype = None
+                      self.lib.GetPlayerHealth.restype = ctypes.c_float
+                      self.lib.GetEnemyCount.restype = ctypes.c_int
+                      self.lib.PerformAction.argtypes = [ctypes.c_int]
+                      self.lib.StepEngine.restype = None
+                      print("[SUCCESS] All Game Engine Symbols Linked.")
+                  except AttributeError as e:
+                      print(f"[ERROR] Symbol mapping failed: {e}")
+                      # هنا سيستمر الكود ولكن قد ينهار إذا نودي دالة غير موجودة
+
+                  # تعريف المساحات (Normalization: -1 to 1 لأفضل أداء)
+                  self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float32)
+                  self.action_space = spaces.Discrete(5)
+                  
+                  self.lib.InitializeGame()
+
+              def _normalize_obs(self, health, enemies):
+                  # تحويل القيم الخام إلى قيم يفهمها الذكاء الاصطناعي بسرعة
+                  # نفترض أقصى صحة 100 وأقصى عدد أعداء 50
+                  norm_h = (health / 100.0) * 2 - 1
+                  norm_e = (enemies / 50.0) * 2 - 1
+                  return np.array([norm_h, norm_e, 0.0, 0.0], dtype=np.float32)
+
+              def reset(self):
+                  self.lib.InitializeGame()
+                  raw_h = self.lib.GetPlayerHealth()
+                  raw_e = self.lib.GetEnemyCount()
+                  return self._normalize_obs(raw_h, raw_e)
+
+              def step(self, action):
+                  # تنفيذ الأكشن في المحرك
+                  self.lib.PerformAction(action)
+                  self.lib.StepEngine()
+                  
+                  # جلب الحالة الجديدة
+                  h = self.lib.GetPlayerHealth()
+                  e = self.lib.GetEnemyCount()
+                  
+                  obs = self._normalize_obs(h, e)
+                  
+                  # نظام المكافأة المطور (Reward Shaping)
+                  reward = 0.1 # مكافأة بسيطة للبقاء
+                  done = False
+                  
+                  if h <= 0:
+                      reward = -10.0
+                      done = True
+                  elif e == 0:
+                      reward = 20.0
+                      done = True
+                      
+                  return obs, reward, done, {}
+
+          if __name__ == "__main__":
+              lib_path = os.path.abspath("./training_env/libil2cpp.so")
+              env = GiasEnv(lib_path)
+              
+              # إعداد النموذج: تم ضبط الـ Hyperparameters لسرعة التعلم
+              model = PPO("MlpPolicy", env, verbose=1, 
+                          learning_rate=0.00025,
+                          n_steps=2048,
+                          batch_size=64)
+              
+              print("--- Starting AI Neural Training ---")
+              model.learn(total_timesteps=10000)
+              model.save("gias_ai_brain")
+              print("--- AI Brain Exported Successfully ---")
+          EOF
+          
+          python3 train.py
+
+      - name: 4. Upload Trained Model
+        uses: actions/upload-artifact@v4
+        with:
+          name: GIAS_AI_BRAIN
+          path: gias_ai_brain.zip
