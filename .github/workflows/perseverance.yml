@@ -1,67 +1,93 @@
-name: GIAS Hybrid Pipeline V13 - Multi-Strategy
+name: GIAS V14 - Analysis Engine
 
 on:
   workflow_dispatch:
 
 jobs:
-  prepare_essentials_for_mobile:
+  extract_and_analyze:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      # الخطوة 1: تجهيز البيئة (مع p7zip-full)
       - name: 1. Prepare Environment
-        run: sudo apt-get update && sudo apt-get install -y unzip wget zip util-linux p7zip-full
+        run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
 
-      - name: 2. Download Tools and Game
+      # الخطوة 2: تنزيل اللعبة والأدوات
+      - name: 2. Download Game and Tools
         run: |
-          echo "--- Downloading Free Fire APK ---"
+          echo "--- Downloading Game Package ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           
-          echo "--- Downloading AssetRipper ---"
-          wget "https://github.com/AssetRipper/AssetRipper/releases/download/0.3.0.6/AssetRipper_linux_x64.zip" -O assetripper.zip
-          unzip assetripper.zip -d AssetRipper
-          chmod +x ./AssetRipper/AssetRipper
+          echo "--- Downloading Il2CppDumper ---"
+          # تنزيل أحدث إصدار من Il2CppDumper
+          wget "https://github.com/Perfare/Il2CppDumper/releases/latest/download/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip
+          unzip il2cppdumper.zip -d Il2CppDumper
+          chmod +x ./Il2CppDumper/Il2CppDumper
 
-      - name: 3. Extraction Strategy A (AssetRipper)
+      # الخطوة 3: الاستخراج الخام للملفات
+      - name: 3. Raw File Extraction
         run: |
-          echo "--- Attempting AssetRipper Extraction ---"
-          script -e -c "./AssetRipper/AssetRipper GamePackage.apk -o temp_extract_ripper" /dev/null || true
-
-      - name: 4. Extraction Strategy B (Manual Unzip)
-        run: |
-          echo "--- Extracting Raw Files as Backup ---"
-          mkdir -p temp_raw_extract
+          echo "--- Extracting all raw files from APK ---"
+          mkdir temp_raw_extract
           7z x GamePackage.apk -otemp_raw_extract -y
 
-      - name: 5. Smart Filtering (Collecting from all sources)
+      # الخطوة 4: البحث عن ملفات المنطق الأساسية
+      - name: 4. Locate Core Logic Files
         run: |
-          mkdir -p GIAS_Essentials/1_Data GIAS_Essentials/2_Assets GIAS_Essentials/3_Logic
+          echo "--- Finding libil2cpp.so and global-metadata.dat ---"
+          # البحث عن الملفات ونسخها إلى المجلد الرئيسي لسهولة الوصول
+          find temp_raw_extract -name "libil2cpp.so" -exec cp {} . \;
+          find temp_raw_extract -name "global-metadata.dat" -exec cp {} . \;
           
-          # البحث في كل المجلدات المستخرجة (الريبر واليدوي)
-          echo "--- Collecting Data (.json, .xml, .dat) ---"
-          find . -type f \( -name "*.json" -o -name "*.xml" -o -name "*.dat" -o -name "*.bin" \) -exec cp {} GIAS_Essentials/1_Data/ \; 2>/dev/null || true
-          
-          echo "--- Collecting Visuals (.png, .jpg, .obj, .fbx) ---"
-          find . -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.obj" -o -name "*.fbx" \) -exec cp {} GIAS_Essentials/2_Assets/ \; 2>/dev/null || true
-          
-          echo "--- Collecting Logic (libil2cpp.so, metadata) ---"
-          find . -name "libil2cpp.so" -exec cp {} GIAS_Essentials/3_Logic/ \; 2>/dev/null || true
-          find . -name "global-metadata.dat" -exec cp {} GIAS_Essentials/3_Logic/ \; 2>/dev/null || true
+          # التحقق من وجود الملفات
+          if [ ! -f "libil2cpp.so" ] || [ ! -f "global-metadata.dat" ]; then
+            echo "::error::Core logic files not found! Cannot proceed with analysis."
+            exit 1
+          fi
+          echo "--- Core logic files are ready for analysis ---"
 
-      - name: 6. Integrity Check
+      # الخطوة 5: تشغيل محرك التحليل (Il2CppDumper)
+      - name: 5. Run Analysis Engine
         run: |
-          echo "--- Checking Captured Files ---"
-          ls -R GIAS_Essentials/
-          du -sh GIAS_Essentials/
+          echo "--- Running Il2CppDumper to generate analysis scripts ---"
+          # تشغيل الأداة على الملفات التي وجدناها
+          ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat
+          # سيتم إنشاء مجلد مخرجات (عادة اسمه Dumper_out)
+          echo "--- Analysis complete ---"
 
+      # الخطوة 6: تجميع كل شيء في حزمة نهائية
+      - name: 6. Organize Final Package
+        run: |
+          echo "--- Organizing all extracted and analyzed files ---"
+          # إنشاء بنية المجلدات النهائية
+          mkdir -p GIAS_Complete/1_Data GIAS_Complete/3_Logic GIAS_Complete/4_Analysis
+          
+          # نسخ ملفات البيانات الخام
+          find temp_raw_extract -type f \( -name "*.dat" -o -name "*.bin" \) -exec cp {} GIAS_Complete/1_Data/ \; 2>/dev/null || true
+          
+          # نسخ ملفات المنطق الأصلية
+          cp libil2cpp.so global-metadata.dat GIAS_Complete/3_Logic/
+          
+          # نقل مخرجات التحليل إلى المجلد الخاص بها
+          mv Dumper_out/* GIAS_Complete/4_Analysis/
+          
+          echo "--- Final package organized ---"
+          ls -R GIAS_Complete/
+
+      # الخطوة 7: ضغط ورفع الحزمة الكاملة
       - name: 7. Compress and Release
-        run: |
-          zip -r GIAS_Essentials.zip GIAS_Essentials
-          
-      - name: 8. Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: "GIAS Essentials v${{ github.run_number }}"
-          files: GIAS_Essentials.zip
+          tag_name: analysis-v${{ github.run_number }}
+          name: "GIAS Analysis Package v${{ github.run_number }}"
+          body: |
+            Complete package containing:
+            - 1_Data: Raw game data files (.bin, .dat).
+            - 3_Logic: Original core logic files.
+            - 4_Analysis: Decompiled scripts and metadata from Il2CppDumper.
+          files: |
+            GIAS_Complete.zip
+        run: |
+          zip -r GIAS_Complete.zip GIAS_Complete
