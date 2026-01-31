@@ -1,4 +1,4 @@
-name: GIAS V14 - Analysis Engine
+name: GIAS V14 - Full Logic & Map Analysis Engine
 
 on:
   workflow_dispatch:
@@ -10,84 +10,113 @@ jobs:
       contents: write
 
     steps:
-      # الخطوة 1: تجهيز البيئة (مع p7zip-full)
+      # الخطوة 1: تجهيز البيئة وأدوات الضغط والتحميل
       - name: 1. Prepare Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full
 
-      # الخطوة 2: تنزيل اللعبة والأدوات
+      # الخطوة 2: تنزيل اللعبة وأداة التحليل (Il2CppDumper)
       - name: 2. Download Game and Tools
         run: |
           echo "--- Downloading Game Package ---"
+          # رابط APK (تأكد من تحديث الرابط إذا لزم الأمر)
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
           
-          echo "--- Downloading Il2CppDumper ---"
-          # تنزيل أحدث إصدار من Il2CppDumper
+          echo "--- Downloading Il2CppDumper (Linux Version) ---"
           wget "https://github.com/Perfare/Il2CppDumper/releases/latest/download/Il2CppDumper-linux-x64.zip" -O il2cppdumper.zip
           unzip il2cppdumper.zip -d Il2CppDumper
           chmod +x ./Il2CppDumper/Il2CppDumper
 
-      # الخطوة 3: الاستخراج الخام للملفات
+      # الخطوة 3: استخراج الملفات الخام من الـ APK
       - name: 3. Raw File Extraction
         run: |
-          echo "--- Extracting all raw files from APK ---"
+          echo "--- Extracting APK Contents ---"
           mkdir temp_raw_extract
           7z x GamePackage.apk -otemp_raw_extract -y
 
-      # الخطوة 4: البحث عن ملفات المنطق الأساسية
+      # الخطوة 4: تحديد ملفات المنطق (استهداف معمارية 64-بت لدقة الإحداثيات)
       - name: 4. Locate Core Logic Files
         run: |
-          echo "--- Finding libil2cpp.so and global-metadata.dat ---"
-          # البحث عن الملفات ونسخها إلى المجلد الرئيسي لسهولة الوصول
-          find temp_raw_extract -name "libil2cpp.so" -exec cp {} . \;
-          find temp_raw_extract -name "global-metadata.dat" -exec cp {} . \;
+          echo "--- Locating libil2cpp.so and global-metadata.dat ---"
+          # البحث عن نسخة 64-بت لأنها الأفضل لتحليل الخرائط والإحداثيات
+          LIB_PATH=$(find temp_raw_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
+          META_PATH=$(find temp_raw_extract -name "global-metadata.dat" | head -n 1)
           
-          # التحقق من وجود الملفات
+          # إذا لم يجد 64-بت، يبحث عن أي نسخة متاحة
+          if [ -z "$LIB_PATH" ]; then
+            LIB_PATH=$(find temp_raw_extract -name "libil2cpp.so" | head -n 1)
+          fi
+
+          cp "$LIB_PATH" ./libil2cpp.so
+          cp "$META_PATH" ./global-metadata.dat
+          
           if [ ! -f "libil2cpp.so" ] || [ ! -f "global-metadata.dat" ]; then
-            echo "::error::Core logic files not found! Cannot proceed with analysis."
+            echo "::error::Core logic files not found!"
             exit 1
           fi
-          echo "--- Core logic files are ready for analysis ---"
 
       # الخطوة 5: تشغيل محرك التحليل (Il2CppDumper)
       - name: 5. Run Analysis Engine
         run: |
-          echo "--- Running Il2CppDumper to generate analysis scripts ---"
-          # تشغيل الأداة على الملفات التي وجدناها
-          ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat
-          # سيتم إنشاء مجلد مخرجات (عادة اسمه Dumper_out)
-          echo "--- Analysis complete ---"
+          echo "--- Running Il2CppDumper ---"
+          # تمرير إدخالات وهمية لتجاوز طلبات البرنامج التفاعلية
+          printf "\n\n" | ./Il2CppDumper/Il2CppDumper libil2cpp.so global-metadata.dat ./Analysis_Results
 
-      # الخطوة 6: تجميع كل شيء في حزمة نهائية
-      - name: 6. Organize Final Package
+      # الخطوة 6: محرك البحث الذكي عن المميزات (برمودا، الإحداثيات، الأسلحة)
+      - name: 6. GIAS Deep Search (Maps, Health, Weapons)
         run: |
-          echo "--- Organizing all extracted and analyzed files ---"
-          # إنشاء بنية المجلدات النهائية
-          mkdir -p GIAS_Complete/1_Data GIAS_Complete/3_Logic GIAS_Complete/4_Analysis
+          echo "--- Scanning for Offsets and Patterns ---"
+          DUMP_FILE="./Analysis_Results/dump.cs"
+          REPORT_DIR="GIAS_Final_Package"
+          mkdir -p $REPORT_DIR
+          REPORT="$REPORT_DIR/Search_Report.txt"
           
-          # نسخ ملفات البيانات الخام
-          find temp_raw_extract -type f \( -name "*.dat" -o -name "*.bin" \) -exec cp {} GIAS_Complete/1_Data/ \; 2>/dev/null || true
-          
-          # نسخ ملفات المنطق الأصلية
-          cp libil2cpp.so global-metadata.dat GIAS_Complete/3_Logic/
-          
-          # نقل مخرجات التحليل إلى المجلد الخاص بها
-          mv Dumper_out/* GIAS_Complete/4_Analysis/
-          
-          echo "--- Final package organized ---"
-          ls -R GIAS_Complete/
+          echo "=== GIAS V14 ANALYSIS REPORT ===" > $REPORT
+          echo "Target: Logic, Coordinates & Bermuda Map" >> $REPORT
+          echo "Date: $(date)" >> $REPORT
+          echo "----------------------------------------" >> $REPORT
 
-      # الخطوة 7: ضغط ورفع الحزمة الكاملة
-      - name: 7. Compress and Release
+          declare -A keywords
+          keywords=( 
+            ["[1] Health & Life"]="Health|Damage|Life|Die|HitPoints|Heal|GodMode|Invincible"
+            ["[2] Movement & Physics"]="Jump|Gravity|Speed|Velocity|Fly|Walk|Move|Dash|Sprint"
+            ["[3] Weapons & Combat"]="Weapon|Ammo|Reload|FireRate|Recoil|Spread|Bullet|Aim|NoSpread|NoRecoil"
+            ["[4] Security & Anti-Cheat"]="Security|AntiCheat|Detect|Check|Ban|Cheat|Report|Emulator|Root|VPN"
+            ["[5] Visuals & ESP"]="Outline|Chams|Wallhack|Visible|Renderer|ESP|LineOfSight|WorldToScreen"
+            ["[6] Coordinates (Bermuda)"]="Vector3|Vector2|GetPosition|SetPosition|Coordinate|Transform|LocalPosition"
+            ["[7] Bermuda Map Logic"]="Bermuda|Map|Zone|SafeZone|Shrink|Location|SpawnPoint|Distance"
+          )
+
+          for category in "${!keywords[@]}"; do
+            echo -e "\n$category" >> $REPORT
+            echo "========================" >> $REPORT
+            if [ "$category" == "[6] Coordinates (Bermuda)" ]; then
+                grep -E "Vector3|Vector2" $DUMP_FILE | grep -E -i "Position|Location" | grep "// RVA:" | head -n 50 >> $REPORT
+            else
+                grep -E -i "${keywords[$category]}" $DUMP_FILE | grep "// RVA:" | head -n 80 >> $REPORT
+            fi
+            echo "----------------------------" >> $REPORT
+          done
+
+      # الخطوة 7: تنظيم الحزمة النهائية وضغطها
+      - name: 7. Organize Final Package
+        run: |
+          echo "--- Packaging Files ---"
+          mkdir -p GIAS_Final_Package/Analysis_Raw
+          cp -r Analysis_Results/* GIAS_Final_Package/Analysis_Raw/
+          # تنظيف الملفات الكبيرة غير الضرورية لتوفير المساحة
+          rm -rf temp_raw_extract GamePackage.apk
+          # ضغط الحزمة
+          zip -r GIAS_Complete_v${{ github.run_number }}.zip GIAS_Final_Package
+
+      # الخطوة 8: رفع النتائج كـ Release (بجودة 720P افتراضياً في ذهن الأتمتة)
+      - name: 8. Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: analysis-v${{ github.run_number }}
-          name: "GIAS Analysis Package v${{ github.run_number }}"
+          tag_name: v${{ github.run_number }}
+          name: "GIAS Analysis v${{ github.run_number }}"
           body: |
-            Complete package containing:
-            - 1_Data: Raw game data files (.bin, .dat).
-            - 3_Logic: Original core logic files.
-            - 4_Analysis: Decompiled scripts and metadata from Il2CppDumper.
-          files: |
-            GIAS_Complete.zip
-        run: |
-          zip -r GIAS_Complete.zip GIAS_Complete
+            تم استخراج وتحليل منطق اللعبة بنجاح.
+            المحتويات:
+            - Search_Report.txt: العناوين (Offsets) الخاصة بالصحة، الأسلحة، وإحداثيات برمودا.
+            - Analysis_Raw: ملفات DummyDll و dump.cs للتحليل العميق.
+          files: GIAS_Complete_v${{ github.run_number }}.zip
