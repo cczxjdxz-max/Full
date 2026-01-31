@@ -4,39 +4,48 @@ on:
   workflow_dispatch:
     inputs:
       environment_run_id:
-        description: 'ادخل رقم تشغيل البيئة (Run ID)'
+        description: 'رقم تشغيل البيئة'
         required: true
 
 jobs:
   everything_machine:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Environment
+      - name: 1. Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
       - run: pip install numpy torch stable-baselines3[torch] gymnasium pyelftools
 
-      - name: 2. Download Training Data
+      - name: 2. Download Artifact
         uses: dawidd6/action-download-artifact@v3
         with:
           run_id: ${{ github.event.inputs.environment_run_id }}
           name: AI_Data_Ready_Lib
-          path: ./temp_artifacts
+          path: ./temp_download
 
-      - name: 3. Smart Linker (ربط ملفات اللعبة)
+      - name: 3. Smart Extraction (فك الضغط وتحديد المسار)
         run: |
-          # العثور على ملف المكتبة ونقله للمجلد الرئيسي
-          FILE_PATH=$(find ./temp_artifacts -name "libil2cpp.so" | head -n 1)
-          if [ -z "$FILE_PATH" ]; then
-            echo "❌ ملف libil2cpp.so غير موجود في الأرشيف!"
+          echo "--- Looking for the library file ---"
+          # إذا كان الملف مضغوطاً، سنحاول فكه
+          find ./temp_download -name "*.zip" -exec unzip -o {} -d ./temp_download \;
+          
+          # الآن نبحث عن الملف الفعلي libil2cpp.so في كل المجلدات
+          ACTUAL_FILE=$(find . -name "libil2cpp.so" | head -n 1)
+          
+          if [ -z "$ACTUAL_FILE" ]; then
+            echo "❌ ERROR: libil2cpp.so not found!"
+            ls -R
             exit 1
           fi
-          cp "$FILE_PATH" ./libil2cpp.so
-          chmod 755 ./libil2cpp.so
-          echo "✅ الملف جاهز للعمل في: $(pwd)/libil2cpp.so"
+          
+          echo "Found file at: $ACTUAL_FILE"
+          # نقله للمجلد الرئيسي ليكون بجانب سكريبت بايثون
+          cp "$ACTUAL_FILE" ./libil2cpp.so
+          chmod +x ./libil2cpp.so
+          echo "✅ File is ready at: $(pwd)/libil2cpp.so"
 
-      - name: 4. Train the Legend (بدء التدريب الأسطوري)
+      - name: 4. The Professional Training Script
         run: |
           cat << 'EOF' > train.py
           import os, ctypes, numpy as np
@@ -46,39 +55,33 @@ jobs:
           class GiasProEnv(gym.Env):
               def __init__(self):
                   super().__init__()
-                  lib_p = os.path.abspath("./libil2cpp.so")
+                  # المسار الآن ثابت ومضمون في المجلد الرئيسي
+                  lib_p = os.path.abspath("libil2cpp.so")
+                  print(f"--- Python loading: {lib_p} ---")
+                  
                   self.lib = ctypes.CDLL(lib_p)
                   
-                  # تعريف الحواس: [الصحة، الذخيرة، جدران الجلو، مسافة العدو]
+                  # [صحة، ذخيرة، جدران، مسافة]
                   self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                  # تعريف الأفعال: [ثبات، حركة، إطلاق، قفز، وضع جدار]
                   self.action_space = gym.spaces.Discrete(5)
 
               def step(self, action):
-                  # محاكاة التفاعل مع اللعبة (هنا يتم استدعاء دوال libil2cpp الحقيقية)
-                  # ملاحظة: سنستخدم قيم افتراضية ذكية للتدريب السريع
+                  # محاكاة التدريب (الروبوت يتعلم الأرقام)
                   obs = np.random.uniform(0.1, 1.0, size=(4,)).astype(np.float32)
-                  
-                  # قانون المكافأة: مكافأة عالية للبقاء واستخدام الدفاع (الجدار)
-                  reward = 0.2
-                  if action == 4: reward += 1.5 # تشجيع على استخدام جدران الجلو
-                  
-                  done = False # في التدريب الأولي نجعله يستمر للتعلم أكثر
-                  return obs, reward, done, False, {}
+                  # مكافأة لاستخدام جدار الجلو (Action 4)
+                  reward = 1.0 if action == 4 else 0.05
+                  return obs, reward, False, False, {}
 
               def reset(self, seed=None):
                   super().reset(seed=seed)
                   return np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), {}
 
-          # إعداد العقل (PPO) بـ 100 ألف خطوة
+          # بدء التدريب الأسطوري
           env = GiasProEnv()
-          model = PPO("MlpPolicy", env, verbose=1, learning_rate=0.0003)
-          
-          print("--- 🧠 الروبوت بدأ يتعلم الآن (100,000 محاولة) ---")
+          model = PPO("MlpPolicy", env, verbose=1)
+          print("--- 🧠 AI Training Started! ---")
           model.learn(total_timesteps=100000)
-          
           model.save("gias_pro_brain")
-          print("--- ✅ تم حفظ العقل بنجاح! ---")
           EOF
           python3 train.py
 
