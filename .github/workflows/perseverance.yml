@@ -1,4 +1,4 @@
-name: GIAS V29 - Ultimate Raw Binary Hunter
+name: GIAS V30 - Separate Report Release
 
 on:
   workflow_dispatch:
@@ -10,62 +10,55 @@ jobs:
       contents: write
 
     steps:
-      # 1. تجهيز بيئة العمل بأدوات Linux الأساسية
+      # 1. تجهيز النظام
       - name: 1. Setup Environment
         run: sudo apt-get update && sudo apt-get install -y unzip wget zip p7zip-full binutils grep
 
-      # 2. تحميل ملف اللعبة (APK)
+      # 2. تحميل اللعبة
       - name: 2. Download Game
         run: |
-          echo "--- Downloading Free Fire APK ---"
           wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O GamePackage.apk
 
-      # 3. استخراج ملف المنطق الأساسي (libil2cpp.so)
+      # 3. استخراج ملف المنطق (SO)
       - name: 3. Extract Game Logic
         run: |
           mkdir temp_extract
           7z x GamePackage.apk -otemp_extract -y
-          # البحث عن نسخة ARM64 لأنها الأكثر دقة في العناوين
           LIB_PATH=$(find temp_extract -path "*arm64-v8a*" -name "libil2cpp.so" | head -n 1)
           if [ -z "$LIB_PATH" ]; then LIB_PATH=$(find temp_extract -name "libil2cpp.so" | head -n 1); fi
           cp "$LIB_PATH" ./libil2cpp.so
-          echo "Logic file extracted successfully."
 
-      # 4. محرك استخراج العناوين (Raw Hex Offset Scanner)
+      # 4. مسح البيانات واستخراج العناوين (Bermuda & Logic)
       - name: 4. Execute GIAS Raw Scanner
         run: |
-          REPORT_DIR="GIAS_Final_Output"
-          mkdir -p $REPORT_DIR
-          REPORT="$REPORT_DIR/Bermuda_Raw_Offsets.txt"
+          REPORT_NAME="Bermuda_Raw_Offsets.txt"
           
-          echo "=== GIAS V29 RAW BINARY INTELLIGENCE ===" > $REPORT
-          echo "Target: libil2cpp.so (ARM64)" >> $REPORT
-          echo "Extraction Date: $(date)" >> $REPORT
-          echo "----------------------------------------" >> $REPORT
+          echo "=== GIAS V30 RAW BINARY INTELLIGENCE ===" > $REPORT_NAME
+          echo "Target: libil2cpp.so (ARM64)" >> $REPORT_NAME
+          echo "Date: $(date)" >> $REPORT_NAME
+          echo "----------------------------------------" >> $REPORT_NAME
 
-          # البحث عن الرموز البرمجية (Symbols)
-          echo -e "\n[!] Potential Logic Offsets (Method Names):" >> $REPORT
-          nm -D libil2cpp.so | grep -E "Health|Damage|Jump|Speed|Bermuda|Weapon|Recoil|Aim" >> $REPORT || echo "No public symbols found (Obfuscated)" >> $REPORT
+          echo -e "\n[!] Potential Method Offsets (Symbols):" >> $REPORT_NAME
+          nm -D libil2cpp.so | grep -E "Health|Damage|Jump|Speed|Bermuda|Weapon" >> $REPORT_NAME || echo "No public symbols found" >> $REPORT_NAME
 
-          # البحث عن العناوين الست عشرية (Hex Offsets) للنصوص الهامة
-          echo -e "\n[!] Direct Hex Offsets for Map & Logic:" >> $REPORT
-          # 'strings -t x' يعطيك العنوان بالـ Hex بجانب الكلمة المكتشفة
-          strings -t x libil2cpp.so | grep -E -i "Bermuda|Island|Map_101|Vector3|GetPosition|SetJump|MoveSpeed" | head -n 1000 >> $REPORT
+          echo -e "\n[!] Direct Hex Offsets (Map & Logic):" >> $REPORT_NAME
+          # استخراج العناوين بنظام Hex بجانب الكلمات المفتاحية
+          strings -t x libil2cpp.so | grep -E -i "Bermuda|Island|Map_101|Vector3|GetPosition|SetJump|MoveSpeed" | head -n 1000 >> $REPORT_NAME
 
-      # 5. ضغط النتائج وتجهيزها للرفع
-      - name: 5. Archive Results
+      # 5. ضغط ملف الـ SO فقط (اختياري)
+      - name: 5. Archive Binary
         run: |
-          # سنرفع التقرير وملف الـ SO لكي تستخدمه في البحث اليدوي إذا أردت
-          zip -r GIAS_V29_Final_Results.zip GIAS_Final_Output/ libil2cpp.so
+          zip -r Logic_Binary.zip libil2cpp.so
 
-      # 6. إنشاء Release ورفع الملفات
-      - name: 6. Create Release
+      # 6. الرفع (التقرير كملف منفصل + الملف المضغوط)
+      - name: 6. Upload To Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "GIAS Bermuda Final V29"
+          name: "GIAS Intelligence v${{ github.run_number }}"
           body: |
-            تم استخراج العناوين بنجاح!
-            افتح ملف 'Bermuda_Raw_Offsets.txt' لرؤية الـ Offsets.
-            الرقم الموجود بجانب الكلمة هو عنوان الـ Hex الذي تضعه في Game Guardian.
-          files: GIAS_V29_Final_Results.zip
+            ✅ تم استخراج التقرير بنجاح.
+            يمكنك تحميل 'Bermuda_Raw_Offsets.txt' مباشرة لرؤية العناوين.
+          files: |
+            Bermuda_Raw_Offsets.txt
+            Logic_Binary.zip
