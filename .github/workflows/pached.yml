@@ -1,0 +1,72 @@
+name: STAGE 2 - GIAS Surgical Patcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_offset:
+        description: 'ادخل العنوان (Offset) من تقرير المرحلة الأولى (مثال: 0xa23f10)'
+        required: true
+
+jobs:
+  patch_and_rebuild:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # 1. تجهيز الأدوات (بما في ذلك أدوات توقيع الـ APK)
+      - name: 1. Setup Environment & Signer
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full openjdk-17-jdk-headless wget
+          # تحميل أداة توقيع الـ APK
+          wget https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -O signer.jar
+
+      # 2. تحميل اللعبة واستخراج الملفات
+      - name: 2. Extract APK
+        run: |
+          wget "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -O Game.apk
+          7z x Game.apk -oextracted_files -y
+
+      # 3. سكريبت الباتش الذكي (بايثون)
+      - name: 3. Apply Surgical Patch
+        run: |
+          # تحديد مسار ملف المنطق 64-بت
+          LIB_PATH=$(find extracted_files -name "libil2cpp.so" | grep "arm64-v8a" | head -n 1)
+          
+          # تنفيذ الباتش باستخدام بايثون
+          python3 -c '
+          import sys
+          # قراءة العنوان من إدخال سير العمل
+          offset_str = "${{ github.event.inputs.target_offset }}"
+          offset = int(offset_str, 16)
+          
+          # تعليمة RET لمعمارية ARM64 (تعيد القيمة فوراً وتمنع تنفيذ الدالة)
+          patch = b"\xc0\x03\x5f\xd6"
+          
+          # فتح الملف وتطبيق الباتش
+          with open(sys.argv[1], "r+b") as f:
+              f.seek(offset)
+              f.write(patch)
+          print(f"Successfully patched {sys.argv[1]} at {offset_str}")
+          ' "$LIB_PATH"
+
+      # 4. إعادة بناء وتوقيع الـ APK
+      - name: 4. Rebuild and Sign APK
+        run: |
+          # ضغط الملفات مرة أخرى لإنشاء APK غير موقع
+          cd extracted_files && zip -r ../Modified_Unsigned.apk . && cd ..
+          
+          # توقيع الـ APK ليعمل على الهاتف
+          java -jar signer.jar --apks Modified_Unsigned.apk
+          
+          # إعادة تسمية الملف النهائي
+          mv Modified_Unsigned-aligned-debugSigned.apk FreeFire_Patched.apk
+
+      # 5. رفع النسخة المعدلة إلى قسم Releases
+      - name: 5. Release Patched APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: patched-v${{ github.run_number }}
+          name: "Patched APK v${{ github.run_number }}"
+          body: "تم تطبيق الباتش بنجاح على العنوان: ${{ github.event.inputs.target_offset }}"
+          files: FreeFire_Patched.apk
