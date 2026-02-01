@@ -1,68 +1,43 @@
-name: GIAS-XOR-DECODER-SCAN
+name: GIAS-CATALOG-HEIST
 on:
   workflow_dispatch:
 
 jobs:
-  decryption_test:
+  find_catalog:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup
-        run: pip install UnityPy
-
-      - name: 2. APK Unpacking
+      - name: 1. Unpack Everything
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 3. XOR Brute-Force & Signature Scanner
+      - name: 2. Search for Mapping File
         run: |
-          cat << 'EOF' > xor_detector.py
+          cat << 'EOF' > catalog_finder.py
           import os
-          import UnityPy
-
-          target_dir = "game_files/assets/bin"
-          results = []
-
-          print(f"🕵️ Starting XOR detection on 30k files in {target_dir}...")
-
-          # نركز على أول 100 ملف ضخم كعينة فحص
-          files_to_scan = [os.path.join(root, f) for root, dirs, files in os.walk(target_dir) for f in files if os.path.getsize(os.path.join(root, f)) > 500000][:100]
-
-          for f_path in files_to_scan:
-              with open(f_path, 'rb') as f:
-                  raw_data = f.read(100)
-                  
-                  # 1. تجربة القراءة المباشرة
-                  if b"Unity" in raw_data:
-                      results.append({"file": os.path.basename(f_path), "status": "Clean UnityFS"})
-                      continue
-                  
-                  # 2. تجربة فك تشفير XOR بسيط (Common in Games)
-                  # سنجرب مفاتيح مشهورة أو استنتاج المفتاح من أول بايت
-                  # بصمة Unity تبدأ بـ 'U' (0x55)
-                  xor_key = raw_data[0] ^ 0x55 
-                  decrypted_head = bytes([b ^ xor_key for b in raw_data])
-                  
-                  if b"Unity" in decrypted_head:
-                      results.append({
-                          "file": os.path.basename(f_path),
-                          "status": "XOR Encrypted",
-                          "key": hex(xor_key)
-                      })
-
-          if not results:
-              print("❌ No Unity signatures found even with XOR test.")
-          else:
-              for r in results:
-                  print(f"✅ Found: {r}")
-
           import json
-          with open("xor_results.json", "w") as f:
-              json.dump(results, f, indent=4)
-          EOF
-          python3 xor_detector.py
 
-      - name: 4. Final Logs
-        run: |
-          echo "--- DETECTION RESULTS ---"
-          cat xor_results.json
+          # نبحث عن أي ملف يحتوي على Hash من الـ 30 ألف ملف
+          example_hash = "bb243b" # بداية أحد الأسماء التي ذكرتها
+          found = False
+
+          print(f"🔎 Scanning for catalog containing hash: {example_hash}...")
+
+          for root, dirs, files in os.walk("game_files"):
+              for file in files:
+                  # نتخطى مجلد bin نفسه لأننا نبحث عن "الفهرس" خارجه
+                  if "assets/bin" in root: continue
+                  
+                  f_path = os.path.join(root, file)
+                  try:
+                      with open(f_path, 'r', errors='ignore') as f:
+                          content = f.read(100000) # قراءة أول جزء من الملف
+                          if example_hash in content:
+                              print(f"🎯 FOUND IT! Catalog Candidate: {f_path}")
+                              found = True
+                  except: pass
+          
+          if not found:
+              print("❌ No direct catalog found in APK. It might be inside a .bundle file.")
+          EOF
+          python3 catalog_finder.py
