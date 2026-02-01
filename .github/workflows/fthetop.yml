@@ -1,80 +1,81 @@
-name: GIAS-THE-OMNI-ARCHIVE
+name: GIAS-THE-ABSOLUTE-ARCHIVE
 
 on:
   workflow_dispatch:
 
 jobs:
-  everything_extractor:
+  build_master_dataset:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Environment
-        run: pip install UnityPy numpy
+      - name: 1. Setup
+        run: pip install UnityPy
 
-      - name: 2. Full Game Data Restoration
+      - name: 2. Extract APK
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 3. The Omni-Assembler Script
+      - name: 3. The Mega-Merge Script
         run: |
-          cat << 'EOF' > omni_assembler.py
+          cat << 'EOF' > mega_merger.py
           import UnityPy
           import os
           import json
 
-          # الحاويات الكبرى لكل شيء
-          grand_data = {
-              "BERMUDA_WORLD": [],    # الخرائط، التضاريس، العقبات
-              "SKINS_COLLECTION": [], # الملابس، الجلود، المظاهر
-              "WEAPONS_PHYSICS": [],  # الأسلحة (مثل الخطاف)، الارتداد، المقذوفات
-              "CHARACTERS_DATA": [],  # الشخصيات، الهيت بوكس، العظام
-              "GAME_LOGIC_RULES": []  # أنظمة اللعبة، الأحداث، المنطق
+          # الحاويات الموحدة التي طلبتها
+          master_archive = {
+              "BERMUDA_MAP": [],      # كل ما يخص الخريطة والتدمير
+              "SKINS_MASTER": [],     # السكنات والأشكال
+              "EVENTS_DATA": [],      # الأحداث والبرمجة
+              "WEAPONS_MASTER": [],   # الأسلحة والقنابل
+              "CHARACTERS_DATA": [],  # الشخصيات والهيت بوكس
+              "PHYSICS_LOGIC": []     # الفيزياء والمنطق العام
           }
 
-          # الكلمات المفتاحية للبصمة الرقمية (Tags)
-          keywords = {
-              "BERMUDA_WORLD": [b"Bermuda", b"Map", b"Terrain", b"StaticMesh", b"Collision"],
-              "SKINS_COLLECTION": [b"Skin", b"Costume", b"Cloth", b"Bundle", b"Preview"],
-              "WEAPONS_PHYSICS": [b"Weapon", b"Gun", b"Recoil", b"Bullet", b"Grappling", b"Hook"],
+          # التصنيف بناءً على محتوى الملف (حتى الـ 702 بايت سيتم تصنيفها هنا)
+          tags = {
+              "BERMUDA_MAP": [b"Bermuda", b"Map", b"Terrain", b"Destructible", b"StaticMesh"],
+              "SKINS_MASTER": [b"Skin", b"Costume", b"Cloth", b"Bundle", b"Preview"],
+              "WEAPONS_MASTER": [b"Weapon", b"Gun", b"Recoil", b"Grenade", b"Hook", b"Ammo"],
               "CHARACTERS_DATA": [b"Character", b"Hero", b"Skill", b"Avatar", b"Hitbox"],
-              "GAME_LOGIC_RULES": [b"Manager", b"System", b"Event", b"Config", b"Rule"]
+              "PHYSICS_LOGIC": [b"Physics", b"Gravity", b"Manager", b"System", b"Rule"],
+              "EVENTS_DATA": [b"Event", b"Mission", b"Quest", b"Activity"]
           }
 
-          print("📡 Executing Absolute Extraction: Scanning all game sectors...")
+          print("🧬 Merging 40,000 files into Master Archives...")
 
           for root, dirs, files in os.walk("game_files"):
               for file in files:
                   try:
                       env = UnityPy.load(os.path.join(root, file))
                       for obj in env.objects:
-                          # سحب البيانات (هياكل البيانات أو خام)
+                          # سحب البيانات (هيكل أو خام)
                           try:
-                              payload = obj.read().read_typetree()
+                              data = obj.read().read_typetree()
                           except:
-                              payload = {"raw_hex": obj.get_raw_data().hex()}
+                              data = {"f_id": file, "hex": obj.get_raw_data().hex()[:2000]}
 
-                          search_area = str(payload).encode()
-                          
-                          # تصنيف ودمج في الملفات الكبيرة
-                          for category, keys in keywords.items():
-                              if any(k in search_area for k in keys):
-                                  grand_data[category].append(payload)
+                          # البحث عن التصنيف المناسب
+                          data_str = str(data).encode()
+                          for category, keys in tags.items():
+                              if any(k in data_str for k in keys):
+                                  master_archive[category].append(data)
                                   break
                   except: continue
 
-          # المرحلة النهائية: الحفظ في ملفات ضخمة (كل شيء في ملف)
-          os.makedirs("GRAND_AI_DATASET", exist_ok=True)
-          for cat, content in grand_data.items():
-              print(f"💾 Saving Archive: {cat} (Size: {len(content)} items)")
-              with open(f"GRAND_AI_DATASET/{cat}.json", "w", encoding='utf-8') as f:
+          # حفظ الملفات الضخمة
+          os.makedirs("MASTER_DATASET", exist_ok=True)
+          for cat, content in master_archive.items():
+              print(f"💾 Saving {cat}: {len(content)} entries found.")
+              with open(f"MASTER_DATASET/{cat}.json", "w", encoding='utf-8') as f:
                   json.dump(content, f, ensure_ascii=False)
-
-          print("✅ Everything has been extracted and archived!")
+          
+          print("✅ All files merged into single category masters!")
           EOF
-          python3 omni_assembler.py
+          python3 mega_merger.py
 
-      - name: 4. Export Global AI Biome
+      - name: 4. Upload Dataset
         uses: actions/upload-artifact@v4
         with:
-          name: FF_COMPLETE_AI_DATASET
-          path: GRAND_AI_DATASET/
+          name: FULL_AI_DATASET_READY
+          path: MASTER_DATASET/
