@@ -1,88 +1,37 @@
-name: GIAS-GIANT-ASSET-HUNTER
+name: GIAS-INDEX-HUNTER
 on:
   workflow_dispatch:
-  push:
-    paths: ['geass2.yml']
 
 jobs:
-  hunt_giants:
+  find_index:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Environment
-        run: |
-          pip install UnityPy
-          sudo apt-get install -y p7zip-full
+      - name: 1. Setup
+        run: pip install UnityPy
 
-      - name: 2. Download & Preparation
+      - name: 2. Extraction
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
-          echo "✅ APK extracted. Locating bin folder..."
 
-      - name: 3. Giant Hunting Script (Size-Based)
+      - name: 3. Search for Catalog/Index
         run: |
-          cat << 'EOF' > hunter.py
-          import UnityPy
-          import json
+          cat << 'EOF' > find_index.py
           import os
+          import json
 
-          found_gems = []
-          target_dir = ""
-
-          # البحث التلقائي عن مجلد bin
+          # البحث عن أي ملف يحتوي على كلمة catalog أو settings أو map_info
+          index_candidates = []
           for root, dirs, files in os.walk("game_files"):
-              if root.endswith("bin"):
-                  target_dir = root
-                  break
-
-          if not target_dir:
-              print("❌ Error: 'bin' folder not found!")
-              exit(1)
-
-          print(f"📡 Hunting giants in {target_dir}...")
-
-          for root, dirs, files in os.walk(target_dir):
               for file in files:
-                  file_path = os.path.join(root, file)
-                  
-                  # سنركز فقط على الملفات التي تزيد عن 500 كيلو بايت
-                  # لأن بيانات الخريطة والفيزياء الحقيقية مستحيل تكون أصغر من ذلك
-                  if os.path.getsize(file_path) < 512000: 
-                      continue
-                      
-                  try:
-                      env = UnityPy.load(file_path)
-                      for obj in env.objects:
-                          # Mesh = خرائط وتضاريس
-                          # MonoBehaviour = فيزياء وقواعد بيانات اللعبة
-                          if obj.type.name in ["Mesh", "MonoBehaviour", "TextAsset"]:
-                              found_gems.append({
-                                  "encrypted_file": file,
-                                  "type": obj.type.name,
-                                  "data_size": obj.size,
-                                  "path_id": obj.path_id
-                              })
-                  except:
-                      continue
+                  f_lower = file.lower()
+                  if any(x in f_lower for x in ["catalog", "settings", "index", "config", "addressables"]):
+                      index_candidates.append(os.path.join(root, file))
 
-          # ترتيب النتائج من الأضخم (الأكثر أهمية) إلى الأصغر
-          found_gems.sort(key=lambda x: x['data_size'], reverse=True)
-
-          # حفظ أكبر 50 كائن مكتشف
-          with open("top_giants.json", "w", encoding='utf-8') as f:
-              json.dump(found_gems[:50], f, indent=4)
-
-          print(f"✅ Success! Captured {len(found_gems)} giant objects.")
-          EOF
-          python3 hunter.py
-
-      - name: 4. Final Logs & Artifacts
-        run: |
-          echo "--- TOP 10 LARGEST DATA OBJECTS FOUND ---"
-          head -n 50 top_giants.json
+          print(f"🔎 Found {len(index_candidates)} potential index files.")
           
-      - name: 📦 Upload Captured Data
-        uses: actions/upload-artifact@v4
-        with:
-          name: CAPTURED_GIANT_ASSETS
-          path: top_giants.json
+          # عرض أحجامهم ومساراتهم لنعرف أيهم "الفهرس الحقيقي"
+          for path in index_candidates:
+              print(f"📄 File: {path} | Size: {os.path.getsize(path)} bytes")
+          EOF
+          python3 find_index.py
