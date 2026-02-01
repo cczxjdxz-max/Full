@@ -1,37 +1,99 @@
-name: GIAS-INDEX-HUNTER
+name: GIAS-FINAL-SURGICAL-EXTRACTOR
 on:
   workflow_dispatch:
 
 jobs:
-  find_index:
+  surgical_extraction:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup
+      - name: 1. Environment & Tools
         run: pip install UnityPy
 
-      - name: 2. Extraction
+      - name: 2. APK Acquisition
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 3. Search for Catalog/Index
+      - name: 3. Master Execution (The Intelligence Engine)
+        id: engine
         run: |
-          cat << 'EOF' > find_index.py
-          import os
+          cat << 'EOF' > final_processor.py
+          import UnityPy
           import json
+          import os
+          import struct
 
-          # البحث عن أي ملف يحتوي على كلمة catalog أو settings أو map_info
-          index_candidates = []
+          # 1. البحث عن الفهرس (Catalog)
+          catalog_path = ""
           for root, dirs, files in os.walk("game_files"):
-              for file in files:
-                  f_lower = file.lower()
-                  if any(x in f_lower for x in ["catalog", "settings", "index", "config", "addressables"]):
-                      index_candidates.append(os.path.join(root, file))
+              if "catalog.json" in files:
+                  catalog_path = os.path.join(root, "catalog.json")
+                  break
 
-          print(f"🔎 Found {len(index_candidates)} potential index files.")
+          extracted_intel = {
+              "status": "Incomplete",
+              "physics_constants": {},
+              "map_points": [],
+              "weapon_mechanics": []
+          }
+
+          # 2. إذا لم نجد الكتالوج، سننتقل للمسح النوعي العميق
+          target_keywords = ["weapon", "physics", "bermuda", "recoil", "bullet"]
           
-          # عرض أحجامهم ومساراتهم لنعرف أيهم "الفهرس الحقيقي"
-          for path in index_candidates:
-              print(f"📄 File: {path} | Size: {os.path.getsize(path)} bytes")
+          print("📡 Starting Deep Component Analysis...")
+          
+          for root, dirs, files in os.walk("game_files"):
+              if "bin" not in root: continue
+              for file in files:
+                  f_path = os.path.join(root, file)
+                  if os.path.getsize(f_path) < 10240: continue
+                  
+                  try:
+                      env = UnityPy.load(f_path)
+                      for obj in env.objects:
+                          # تحليل الفيزياء والأسلحة (MonoBehaviour)
+                          if obj.type.name == "MonoBehaviour":
+                              data = obj.read()
+                              name = getattr(data, 'name', '').lower()
+                              
+                              if any(k in name for k in target_keywords) or obj.size > 5000:
+                                  # المحلل الإحصائي: استخراج القيم الرقمية الخام
+                                  raw = obj.get_raw_data()
+                                  floats = []
+                                  for i in range(0, min(len(raw), 1000), 4):
+                                      try:
+                                          val = struct.unpack('f', raw[i:i+4])[0]
+                                          if 0.1 < val < 50.0: # البحث عن قيم الارتداد والجاذبية المنطقية
+                                              floats.append(round(val, 3))
+                                      except: continue
+                                  
+                                  extracted_intel["weapon_mechanics"].append({
+                                      "file": file,
+                                      "internal_name": name,
+                                      "detected_values": list(set(floats))[:10]
+                                  })
+
+                          # تحليل الخريطة (Mesh)
+                          elif obj.type.name == "Mesh":
+                              mesh = obj.read()
+                              if "bermuda" in getattr(mesh, 'name', '').lower() or obj.size > 100000:
+                                  extracted_intel["map_points"].append({
+                                      "bundle": file,
+                                      "vertices": getattr(mesh, 'm_VertexCount', 0),
+                                      "name": getattr(mesh, 'name', 'Terrain_Segment')
+                                  })
+                  except: continue
+
+          extracted_intel["status"] = "Success"
+          with open("final_intelligence_report.json", "w", encoding='utf-8') as f:
+              json.dump(extracted_intel, f, indent=4)
+          
+          print(f"✅ Extracted {len(extracted_intel['weapon_mechanics'])} weapon profiles.")
           EOF
-          python3 find_index.py
+          python3 final_processor.py
+
+      - name: 4. Upload Intelligence Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: FINAL_GAME_INTEL
+          path: final_intelligence_report.json
