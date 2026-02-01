@@ -1,112 +1,94 @@
-name: GIAS-HEX-FORCE-EXTRACTOR
+name: GIAS-AI-GRAND-ARCHIVE
 
 on:
-  workflow_dispatch: # تشغيل يدوي
+  workflow_dispatch:
 
 jobs:
-  force_extract:
+  assemble_archive:
     runs-on: ubuntu-latest
     steps:
-      # 1. إعداد البيئة
-      - name: 1. Setup Environment
-        run: |
-          pip install UnityPy
-          echo "--- Environment Ready ---"
+      - name: 1. Environment Setup
+        run: pip install UnityPy numpy
 
-      # 2. تحميل اللعبة وفكها
-      - name: 2. Download & Unpack APK
+      - name: 2. APK Deep Extraction
         run: |
-          echo "--- Downloading APK ---"
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          echo "--- Unpacking APK ---"
           unzip -o game.apk -d game_files
 
-      # 3. محرك الفهرسة والاستخراج القسري
-      - name: 3. Master Force Extraction
+      - name: 3. The Grand Assembler (المجمع العملاق)
         run: |
-          cat << 'EOF' > force_extractor.py
+          cat << 'EOF' > grand_assembler.py
+          import UnityPy
           import os
           import json
-          import UnityPy
-          import struct
 
-          # تحديد المجلدات
-          target_dir = "game_files"
-          output_dir = "FINAL_DATA"
-          os.makedirs(output_dir, exist_ok=True)
-
-          inventory = {
-              "Weapons_Logic": [],
-              "Physics_and_Rules": [],
-              "Raw_Analysis": {}
+          # قواميس التجميع
+          archive = {
+              "Bermuda_World": [],    # الخرائط والتضاريس
+              "Skins_Library": [],    # الاسكنات والملابس
+              "Events_Logic": [],     # الأحداث والمهام
+              "Weapons_Master": [],   # الأسلحة والذخيرة
+              "Explosives_Data": [],  # القنابل والمتفجرات
+              "Characters_Master": [],# الشخصيات والقدرات
+              "Physics_Core": [],     # الفيزياء والجاذبية
+              "Game_Logic": []        # المنطق العام والسيستم
           }
 
-          # كلمات البحث الذهبية
-          keywords = {
-              "Weapons_Logic": [b"Weapon", b"Recoil", b"Bullet", b"Spread"],
-              "Physics_and_Rules": [b"Gravity", b"Physics", b"SpeedScale", b"Movement"]
+          # كلمات البحث المفتاحية لكل قسم
+          tags = {
+              "Bermuda_World": [b"Bermuda", b"Purgatory", b"Kalahari", b"Terrain", b"Map"],
+              "Skins_Library": [b"Skin", b"Costume", b"Cloth", b"Bundle"],
+              "Events_Logic": [b"Event", b"Mission", b"Quest", b"Reward"],
+              "Weapons_Master": [b"Weapon", b"Gun", b"Rifle", b"Ammo", b"Recoil"],
+              "Explosives_Data": [b"Grenade", b"Bomb", b"Explosion", b"Flashbang"],
+              "Characters_Master": [b"Character", b"Hero", b"Skill", b"Avatar", b"Hitbox"],
+              "Physics_Core": [b"Physics", b"Gravity", b"Mass", b"Friction", b"Velocity"],
+              "Game_Logic": [b"Manager", b"System", b"Config", b"Setting", b"Rule"]
           }
 
-          print("📡 Starting Force Extraction on 40,000+ files...")
+          print("📦 Starting Grand Assembly of All Assets...")
 
-          # المسح الشامل
-          for root, dirs, files in os.walk(target_dir):
+          for root, dirs, files in os.walk("game_files"):
               for file in files:
                   f_path = os.path.join(root, file)
-                  f_size = os.path.getsize(f_path)
-                  
-                  if f_size < 1000: continue # تخطي الملفات التقنية جداً
-
                   try:
-                      with open(f_path, 'rb') as f_raw:
-                          content = f_raw.read()
+                      env = UnityPy.load(f_path)
+                      for obj in env.objects:
+                          data_to_save = None
                           
-                          is_target = False
-                          category = ""
-                          for cat, keys in keywords.items():
-                              if any(k in content for k in keys):
-                                  is_target = True
-                                  category = cat
-                                  break
+                          # استخراج البيانات بناءً على النوع
+                          if obj.type.name in ["MonoBehaviour", "TextAsset"]:
+                              try:
+                                  data_to_save = obj.read().read_typetree()
+                              except:
+                                  data_to_save = {"raw_hex": obj.get_raw_data().hex()[:500]}
                           
-                          if is_target:
-                              # إذا وجدنا ملف هدف، نقوم بتشريحه فوراً
-                              env = UnityPy.load(f_path)
-                              for obj in env.objects:
-                                  raw_payload = obj.get_raw_data()
-                                  
-                                  if len(raw_payload) > 10:
-                                      # استخراج قيم الـ Floats (الأرقام التي تمثل الارتداد والسرعة)
-                                      detected_floats = []
-                                      for i in range(0, len(raw_payload) - 4, 4):
-                                          try:
-                                              f_val = struct.unpack('f', raw_payload[i:i+4])[0]
-                                              # تصفية القيم المنطقية للعبة (غالباً تكون بين 0 و 100)
-                                              if 0.001 < f_val < 100.0:
-                                                  detected_floats.append(round(f_val, 4))
-                                          except: continue
+                          elif obj.type.name == "Mesh":
+                              mesh = obj.read()
+                              data_to_save = {"mesh_name": mesh.name, "vertices": mesh.m_VertexCount}
 
-                                      inventory["Raw_Analysis"][f"{file}_{obj.type.name}"] = {
-                                          "file_path": f_path,
-                                          "size": len(raw_payload),
-                                          "hex_preview": raw_payload[:64].hex(' '),
-                                          "floats": list(set(detected_floats))[:30] # أول 30 رقم فريد
-                                      }
-                                      print(f"🎯 Analysis Done: {file}")
-                  except:
-                      continue
+                          if data_to_save:
+                              # تحديد القسم المناسب للملف
+                              raw_content = str(data_to_save).encode()
+                              for category, keywords in tags.items():
+                                  if any(k in raw_content for k in keywords):
+                                      archive[category].append(data_to_save)
+                                      break
+                  except: continue
 
-          # حفظ التقرير النهائي
-          with open(f"{output_dir}/RAW_PHYSICS_ANALYSIS.json", "w", encoding='utf-8') as f:
-              json.dump(inventory, f, indent=4)
+          # حفظ كل قسم في ملف واحد ضخم
+          print("💾 Saving Master Files...")
+          os.makedirs("GRAND_ARCHIVE", exist_ok=True)
+          for category, data in archive.items():
+              with open(f"GRAND_ARCHIVE/{category}.json", "w", encoding='utf-8') as f:
+                  json.dump(data, f, ensure_ascii=False, indent=2)
           
-          print(f"✅ Mission Success! Data saved in {output_dir}")
+          print("✅ All systems extracted and merged into GRAND_ARCHIVE/")
           EOF
-          python3 force_extractor.py
+          python3 grand_assembler.py
 
-      # 4. رفع النتائج كـ Artifact
-      - name: 4. Upload Final Results
+      - name: 4. Upload Grand Archive
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS_FINAL_RAW_DATA
-          path: FINAL_DATA/
+          name: FF_AI_MASTER_DATASET
+          path: GRAND_ARCHIVE/
