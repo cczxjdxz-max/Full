@@ -1,43 +1,45 @@
-name: GIAS-CATALOG-HEIST
+name: GIAS-HEX-SIGNATURE-ANALYSIS
 on:
   workflow_dispatch:
 
 jobs:
-  find_catalog:
+  analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Unpack Everything
+      - name: 1. Setup Environment
+        run: pip install UnityPy
+
+      - name: 2. APK Extraction
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 2. Search for Mapping File
+      - name: 3. Hex & Data Inspector
         run: |
-          cat << 'EOF' > catalog_finder.py
+          cat << 'EOF' > inspector.py
           import os
-          import json
 
-          # نبحث عن أي ملف يحتوي على Hash من الـ 30 ألف ملف
-          example_hash = "bb243b" # بداية أحد الأسماء التي ذكرتها
-          found = False
-
-          print(f"🔎 Scanning for catalog containing hash: {example_hash}...")
-
-          for root, dirs, files in os.walk("game_files"):
-              for file in files:
-                  # نتخطى مجلد bin نفسه لأننا نبحث عن "الفهرس" خارجه
-                  if "assets/bin" in root: continue
-                  
-                  f_path = os.path.join(root, file)
-                  try:
-                      with open(f_path, 'r', errors='ignore') as f:
-                          content = f.read(100000) # قراءة أول جزء من الملف
-                          if example_hash in content:
-                              print(f"🎯 FOUND IT! Catalog Candidate: {f_path}")
-                              found = True
-                  except: pass
+          target_dir = "game_files/assets/bin"
+          # جلب كل الملفات وترتيبها حسب الحجم (الأكبر أولاً)
+          files = []
+          for root, dirs, filenames in os.walk(target_dir):
+              for f in filenames:
+                  files.append(os.path.join(root, f))
           
-          if not found:
-              print("❌ No direct catalog found in APK. It might be inside a .bundle file.")
+          files.sort(key=os.path.getsize, reverse=True)
+
+          print(f"🔬 Analyzing the Top 5 Giants out of {len(files)} files...")
+
+          for f_path in files[:5]:
+              size = os.path.getsize(f_path)
+              with open(f_path, 'rb') as f:
+                  header = f.read(32) # قراءة أول 32 بايت (البصمة)
+                  print(f"\n📄 File: {os.path.basename(f_path)}")
+                  print(f"   Size: {size} bytes")
+                  print(f"   Hex Signature: {header.hex(' ')}")
+                  # محاولة قراءة أي نص في الهيدر
+                  try:
+                      print(f"   ASCII: {header.decode('ascii', errors='ignore')}")
+                  except: pass
           EOF
-          python3 catalog_finder.py
+          python3 inspector.py
