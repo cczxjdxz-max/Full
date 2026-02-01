@@ -1,156 +1,112 @@
-name: GIAS-THE-FINAL-ASSEMBLER
+name: GIAS-HEX-FORCE-EXTRACTOR
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # تشغيل يدوي
 
 jobs:
-  extract_and_assemble:
+  force_extract:
     runs-on: ubuntu-latest
     steps:
-      # ------------------- المرحلة الأولى: الفهرسة -------------------
-      - name: 1. Setup & Download
+      # 1. إعداد البيئة
+      - name: 1. Setup Environment
         run: |
           pip install UnityPy
+          echo "--- Environment Ready ---"
+
+      # 2. تحميل اللعبة وفكها
+      - name: 2. Download & Unpack APK
+        run: |
           echo "--- Downloading APK ---"
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           echo "--- Unpacking APK ---"
           unzip -o game.apk -d game_files
 
-      - name: 2. Run Master Mapper (Creating the Index)
-        id: mapping
+      # 3. محرك الفهرسة والاستخراج القسري
+      - name: 3. Master Force Extraction
         run: |
-          # هذا هو نفس كود "الرادار الشامل" من المرة السابقة
-          # وظيفته هي إنشاء ملف full_game_inventory.json
-          cat << 'EOF' > master_mapper.py
-          import os
-          import json
-
-          target_dir = next((os.path.join(r, d) for r, dirs, f in os.walk("game_files") for d in dirs if d == "bin"), "game_files")
-          full_inventory = {
-              "Weapons_Logic": [], "Maps_Bermuda": [], "Characters_Physics": [], "Game_Rules": [], "Unidentified_Big_Files": []
-          }
-          categories = {
-              "Weapons_Logic": [b"Weapon", b"Recoil", b"Bullet", b"Spread", b"Reload"],
-              "Maps_Bermuda": [b"Bermuda", b"Terrain"],
-              "Characters_Physics": [b"Gravity", b"Hitbox", b"Collider", b"Ragdoll", b"Physics"],
-              "Game_Rules": [b"PlayerSkill", b"SpeedScale", b"Movement", b"Vehicle"]
-          }
-          print(f"📡 Stage 1: Scanning files to create inventory...")
-          for root, dirs, files in os.walk(target_dir):
-              for file in files:
-                  f_path = os.path.join(root, file)
-                  try:
-                      f_size = os.path.getsize(f_path)
-                      if f_size < 5000: continue
-                      with open(f_path, 'rb') as f_content:
-                          content = f_content.read()
-                          found = False
-                          for cat, keys in categories.items():
-                              if any(k in content for k in keys):
-                                  full_inventory[cat].append({"file_id": file, "path": f_path, "size": f_size})
-                                  found = True
-                                  break
-                          if not found and f_size > 1000000:
-                              full_inventory["Unidentified_Big_Files"].append({"file_id": file, "path": f_path, "size": f_size})
-                  except: continue
-          with open("full_game_inventory.json", "w") as f:
-              json.dump(full_inventory, f, indent=4)
-          print("✅ Stage 1 Complete: Inventory created at full_game_inventory.json")
-          EOF
-          python3 master_mapper.py
-
-      # ------------------- المرحلة الثانية: التجميع -------------------
-      - name: 3. Run Surgical Assembler (Reading the Index and Assembling Data)
-        run: |
-          # هذا هو الكود الجديد الذي يقرأ الفهرس ويجمع البيانات
-          cat << 'EOF' > surgical_assembler.py
+          cat << 'EOF' > force_extractor.py
           import os
           import json
           import UnityPy
+          import struct
 
-          # تحميل الفهرس الذي تم إنشاؤه
-          with open("full_game_inventory.json", 'r') as f:
-              inventory = json.load(f)
+          # تحديد المجلدات
+          target_dir = "game_files"
+          output_dir = "FINAL_DATA"
+          os.makedirs(output_dir, exist_ok=True)
 
-          # إعداد ملفات الإخراج النهائية
-          final_data = {
-              "PHYSICS_DATA": {},
-              "MAP_GEOMETRY_DATA": [],
-              "CHARACTER_DATA": {}
+          inventory = {
+              "Weapons_Logic": [],
+              "Physics_and_Rules": [],
+              "Raw_Analysis": {}
           }
 
-          print("--- Stage 2: Assembling data based on inventory ---")
+          # كلمات البحث الذهبية
+          keywords = {
+              "Weapons_Logic": [b"Weapon", b"Recoil", b"Bullet", b"Spread"],
+              "Physics_and_Rules": [b"Gravity", b"Physics", b"SpeedScale", b"Movement"]
+          }
 
-          # --- تجميع بيانات الفيزياء والأسلحة ---
-          print("...Assembling Physics & Weapon data...")
-          weapon_files = inventory.get("Weapons_Logic", [])
-          for item in weapon_files:
-              try:
-                  env = UnityPy.load(item["path"])
-                  for obj in env.objects:
-                      if obj.type.name == "MonoBehaviour":
-                          data = obj.read()
-                          # نحاول استخراج البيانات الرقمية والنصية
-                          # هذا الجزء قد يحتاج لتعديل بناءً على بنية البيانات الفعلية
-                          tree = data.read_typetree()
-                          final_data["PHYSICS_DATA"][f"{item['file_id']}_{data.name}"] = tree
-              except Exception as e:
-                  print(f"Warning: Could not process {item['file_id']}: {e}")
-                  continue
+          print("📡 Starting Force Extraction on 40,000+ files...")
 
-          # --- تجميع بيانات الخريطة ---
-          print("...Assembling Map Geometry data...")
-          map_files = inventory.get("Maps_Bermuda", []) + inventory.get("Unidentified_Big_Files", [])
-          for item in map_files:
-              try:
-                  env = UnityPy.load(item["path"])
-                  for obj in env.objects:
-                      if obj.type.name == "Mesh":
-                          mesh = obj.read()
-                          if mesh.m_VertexCount > 100: # نهتم فقط بالأشكال الهندسية الكبيرة
-                              final_data["MAP_GEOMETRY_DATA"].append({
-                                  "source_file": item["file_id"],
-                                  "mesh_name": mesh.name,
-                                  "vertices": mesh.m_VertexCount,
-                                  "submeshes": len(mesh.m_SubMeshes)
-                              })
-              except Exception as e:
-                  print(f"Warning: Could not process {item['file_id']}: {e}")
-                  continue
+          # المسح الشامل
+          for root, dirs, files in os.walk(target_dir):
+              for file in files:
+                  f_path = os.path.join(root, file)
+                  f_size = os.path.getsize(f_path)
+                  
+                  if f_size < 1000: continue # تخطي الملفات التقنية جداً
+
+                  try:
+                      with open(f_path, 'rb') as f_raw:
+                          content = f_raw.read()
+                          
+                          is_target = False
+                          category = ""
+                          for cat, keys in keywords.items():
+                              if any(k in content for k in keys):
+                                  is_target = True
+                                  category = cat
+                                  break
+                          
+                          if is_target:
+                              # إذا وجدنا ملف هدف، نقوم بتشريحه فوراً
+                              env = UnityPy.load(f_path)
+                              for obj in env.objects:
+                                  raw_payload = obj.get_raw_data()
+                                  
+                                  if len(raw_payload) > 10:
+                                      # استخراج قيم الـ Floats (الأرقام التي تمثل الارتداد والسرعة)
+                                      detected_floats = []
+                                      for i in range(0, len(raw_payload) - 4, 4):
+                                          try:
+                                              f_val = struct.unpack('f', raw_payload[i:i+4])[0]
+                                              # تصفية القيم المنطقية للعبة (غالباً تكون بين 0 و 100)
+                                              if 0.001 < f_val < 100.0:
+                                                  detected_floats.append(round(f_val, 4))
+                                          except: continue
+
+                                      inventory["Raw_Analysis"][f"{file}_{obj.type.name}"] = {
+                                          "file_path": f_path,
+                                          "size": len(raw_payload),
+                                          "hex_preview": raw_payload[:64].hex(' '),
+                                          "floats": list(set(detected_floats))[:30] # أول 30 رقم فريد
+                                      }
+                                      print(f"🎯 Analysis Done: {file}")
+                  except:
+                      continue
+
+          # حفظ التقرير النهائي
+          with open(f"{output_dir}/RAW_PHYSICS_ANALYSIS.json", "w", encoding='utf-8') as f:
+              json.dump(inventory, f, indent=4)
           
-          # --- تجميع بيانات الشخصيات ---
-          print("...Assembling Character data...")
-          char_files = inventory.get("Characters_Physics", [])
-          for item in char_files:
-              try:
-                  env = UnityPy.load(item["path"])
-                  for obj in env.objects:
-                      if obj.type.name == "MonoBehaviour":
-                          data = obj.read()
-                          if "hitbox" in str(data.read_typetree()).lower():
-                              tree = data.read_typetree()
-                              final_data["CHARACTER_DATA"][f"{item['file_id']}_{data.name}"] = tree
-              except Exception as e:
-                  print(f"Warning: Could not process {item['file_id']}: {e}")
-                  continue
-
-          # حفظ كل فئة في ملف JSON منفصل
-          print("--- Saving final assembled data files ---")
-          os.makedirs("FINAL_DATA", exist_ok=True)
-          with open("FINAL_DATA/PHYSICS.json", "w") as f:
-              json.dump(final_data["PHYSICS_DATA"], f, indent=4)
-          with open("FINAL_DATA/MAP.json", "w") as f:
-              json.dump(final_data["MAP_GEOMETRY_DATA"], f, indent=4)
-          with open("FINAL_DATA/CHARACTERS.json", "w") as f:
-              json.dump(final_data["CHARACTER_DATA"], f, indent=4)
-              
-          print("✅ Stage 2 Complete: All data assembled!")
+          print(f"✅ Mission Success! Data saved in {output_dir}")
           EOF
-          python3 surgical_assembler.py
+          python3 force_extractor.py
 
-      # الخطوة 4: رفع البيانات النهائية المجمعة
-      - name: 4. Upload Final Assembled Data
+      # 4. رفع النتائج كـ Artifact
+      - name: 4. Upload Final Results
         uses: actions/upload-artifact@v4
         with:
-          name: GIAS_FINAL_ASSEMBLED_DATA
+          name: GIAS_FINAL_RAW_DATA
           path: FINAL_DATA/
