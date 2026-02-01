@@ -1,98 +1,71 @@
-# اسم الـ workflow للمنفذ
-name: AI-Executor-Task
-
-# متى يتم تشغيل هذا الـ workflow
+name: GIAS-INTELLIGENT-RADAR
 on:
-  # يسمح للقائد بتشغيله عن بعد
   workflow_dispatch:
-  # يتم تشغيله تلقائيًا عند أي تعديل على هذا الملف (بواسطة القائد)
-  push:
-    paths:
-      - '.github/workflows/geass2.yml'
 
 jobs:
-  execute:
+  analyze:
     runs-on: ubuntu-latest
     steps:
-      # الخطوة 1: محاولة تنفيذ المهمة الرئيسية (التدريب)
-      - name: 🛠️ Setup & Training Task
-        id: task
+      - name: 1. Setup & Extraction
         run: |
-          # تثبيت المكتبات الأساسية للذكاء الاصطناعي
-          pip install numpy torch stable-baselines3[torch] gymnasium
-
-          # تنزيل ملف اللعبة واستخراج المكتبة البرمجية
+          pip install UnityPy
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          unzip -o -j game.apk "*.so" -d ./libs
-          cp $(find ./libs -name "libil2cpp.so" | head -n 1) ./libil2cpp.so
-          
-          # إنشاء وتشغيل سكربت التدريب
-          cat << 'EOF' > train.py
-          import gymnasium as gym, numpy as np, os, ctypes
+          unzip -o game.apk -d game_files
 
-          # محاولة تعريف بيئة اللعبة
-          try:
-              class GameEnv(gym.Env):
-                  def __init__(self):
-                      super().__init__()
-                      # هذا السطر هو نقطة الفشل المحتملة
-                      self.lib = ctypes.CDLL(os.path.abspath("libil2cpp.so"))
-                      self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                      self.action_space = gym.spaces.Discrete(5)
-                  
-                  def step(self, action):
-                      # منطق وهمي، حيث أن استدعاء المكتبة الحقيقية سيفشل
-                      obs = np.random.rand(4).astype(np.float32)
-                      reward = 1.0 if action == 4 else -0.1
-                      return obs, reward, False, False, {}
-
-                  def reset(self, seed=None):
-                      super().reset(seed=seed)
-                      return np.zeros(4, dtype=np.float32), {}
-              
-              env = GameEnv()
-
-          except Exception as e:
-              print(f"FATAL ERROR: Failed to initialize GameEnv. Error: {e}")
-              # إذا فشل تحميل المكتبة، نستخدم بيئة وهمية بسيطة جدًا لإكمال المهمة
-              class DummyEnv(gym.Env):
-                  def __init__(self):
-                      self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                      self.action_space = gym.spaces.Discrete(5)
-                  def step(self, action): return np.random.rand(4).astype(np.float32), 1.0, False, False, {}
-                  def reset(self, seed=None): return np.zeros(4, dtype=np.float32), {}
-              env = DummyEnv()
-
-          # تدريب النموذج على البيئة المتاحة (الحقيقية أو الوهمية)
-          from stable_baselines3 import PPO
-          model = PPO("MlpPolicy", env, verbose=1)
-          model.learn(total_timesteps=10000) # تم تقليل العدد لغرض الاختبار
-          model.save("gias_final_brain")
-          EOF
-
-          # تنفيذ سكربت البايثون
-          python3 train.py
-        # هذه الخاصية مهمة جدًا: تسمح بإكمال الـ workflow حتى لو فشلت هذه الخطوة
-        continue-on-error: true
-
-      # الخطوة 2: إبلاغ القائد في حالة الفشل
-      - name: 🚩 Report Failure to Commander
-        # يعمل فقط إذا فشلت الخطوة السابقة
-        if: steps.task.outcome == 'failure'
+      - name: 2. Smart Search & Clean Script
         run: |
-          echo "Task failed. Reporting back to the Commander."
-          # إرسال إشعار إلى مستودع القائد يحتوي على سبب الفشل
-          curl -X POST \
-          -H "Authorization: token ${{ secrets.PAT }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-          -d '{"event_type": "fail_report", "client_payload": {"reason": "Execution failed in Executor. Check the logs in cczxjdxz-max/Full for details."}}'
+          cat << 'EOF' > radar.py
+          import UnityPy
+          import json
+          import os
 
-      # الخطوة 3: رفع "العقل" في حالة النجاح
-      - name: 📦 Upload Brain on Success
-        # يعمل فقط إذا نجحت الخطوة الأولى
-        if: steps.task.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: FINAL_BRAIN
-          path: gias_final_brain.zip
+          # الكلمات المفتاحية التي نبحث عنها في "المنجم"
+          keywords = ["bermuda", "physics", "weapon", "recoil", "bullet", "gloo", "terrain"]
+          found_gems = []
+
+          target_dir = ""
+          for root, dirs, files in os.walk("game_files"):
+              if root.endswith("bin"):
+                  target_dir = root
+                  break
+
+          print(f"📡 Radar scanning 30K files in {target_dir}...")
+
+          for root, dirs, files in os.walk(target_dir):
+              for file in files:
+                  file_path = os.path.join(root, file)
+                  if os.path.getsize(file_path) < 10240: continue
+                      
+                  try:
+                      env = UnityPy.load(file_path)
+                      for obj in env.objects:
+                          if obj.type.name in ["MonoBehaviour", "Mesh"]:
+                              data = obj.read()
+                              name = getattr(data, 'name', '').lower()
+                              
+                              # البحث عن الذهب وسط الهواء
+                              if any(k in name for k in keywords):
+                                  found_gems.append({
+                                      "target_name": name,
+                                      "encrypted_file": file,
+                                      "type": obj.type.name,
+                                      "data_size": obj.size
+                                  })
+                  except:
+                      continue
+
+          # ترتيب النتائج حسب حجم البيانات (الأكبر غالباً هو الأكثر دقة)
+          found_gems.sort(key=lambda x: x['data_size'], reverse=True)
+
+          # حفظ أهم 20 نتيجة فقط (الزبدة)
+          with open("top_priority_assets.json", "w", encoding='utf-8') as f:
+              json.dump(found_gems[:20], f, indent=4)
+          
+          print(f"✅ Radar found {len(found_gems)} potential targets!")
+          EOF
+          python3 radar.py
+
+      - name: 3. Show Results in Logs
+        run: |
+          echo "--- TOP 10 DATA GEMS FOUND ---"
+          head -n 50 top_priority_assets.json
