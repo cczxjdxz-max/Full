@@ -1,84 +1,88 @@
-name: GIAS-DEEP-DATA-EXTRACTOR
+name: GIAS-GIANT-ASSET-HUNTER
 on:
   workflow_dispatch:
   push:
     paths: ['geass2.yml']
 
 jobs:
-  extract:
+  hunt_giants:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Tools
+      - name: 1. Setup Environment
         run: |
-          pip install UnityPy numpy
+          pip install UnityPy
           sudo apt-get install -y p7zip-full
 
-      - name: 2. Download & Unzip All Layers
+      - name: 2. Download & Preparation
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
-          # فحص إذا كان هناك ملفات OBB مدمجة أو ملفات AssetBin
-          find game_files -name "*.zip" -exec unzip -o {} -d game_files \;
+          echo "✅ APK extracted. Locating bin folder..."
 
-      - name: 3. Deep Mining Script (The Engine)
+      - name: 3. Giant Hunting Script (Size-Based)
         run: |
-          cat << 'EOF' > miner.py
+          cat << 'EOF' > hunter.py
           import UnityPy
           import json
           import os
 
-          # تصنيفات البيانات المطلوبة
-          results = {
-              "Bermuda_Map": [],
-              "Physics_Rules": [],
-              "Characters_Data": [],
-              "Weapons_Gernades": [],
-              "Gloo_Resources": []
-          }
+          found_gems = []
+          target_dir = ""
 
-          def start_mining():
-              print("🚀 Starting Deep Scan...")
-              for root, dirs, files in os.walk("game_files"):
-                  for file in files:
-                      # فحص الملفات الضخمة التي تحتوي على الكائنات
-                      if file.endswith(('.assets', '.sharedassets', '.bundle', '.data')) or "level" in file:
-                          try:
-                              env = UnityPy.load(os.path.join(root, file))
-                              for obj in env.objects:
-                                  # نحن نبحث عن المكونات التي تحتوي على بيانات فيزيائية وتحويلات
-                                  if obj.type.name in ["MonoBehaviour", "Transform", "GameObject", "Mesh"]:
-                                      data = obj.read()
-                                      name = getattr(data, 'name', 'Unnamed_Object').lower()
-                                      
-                                      # منطق التصنيف الدقيق
-                                      info = {"n": name, "t": obj.type.name, "id": obj.path_id}
-                                      
-                                      if "bermuda" in name or "terrain" in name:
-                                          results["Bermuda_Map"].append(info)
-                                      elif "physic" in name or "gravity" in name or "velocity" in name:
-                                          results["Physics_Rules"].append(info)
-                                      elif "char" in name or "hero" in name or "skin" in name:
-                                          results["Characters_Data"].append(info)
-                                      elif "weapon" in name or "gun" in name or "grenade" in name:
-                                          results["Weapons_Gernades"].append(info)
-                                      elif "gloo" in name or "wall" in name:
-                                          results["Gloo_Resources"].append(info)
-                          except:
-                              continue
+          # البحث التلقائي عن مجلد bin
+          for root, dirs, files in os.walk("game_files"):
+              if root.endswith("bin"):
+                  target_dir = root
+                  break
 
-              with open("precision_game_data.json", "w", encoding='utf-8') as f:
-                  json.dump(results, f, indent=2)
-              
-              size = os.path.getsize("precision_game_data.json")
-              print(f"✅ Mining Complete! Data Size: {size / 1024:.2f} KB")
+          if not target_dir:
+              print("❌ Error: 'bin' folder not found!")
+              exit(1)
 
-          if __name__ == "__main__":
-              start_mining()
+          print(f"📡 Hunting giants in {target_dir}...")
+
+          for root, dirs, files in os.walk(target_dir):
+              for file in files:
+                  file_path = os.path.join(root, file)
+                  
+                  # سنركز فقط على الملفات التي تزيد عن 500 كيلو بايت
+                  # لأن بيانات الخريطة والفيزياء الحقيقية مستحيل تكون أصغر من ذلك
+                  if os.path.getsize(file_path) < 512000: 
+                      continue
+                      
+                  try:
+                      env = UnityPy.load(file_path)
+                      for obj in env.objects:
+                          # Mesh = خرائط وتضاريس
+                          # MonoBehaviour = فيزياء وقواعد بيانات اللعبة
+                          if obj.type.name in ["Mesh", "MonoBehaviour", "TextAsset"]:
+                              found_gems.append({
+                                  "encrypted_file": file,
+                                  "type": obj.type.name,
+                                  "data_size": obj.size,
+                                  "path_id": obj.path_id
+                              })
+                  except:
+                      continue
+
+          # ترتيب النتائج من الأضخم (الأكثر أهمية) إلى الأصغر
+          found_gems.sort(key=lambda x: x['data_size'], reverse=True)
+
+          # حفظ أكبر 50 كائن مكتشف
+          with open("top_giants.json", "w", encoding='utf-8') as f:
+              json.dump(found_gems[:50], f, indent=4)
+
+          print(f"✅ Success! Captured {len(found_gems)} giant objects.")
           EOF
-          python3 miner.py
+          python3 hunter.py
 
-      - name: 4. Upload Precision Artifacts
+      - name: 4. Final Logs & Artifacts
+        run: |
+          echo "--- TOP 10 LARGEST DATA OBJECTS FOUND ---"
+          head -n 50 top_giants.json
+          
+      - name: 📦 Upload Captured Data
         uses: actions/upload-artifact@v4
         with:
-          name: FULL_PRECISION_DATA
-          path: precision_game_data.json
+          name: CAPTURED_GIANT_ASSETS
+          path: top_giants.json
