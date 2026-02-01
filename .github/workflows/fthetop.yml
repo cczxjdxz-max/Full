@@ -1,45 +1,23 @@
-name: GIAS-HEX-SIGNATURE-ANALYSIS
+name: GIAS-METADATA-DISSECTOR
 on:
   workflow_dispatch:
 
 jobs:
-  analyze:
+  dissect:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Environment
-        run: pip install UnityPy
-
-      - name: 2. APK Extraction
+      - name: 1. Find and Extract Strings
         run: |
-          wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          unzip -o game.apk -d game_files
-
-      - name: 3. Hex & Data Inspector
-        run: |
-          cat << 'EOF' > inspector.py
-          import os
-
-          target_dir = "game_files/assets/bin"
-          # جلب كل الملفات وترتيبها حسب الحجم (الأكبر أولاً)
-          files = []
-          for root, dirs, filenames in os.walk(target_dir):
-              for f in filenames:
-                  files.append(os.path.join(root, f))
+          # البحث عن مسار الملف بدقة
+          META_PATH=$(find game_files -name "global-metadata.dat" | head -n 1)
+          echo "🎯 Metadata found at: $META_PATH"
           
-          files.sort(key=os.path.getsize, reverse=True)
-
-          print(f"🔬 Analyzing the Top 5 Giants out of {len(files)} files...")
-
-          for f_path in files[:5]:
-              size = os.path.getsize(f_path)
-              with open(f_path, 'rb') as f:
-                  header = f.read(32) # قراءة أول 32 بايت (البصمة)
-                  print(f"\n📄 File: {os.path.basename(f_path)}")
-                  print(f"   Size: {size} bytes")
-                  print(f"   Hex Signature: {header.hex(' ')}")
-                  # محاولة قراءة أي نص في الهيدر
-                  try:
-                      print(f"   ASCII: {header.decode('ascii', errors='ignore')}")
-                  except: pass
-          EOF
-          python3 inspector.py
+          # استخراج كل النصوص المفهومة (ASCII) التي طولها أكثر من 5 حروف
+          strings "$META_PATH" > all_strings.txt
+          
+          # البحث عن الكلمات المفتاحية التي تهمنا داخل النصوص المستخرجة
+          echo "--- Searching for Keys ---"
+          grep -iE "Bermuda|Recoil|Weapon|Physics|Map|Bullet|m_Hash" all_strings.txt > filtered_keys.txt
+          
+          echo "✅ Extraction complete. Previewing found keys:"
+          head -n 50 filtered_keys.txt
