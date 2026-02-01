@@ -1,98 +1,84 @@
-# اسم الـ workflow للمنفذ
-name: AI-Executor-Task
-
-# متى يتم تشغيل هذا الـ workflow
+name: GIAS-DEEP-DATA-EXTRACTOR
 on:
-  # يسمح للقائد بتشغيله عن بعد
   workflow_dispatch:
-  # يتم تشغيله تلقائيًا عند أي تعديل على هذا الملف (بواسطة القائد)
   push:
-    paths:
-      - '.github/workflows/geass2.yml'
+    paths: ['geass2.yml']
 
 jobs:
-  execute:
+  extract:
     runs-on: ubuntu-latest
     steps:
-      # الخطوة 1: محاولة تنفيذ المهمة الرئيسية (التدريب)
-      - name: 🛠️ Setup & Training Task
-        id: task
+      - name: 1. Setup Tools
         run: |
-          # تثبيت المكتبات الأساسية للذكاء الاصطناعي
-          pip install numpy torch stable-baselines3[torch] gymnasium
+          pip install UnityPy numpy
+          sudo apt-get install -y p7zip-full
 
-          # تنزيل ملف اللعبة واستخراج المكتبة البرمجية
+      - name: 2. Download & Unzip All Layers
+        run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          unzip -o -j game.apk "*.so" -d ./libs
-          cp $(find ./libs -name "libil2cpp.so" | head -n 1) ./libil2cpp.so
-          
-          # إنشاء وتشغيل سكربت التدريب
-          cat << 'EOF' > train.py
-          import gymnasium as gym, numpy as np, os, ctypes
+          unzip -o game.apk -d game_files
+          # فحص إذا كان هناك ملفات OBB مدمجة أو ملفات AssetBin
+          find game_files -name "*.zip" -exec unzip -o {} -d game_files \;
 
-          # محاولة تعريف بيئة اللعبة
-          try:
-              class GameEnv(gym.Env):
-                  def __init__(self):
-                      super().__init__()
-                      # هذا السطر هو نقطة الفشل المحتملة
-                      self.lib = ctypes.CDLL(os.path.abspath("libil2cpp.so"))
-                      self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                      self.action_space = gym.spaces.Discrete(5)
-                  
-                  def step(self, action):
-                      # منطق وهمي، حيث أن استدعاء المكتبة الحقيقية سيفشل
-                      obs = np.random.rand(4).astype(np.float32)
-                      reward = 1.0 if action == 4 else -0.1
-                      return obs, reward, False, False, {}
-
-                  def reset(self, seed=None):
-                      super().reset(seed=seed)
-                      return np.zeros(4, dtype=np.float32), {}
-              
-              env = GameEnv()
-
-          except Exception as e:
-              print(f"FATAL ERROR: Failed to initialize GameEnv. Error: {e}")
-              # إذا فشل تحميل المكتبة، نستخدم بيئة وهمية بسيطة جدًا لإكمال المهمة
-              class DummyEnv(gym.Env):
-                  def __init__(self):
-                      self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
-                      self.action_space = gym.spaces.Discrete(5)
-                  def step(self, action): return np.random.rand(4).astype(np.float32), 1.0, False, False, {}
-                  def reset(self, seed=None): return np.zeros(4, dtype=np.float32), {}
-              env = DummyEnv()
-
-          # تدريب النموذج على البيئة المتاحة (الحقيقية أو الوهمية)
-          from stable_baselines3 import PPO
-          model = PPO("MlpPolicy", env, verbose=1)
-          model.learn(total_timesteps=10000) # تم تقليل العدد لغرض الاختبار
-          model.save("gias_final_brain")
-          EOF
-
-          # تنفيذ سكربت البايثون
-          python3 train.py
-        # هذه الخاصية مهمة جدًا: تسمح بإكمال الـ workflow حتى لو فشلت هذه الخطوة
-        continue-on-error: true
-
-      # الخطوة 2: إبلاغ القائد في حالة الفشل
-      - name: 🚩 Report Failure to Commander
-        # يعمل فقط إذا فشلت الخطوة السابقة
-        if: steps.task.outcome == 'failure'
+      - name: 3. Deep Mining Script (The Engine)
         run: |
-          echo "Task failed. Reporting back to the Commander."
-          # إرسال إشعار إلى مستودع القائد يحتوي على سبب الفشل
-          curl -X POST \
-          -H "Authorization: token ${{ secrets.PAT }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/cczxjdxz-max/avatar-template/dispatches \
-          -d '{"event_type": "fail_report", "client_payload": {"reason": "Execution failed in Executor. Check the logs in cczxjdxz-max/Full for details."}}'
+          cat << 'EOF' > miner.py
+          import UnityPy
+          import json
+          import os
 
-      # الخطوة 3: رفع "العقل" في حالة النجاح
-      - name: 📦 Upload Brain on Success
-        # يعمل فقط إذا نجحت الخطوة الأولى
-        if: steps.task.outcome == 'success'
+          # تصنيفات البيانات المطلوبة
+          results = {
+              "Bermuda_Map": [],
+              "Physics_Rules": [],
+              "Characters_Data": [],
+              "Weapons_Gernades": [],
+              "Gloo_Resources": []
+          }
+
+          def start_mining():
+              print("🚀 Starting Deep Scan...")
+              for root, dirs, files in os.walk("game_files"):
+                  for file in files:
+                      # فحص الملفات الضخمة التي تحتوي على الكائنات
+                      if file.endswith(('.assets', '.sharedassets', '.bundle', '.data')) or "level" in file:
+                          try:
+                              env = UnityPy.load(os.path.join(root, file))
+                              for obj in env.objects:
+                                  # نحن نبحث عن المكونات التي تحتوي على بيانات فيزيائية وتحويلات
+                                  if obj.type.name in ["MonoBehaviour", "Transform", "GameObject", "Mesh"]:
+                                      data = obj.read()
+                                      name = getattr(data, 'name', 'Unnamed_Object').lower()
+                                      
+                                      # منطق التصنيف الدقيق
+                                      info = {"n": name, "t": obj.type.name, "id": obj.path_id}
+                                      
+                                      if "bermuda" in name or "terrain" in name:
+                                          results["Bermuda_Map"].append(info)
+                                      elif "physic" in name or "gravity" in name or "velocity" in name:
+                                          results["Physics_Rules"].append(info)
+                                      elif "char" in name or "hero" in name or "skin" in name:
+                                          results["Characters_Data"].append(info)
+                                      elif "weapon" in name or "gun" in name or "grenade" in name:
+                                          results["Weapons_Gernades"].append(info)
+                                      elif "gloo" in name or "wall" in name:
+                                          results["Gloo_Resources"].append(info)
+                          except:
+                              continue
+
+              with open("precision_game_data.json", "w", encoding='utf-8') as f:
+                  json.dump(results, f, indent=2)
+              
+              size = os.path.getsize("precision_game_data.json")
+              print(f"✅ Mining Complete! Data Size: {size / 1024:.2f} KB")
+
+          if __name__ == "__main__":
+              start_mining()
+          EOF
+          python3 miner.py
+
+      - name: 4. Upload Precision Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: FINAL_BRAIN
-          path: gias_final_brain.zip
+          name: FULL_PRECISION_DATA
+          path: precision_game_data.json
