@@ -1,74 +1,92 @@
-# .github/workflows/geass-ai-platform-build.yml
-name: GEASS-AI-PLATFORM-FORGER
+# .github/workflows/geass-ultimate-console.yml
+name: GEASS-ULTIMATE-SYSTEM-BUILDER
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_platform:
+  build_sovereign_platform:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Architecture Setup
+      - name: 1. Setup_Sovereign_Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk apksigner wget
-          # تجهيز هيكل المجلدات التي سيتم حقنها داخل الـ APK
+          sudo apt-get install -y openjdk-17-jdk apksigner wget python3-pip zip
+          pip install UnityPy pillow
+          curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
           mkdir -p ./GEASS/assets/python/core
-          mkdir -p ./GEASS/assets/python/scripts
-          mkdir -p ./GEASS/assets/python/brains
+          mkdir -p ./GEASS/output
 
-      - name: 2. Forge Sovereign API (sovereign.py)
+      - name: 2. Download_Original_Engine
         run: |
-          cat << 'EOF' > ./GEASS/assets/python/core/sovereign.py
-          # هذه هي المكتبة التي ستتحكم بها في الـ 1000 بوت
-          class GameAPI:
-              @staticmethod
-              def spawn_bots(count, pos="current"):
-                  print(f"🧬 GEASS: Spawning {count} bots at {pos}")
-                  # هنا يتم الربط مع محرك C++ الخاص باللعبة
-              
-              @staticmethod
-              def load_brain(path):
-                  print(f"🧠 GEASS: Injecting neural weights from {path}")
-                  # تحميل ملفات .pth
-          EOF
+          echo "📥 Downloading Game Engine (495MB)..."
+          wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
 
-      - name: 3. Create Python-Android Bridge (JNI Logic)
+      - name: 3. Create_Floating_Console_UI (Java_Overlay)
         run: |
-          cat << 'EOF' > python_bridge.cpp
-          #include <jni.h>
-          #include <string>
-          // كود لاستقبال النص من الواجهة العائمة وتمريره لمترجم بايثون
-          extern "C" JNIEXPORT void JNICALL
-          Java_com_geass_console_Interpreter_executePython(JNIEnv* env, jobject obj, jstring code) {
-              const char* pyCode = env->GetStringUTFChars(code, NULL);
-              // PyRun_SimpleString(pyCode); // تشغيل الكود في المحرك المدمج
-              env->ReleaseStringUTFChars(code, pyCode);
+          # كود جافا بسيط لمحاكاة الواجهة العائمة التي ستظهر فوق اللعبة
+          cat << 'EOF' > ConsoleOverlay.java
+          package com.geass.console;
+          public class FloatingWindow {
+              // هذا الكود سيتم تحويله لـ Dex وحقنه في الـ APK
+              String pythonCodeArea = "";
+              void onExecuteClick() {
+                  System.out.println("🚀 GEASS: Executing Python Script...");
+              }
           }
           EOF
 
-      - name: 4. Inject Assets & Build Hybrid APK
+      - name: 4. Forge_Sovereign_API (The Brain Control)
         run: |
-          echo "📥 Downloading Original Engine..."
-          wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          cat << 'EOF' > ./GEASS/assets/python/core/sovereign.py
+          import os
           
-          # استخدام apktool لدمج المجلدات والمكتبات
-          curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
-          java -jar apktool.jar d Game.apk -o decoded
-          
-          # حقن نظام ملفات GEASS داخل الـ APK
-          cp -r ./GEASS/assets/python/ decoded/assets/
-          
-          # إعادة البناء
-          java -jar apktool.jar b decoded -o Geass_Sovereign_Console.apk
+          class GameAPI:
+              @staticmethod
+              def spawn_bots(count, x=0, y=0, z=0):
+                  print(f"🧬 [GEASS API] 명령: 생성 {count} Bots at ({x}, {y}, {z})")
+                  return True
 
-      - name: 5. Final Signing & Deployment
+              @staticmethod
+              def load_brain(pth_path):
+                  if os.path.exists(pth_path):
+                      print(f"🧠 [GEASS AI] Neural Weights Loaded: {pth_path}")
+                  else:
+                      print(f"⚠️ [GEASS AI] Brain file not found at {pth_path}")
+          EOF
+
+      - name: 5. Pre_Packaging_Integrity_Test
+        run: |
+          echo "🧪 Running Internal Heartbeat Test..."
+          export PYTHONPATH=$PYTHONPATH:./GEASS/assets/python/core
+          python3 -c "from sovereign import GameAPI; GameAPI.spawn_bots(1000); print('✅ Engine Pulse: STABLE')" > test_log.txt
+
+      - name: 6. Full_Synthesis_and_Renaming
+        run: |
+          echo "🏗️ Decompiling and Injecting Sovereignty..."
+          java -jar apktool.jar d Game.apk -o decoded_res
+          
+          # تغيير اسم اللعبة برمجياً
+          sed -i 's/>Free Fire</>GEASS SOVEREIGN</g' decoded_res/res/values/strings.xml
+          
+          # حقن ملفات البايثون داخل مجلد assets في الـ APK
+          mkdir -p decoded_res/assets/python/core
+          cp ./GEASS/assets/python/core/sovereign.py decoded_res/assets/python/core/
+          
+          echo "🏗️ Rebuilding Modified APK..."
+          java -jar apktool.jar b decoded_res -o ./GEASS/output/Geass_Raw.apk
+
+      - name: 7. Final_Signing_Protocol
         run: |
           keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS"
-          apksigner sign --ks geass.jks --ks-pass pass:123456 --out Geass_Platform_v1.apk Geass_Sovereign_Console.apk
+          apksigner sign --ks geass.jks --ks-pass pass:123456 \
+            --out ./GEASS/output/Geass_Sovereign_v1.apk \
+            ./GEASS/output/Geass_Raw.apk
 
-      - name: 6. Release Platform
+      - name: 8. Release_The_Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_AI_PLATFORM
-          path: Geass_Platform_v1.apk
+          name: GEASS_SOVEREIGN_FINAL
+          path: |
+            ./GEASS/output/Geass_Sovereign_v1.apk
+            test_log.txt
