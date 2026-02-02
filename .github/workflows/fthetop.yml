@@ -1,77 +1,53 @@
-name: GIAS-DEEP-RAW-EXTRACTOR
+name: GIAS-CLOUD-BRAIN-BUILDER
 on:
   workflow_dispatch:
 
 jobs:
-  deep_extraction:
+  cloud_build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Master Tools
+      - name: 1. Setup Virtual Environment
         run: pip install UnityPy
 
-      - name: 2. Fetch Game Binary
+      - name: 2. Fetch & Dissect (سحب وتفكيك سحابي)
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 3. The "No-Empty-Files" Script (الاستخراج الخام العميق)
+      - name: 3. The Grand Aggregator (المجمع الذكي)
         run: |
-          cat << 'EOF' > deep_extractor.py
+          cat << 'EOF' > cloud_aggregator.py
           import UnityPy
           import os
           import json
 
-          # الحاويات الموحدة (الهدف: ملفات ضخمة وليس ملفات 2 بايت)
+          # الحاويات الموحدة لبيئة الـ IQ 250
           master_data = {
-              "BERMUDA_MAP": [], "WEAPONS": [], "SKINS": [], 
-              "PHYSICS": [], "CHARACTERS": [], "LOGIC": [], 
-              "EVENTS": [], "GRENADES": []
+              "BERMUDA_MAP": 0, "WEAPONS_PHYSICS": 0, "CHARACTERS": 0, "GLOBAL_RULES": 0
           }
-
-          tags = {
-              "BERMUDA_MAP": [b"Bermuda", b"Map", b"Terrain", b"Collision"],
-              "WEAPONS": [b"Weapon", b"Gun", b"Recoil", b"Hook", b"Grappling"],
-              "PHYSICS": [b"Physics", b"Gravity", b"Velocity", b"Mass"],
-              "CHARACTERS": [b"Character", b"Hero", b"Avatar", b"Hitbox", b"Bone"],
-              "SKINS": [b"Skin", b"Bundle", b"Material", b"Texture"],
-              "LOGIC": [b"Manager", b"System", b"Config", b"Rule"],
-              "EVENTS": [b"Event", b"Mission", b"Quest"],
-              "GRENADES": [b"Grenade", b"Bomb", b"Explosion"]
-          }
+          
+          # سيتم حفظ الخلاصة فقط لتقليل الحجم
+          summary_report = {}
 
           for root, dirs, files in os.walk("game_files"):
               for file in files:
                   try:
                       env = UnityPy.load(os.path.join(root, file))
                       for obj in env.objects:
-                          # سحب البيانات الخام (Raw) لتجنب الـ 2 بايت
-                          raw_data = obj.get_raw_data()
-                          if len(raw_data) < 5: continue # تجاهل الملفات الفارغة فعلياً
-                          
-                          # محاولة قراءة الهيكل، وإن فشل نأخذ الـ Hex
-                          try:
-                              extracted = obj.read().read_typetree()
-                          except:
-                              extracted = {"id": obj.path_id, "type": obj.type.name, "data": raw_data.hex()}
-
-                          content_str = str(extracted).encode()
-                          for cat, keys in tags.items():
-                              if any(k in content_str for k in keys):
-                                  master_data[cat].append(extracted)
-                                  break
+                          # تحليل المحتوى دون الحاجة لحفظه يدوياً على جهازك
+                          raw_size = len(obj.get_raw_data())
+                          if raw_size > 10:
+                              name = obj.type.name
+                              summary_report[name] = summary_report.get(name, 0) + 1
                   except: continue
 
-          # دمج كل شيء في ملفات ضخمة (كل قسم ملف واحد)
-          os.makedirs("FULL_AI_KNOWLEDGE", exist_ok=True)
-          for cat, content in master_data.items():
-              if content:
-                  with open(f"FULL_AI_KNOWLEDGE/{cat}.json", "w", encoding='utf-8') as f:
-                      json.dump(content, f, ensure_ascii=False)
+          with open("CLOUD_SUMMARY.json", "w") as f:
+              json.dump(summary_report, f, indent=4)
           EOF
-          python3 deep_extractor.py
+          python3 cloud_aggregator.py
 
-      - name: 4. Export Global Intelligence
+      - name: 4. Export Small Summary Only
         uses: actions/upload-artifact@v4
         with:
-          name: REAL_HIGH_IQ_DATASET
-          path: FULL_AI_KNOWLEDGE/
+          name: AI_KNOWLEDGE_SUMMARY
+          path: CLOUD_SUMMARY.json
