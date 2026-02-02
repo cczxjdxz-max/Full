@@ -1,53 +1,48 @@
-name: GIAS-CLOUD-BRAIN-BUILDER
+name: GIAS-LOCAL-SERVER-API-CONSTRUCTOR
 on:
   workflow_dispatch:
 
 jobs:
-  cloud_build:
+  build_api_server:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Virtual Environment
-        run: pip install UnityPy
+      - name: 1. Prepare Simulation Environment
+        run: pip install flask flask-restful numpy
 
-      - name: 2. Fetch & Dissect (سحب وتفكيك سحابي)
+      - name: 2. Construct the "Brain-Drain" API (مستخرج العقل)
         run: |
-          wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          unzip -o game.apk -d game_files
-
-      - name: 3. The Grand Aggregator (المجمع الذكي)
-        run: |
-          cat << 'EOF' > cloud_aggregator.py
-          import UnityPy
-          import os
+          cat << 'EOF' > local_api.py
+          from flask import Flask, request, jsonify
           import json
+          import datetime
 
-          # الحاويات الموحدة لبيئة الـ IQ 250
-          master_data = {
-              "BERMUDA_MAP": 0, "WEAPONS_PHYSICS": 0, "CHARACTERS": 0, "GLOBAL_RULES": 0
+          app = Flask(__name__)
+
+          # مستودع العقل: هنا يتم تخزين كل خلية ذكاء يتم استخراجها
+          master_brain = {
+              "tactical_memory": [],
+              "aim_calculations": [],
+              "narcissism_threshold": 0.99
           }
-          
-          # سيتم حفظ الخلاصة فقط لتقليل الحجم
-          summary_report = {}
 
-          for root, dirs, files in os.walk("game_files"):
-              for file in files:
-                  try:
-                      env = UnityPy.load(os.path.join(root, file))
-                      for obj in env.objects:
-                          # تحليل المحتوى دون الحاجة لحفظه يدوياً على جهازك
-                          raw_size = len(obj.get_raw_data())
-                          if raw_size > 10:
-                              name = obj.type.name
-                              summary_report[name] = summary_report.get(name, 0) + 1
-                  except: continue
+          @app.route('/sync_brain', methods=['POST'])
+          def sync_brain():
+              # استلام بيانات اللعبة من النسخة الواحدة ضد الـ 983 لاعب
+              data = request.json
+              
+              # خوارزمية استخراج القرار (The IQ 250 Decision Filter)
+              decision_node = {
+                  "timestamp": str(datetime.datetime.now()),
+                  "environment_snapshot": data.get("map_coordinates"),
+                  "enemy_positions": data.get("enemy_vectors"), # الـ 983 لاعب
+                  "action_taken": data.get("final_move"),
+                  "result": data.get("survival_status")
+              }
+              
+              master_brain["tactical_memory"].append(decision_node)
+              return jsonify({"status": "Intelligence Absorbed", "iq_level": 250})
 
-          with open("CLOUD_SUMMARY.json", "w") as f:
-              json.dump(summary_report, f, indent=4)
+          if __name__ == '__main__':
+              app.run(port=8080)
           EOF
-          python3 cloud_aggregator.py
-
-      - name: 4. Export Small Summary Only
-        uses: actions/upload-artifact@v4
-        with:
-          name: AI_KNOWLEDGE_SUMMARY
-          path: CLOUD_SUMMARY.json
+          python3 local_api.py &
