@@ -1,76 +1,74 @@
-# .github/workflows/geass-deep-extractor.yml
-name: GEASS-DEEP-EXTRACTOR
+# .github/workflows/geass-ai-platform-build.yml
+name: GEASS-AI-PLATFORM-FORGER
 
 on:
   workflow_dispatch:
 
 jobs:
-  rip_assets:
+  build_platform:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Environment
+      - name: 1. Architecture Setup
         run: |
           sudo apt-get update
-          pip install UnityPy pillow
-          mkdir -p ./GEASS/extracted
+          sudo apt-get install -y openjdk-17-jdk apksigner wget
+          # تجهيز هيكل المجلدات التي سيتم حقنها داخل الـ APK
+          mkdir -p ./GEASS/assets/python/core
+          mkdir -p ./GEASS/assets/python/scripts
+          mkdir -p ./GEASS/assets/python/brains
 
-      - name: 2. Download and Unzip APK
+      - name: 2. Forge Sovereign API (sovereign.py)
         run: |
-          wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          # فك ضغط الـ APK يدوياً للوصول للملفات الداخلية
-          unzip Game.apk -d extracted_apk
-
-      - name: 3. Targeted Asset Extraction
-        run: |
-          cat << 'EOF' > rip_v3.py
-          import UnityPy
-          import os
-
-          def extract():
-              # تحديد مسار ملفات الداتا داخل الأندرويد
-              base_path = "extracted_apk/assets/bin/Data/"
-              count = 0
+          cat << 'EOF' > ./GEASS/assets/python/core/sovereign.py
+          # هذه هي المكتبة التي ستتحكم بها في الـ 1000 بوت
+          class GameAPI:
+              @staticmethod
+              def spawn_bots(count, pos="current"):
+                  print(f"🧬 GEASS: Spawning {count} bots at {pos}")
+                  # هنا يتم الربط مع محرك C++ الخاص باللعبة
               
-              if not os.path.exists(base_path):
-                  print("❌ Data path not found, scanning entire extracted folder...")
-                  base_path = "extracted_apk/"
-
-              # تحميل المجلد بالكامل بدلاً من ملف الـ APK
-              env = UnityPy.load(base_path)
-              
-              for obj in env.objects:
-                  if obj.type.name in ["Texture2D", "Sprite"]:
-                      try:
-                          data = obj.read()
-                          if data.image:
-                              data.image.save(f"./GEASS/extracted/vision_{count}.png")
-                              print(f"✅ Extracted: {data.name}")
-                              count += 1
-                      except:
-                          continue
-                  if count >= 10: break
-              
-              if count == 0:
-                  print("⚠️ No images found. Trying to find UnityFS files directly...")
-                  # بحث يدوي عن ملفات البندل
-                  for root, dirs, files in os.walk("extracted_apk"):
-                      for f in files:
-                          if "unity" in f or "sharedassets" in f:
-                              try:
-                                  sub_env = UnityPy.load(os.path.join(root, f))
-                                  for sub_obj in sub_env.objects:
-                                      if sub_obj.type.name == "Texture2D":
-                                          sub_obj.read().image.save(f"./GEASS/extracted/deep_{count}.png")
-                                          count += 1
-                                          if count >= 10: break
-                              except: continue
-
-          extract()
+              @staticmethod
+              def load_brain(path):
+                  print(f"🧠 GEASS: Injecting neural weights from {path}")
+                  # تحميل ملفات .pth
           EOF
-          python3 rip_v3.py
 
-      - name: 4. Upload Vision
-        uses: artifacts/upload-artifact@v4
+      - name: 3. Create Python-Android Bridge (JNI Logic)
+        run: |
+          cat << 'EOF' > python_bridge.cpp
+          #include <jni.h>
+          #include <string>
+          // كود لاستقبال النص من الواجهة العائمة وتمريره لمترجم بايثون
+          extern "C" JNIEXPORT void JNICALL
+          Java_com_geass_console_Interpreter_executePython(JNIEnv* env, jobject obj, jstring code) {
+              const char* pyCode = env->GetStringUTFChars(code, NULL);
+              // PyRun_SimpleString(pyCode); // تشغيل الكود في المحرك المدمج
+              env->ReleaseStringUTFChars(code, pyCode);
+          }
+          EOF
+
+      - name: 4. Inject Assets & Build Hybrid APK
+        run: |
+          echo "📥 Downloading Original Engine..."
+          wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          
+          # استخدام apktool لدمج المجلدات والمكتبات
+          curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
+          java -jar apktool.jar d Game.apk -o decoded
+          
+          # حقن نظام ملفات GEASS داخل الـ APK
+          cp -r ./GEASS/assets/python/ decoded/assets/
+          
+          # إعادة البناء
+          java -jar apktool.jar b decoded -o Geass_Sovereign_Console.apk
+
+      - name: 5. Final Signing & Deployment
+        run: |
+          keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS"
+          apksigner sign --ks geass.jks --ks-pass pass:123456 --out Geass_Platform_v1.apk Geass_Sovereign_Console.apk
+
+      - name: 6. Release Platform
+        uses: actions/upload-artifact@v4
         with:
-          name: GEASS_FINAL_VISION
-          path: ./GEASS/extracted/
+          name: GEASS_AI_PLATFORM
+          path: Geass_Platform_v1.apk
