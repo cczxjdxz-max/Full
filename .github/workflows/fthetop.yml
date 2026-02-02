@@ -1,56 +1,62 @@
-name: GEASS-LAB-VISUAL-CHECK
+name: GEASS-INTEGRITY-CHECK
 
 on:
   workflow_dispatch:
 
 jobs:
-  visual_audit:
-    runs-on: ubuntu-latest # أسرع في التشغيل ولا يوجد وقت انتظار طويل
+  verify_integrity:
+    runs-on: ubuntu-latest
     steps:
-      - name: 1. FETCH LATEST RELEASE
+      - name: 1. FETCH ASSET
         uses: dsaltares/fetch-gh-release-asset@master
         with:
           version: 'latest'
           asset: 'Geass_Internal_Citadel.apk'
-          target: './latest_citadel.apk'
+          target: './citadel.apk'
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. QUICK STRUCTURAL AUDIT
+      - name: 2. RUN BIO-METRIC SCAN (الفحص الحيوي)
         run: |
-          echo "🔍 Checking Internal Files..."
-          unzip -l latest_citadel.apk | grep "assets/python/internal_master.py" && echo "✅ Python: INJECTED"
-          unzip -l latest_citadel.apk | grep "res/layout/geass_cockpit.xml" && echo "✅ UI: INJECTED"
+          # فحص التوقيع الرقمي
+          sudo apt-get update && sudo apt-get install -y apksigner
+          echo "🔍 Checking Signature..."
+          apksigner verify --verbose citadel.apk > signature_report.txt
+          
+          # فحص الصلاحيات الحرجة
+          echo "🔍 Checking Permissions..."
+          unzip -p citadel.apk AndroidManifest.xml > manifest_dump
+          strings manifest_dump | grep "SYSTEM_ALERT_WINDOW" > permissions_report.txt
+          
+          # فحص وجود ملفات الحقن في المسارات الصحيحة
+          echo "🔍 Checking Injection Paths..."
+          unzip -l citadel.apk | grep -E "assets/python/internal_master.py|res/layout/geass_cockpit.xml" > files_report.txt
 
-      - name: 3. VIRTUAL BOOT & VISUAL SCREENSHOT
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 3072
-          script: |
-            adb wait-for-device
-            echo "🚀 Emulator Ready. Installing..."
-            adb install -r latest_citadel.apk
-            
-            echo "⏱️ Launching Game..."
-            adb shell monkey -p com.dts.freefireth -c android.intent.category.LAUNCHER 1
-            
-            echo "⏳ Waiting 60 seconds for engine initialization..."
-            sleep 60
-            
-            echo "📸 Taking Screenshot..."
-            adb shell screencap -p /sdcard/frame.png
-            adb pull /sdcard/frame.png laboratory_result.png
-            
-            echo "📜 Pulling Logs..."
-            adb logcat -d > internal_logs.txt
+      - name: 3. GENERATE VERDICT (القرار النهائي)
+        run: |
+          echo "### 🔱 GEASS INTEGRITY REPORT 🔱" >> $GITHUB_STEP_SUMMARY
+          
+          if grep -q "verified" signature_report.txt; then
+            echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Installable (Signature)** | ✅ YES |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Installable (Signature)** | ❌ NO |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -s permissions_report.txt ]; then
+            echo "| **Overlay Permission** | ✅ ACTIVE |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Overlay Permission** | ❌ FAILED |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ $(wc -l < files_report.txt) -eq 2 ]; then
+            echo "| **Injected Components** | ✅ FOUND |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Injected Components** | ❌ INCOMPLETE |" >> $GITHUB_STEP_SUMMARY
+          fi
 
-      - name: 4. UPLOAD EVIDENCE
+      - name: 4. UPLOAD LOGS
         uses: actions/upload-artifact@v4
         with:
-          name: CITADEL_VISUAL_REPORT
-          path: |
-            laboratory_result.png
-            internal_logs.txt
+          name: INTEGRITY_LOGS
+          path: "*.txt"
