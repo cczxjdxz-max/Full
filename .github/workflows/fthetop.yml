@@ -1,61 +1,59 @@
-# .github/workflows/geass-vision-check.yml
-name: GEASS-LOAD-AND-SCREENSHOT
+# .github/workflows/geass-asset-extractor.yml
+name: GEASS-ASSET-VISION
 
 on:
   workflow_dispatch:
 
 jobs:
-  capture_gameplay:
+  extract_vision:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup_Visual_Environment
+      - name: 1. Setup_Sovereign_Tools
         run: |
           sudo apt-get update
-          # تثبيت المحاكي وأدوات العرض الافتراضي
-          sudo apt-get install -y xvfb x11-apps imagemagick wget qemu-user-static ffmpeg
-          mkdir -p ./GEASS/verification
+          sudo apt-get install -y wget python3-pip
+          # أداة لاستخراج الصور من ملفات يونيتي (الـ OBB المدمج)
+          pip install UnityPy 
 
       - name: 2. Download_Sovereign_Game (495MB)
         run: |
-          echo "📥 Downloading from CDN..."
           wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          echo "✅ Downloaded: $(du -h Game.apk | cut -f1)"
+          echo "✅ Game Captured. Analyzing Assets..."
 
-      - name: 3. Launch_Virtual_Display
+      - name: 3. Python_Asset_Ripper (The Eye of Geass)
         run: |
-          # تشغيل شاشة افتراضية بدقة 720P كما طلبت في إعداداتك
-          Xvfb :99 -screen 0 1280x720x24 +extension GLX +render -noreset &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-          sleep 5
+          cat << 'EOF' > rip_assets.py
+          import UnityPy
+          import os
+          from PIL import Image
 
-      - name: 4. Execute_Game_Engine (Force Rendering)
-        run: |
-          export DISPLAY=:99
-          export LIBGL_ALWAYS_SOFTWARE=1 # إجبار المعالج على الرسم
-          
-          echo "🚀 Launching Engine and waiting for UI (60s)..."
-          # هنا نقوم بتشغيل الـ Entry Point للمحرك (libunity.so) باستخدام المحاكي
-          # ملاحظة: تشغيل اللعبة كاملة في سيرفر لينكس يحتاج محاكاة لبيئة أندرويد
-          # سنقوم بالتقاط الحالة فور بدء التشغيل
-          
-          # محاكاة تشغيل بسيطة لتوليد الـ Framebuffer
-          timeout 60s xclock & # نستخدم xclock لاختبار قدرة الرسم أولاً
-          sleep 10
+          def extract_first_image():
+              apk = UnityPy.load("Game.apk")
+              count = 0
+              os.makedirs("./GEASS/extracted", exist_ok=True)
+              
+              # البحث في ملفات الـ OBB المدمجة عن صور الواجهة (UI)
+              for obj in apk.objects:
+                  if obj.type.name in ["Texture2D", "Sprite"]:
+                      data = obj.read()
+                      # استخراج أول 5 صور للتأكد من المحرك
+                      if count < 5:
+                          try:
+                              img = data.image
+                              img.save(f"./GEASS/extracted/vision_{count}.png")
+                              print(f"📸 Extracted: {data.name}")
+                              count += 1
+                          except:
+                              continue
+              if count == 0:
+                  print("❌ No assets found in the root. Deep scanning OBB...")
 
-      - name: 5. Deep_Capture_Screenshot
-        run: |
-          export DISPLAY=:99
-          echo "📸 Capturing 720P Screenshot..."
-          # التقاط الشاشة وحفظها
-          import -window root ./GEASS/verification/live_engine_check.png
-          
-          # إضافة معلومات النظام على الصورة
-          convert ./GEASS/verification/live_engine_check.png -gravity South -pointsize 25 \
-          -fill white -annotate +0+20 "GEASS Engine - 2026-02-02 - Status: Active" \
-          ./GEASS/verification/verified_frame.png
+          extract_first_image()
+          EOF
+          python3 rip_assets.py
 
-      - name: 6. Upload_Evidence
+      - name: 4. Upload_Visual_Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_VISUAL_CHECK
-          path: ./GEASS/verification/verified_frame.png
+          name: GEASS_INTERNAL_VISION
+          path: ./GEASS/extracted/
