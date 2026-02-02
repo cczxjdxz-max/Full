@@ -1,73 +1,161 @@
-# .github/workflows/geass-nuclear-fusion.yml
-name: GEASS-NUCLEAR-FUSION-INJECTOR
+# .github/workflows/geass-sovereign-genesis-engine.yml
+name: GEASS-SOVEREIGN-GENESIS-ENGINE
 
 on:
   workflow_dispatch:
 
 jobs:
-  fusion_process:
+  forge_the_sovereign_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Deep_Environment_Setup
+      - name: 1. PREPARE THE GENESIS FORGE
         run: |
+          echo "Setting up the complete Sovereign Forge environment..."
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk apksigner wget python3-pip zip unzip
+          # تثبيت كل الأدوات المطلوبة: Java, APK Signer, Network tools, C++ cross-compiler, ImageMagick
+          sudo apt-get install -y openjdk-17-jdk apksigner wget zip unzip g++-aarch64-linux-gnu imagemagick
+          # تحميل أداة الهندسة العكسية الرئيسية
           curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
-          mkdir -p ./GEASS/final_bundle/scripts
+          # إنشاء هيكل المجلدات الكامل للمشروع
+          mkdir -p ./GEASS/payload/lib ./GEASS/payload/res/layout ./GEASS/final_apk ./GEASS/artwork
+          echo "✅ Forge is ready."
 
-      - name: 2. Capture_Target_and_Disassemble
+      - name: 2. DESIGN THE COMMAND CONSOLE (UI XML)
         run: |
-          echo "📥 Downloading 495MB Target..."
-          wget -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-          
-          echo "🏗️ Decompiling (The Real Deal)..."
-          # فك اللعبة بالكامل للوصول للمجلدات الداخلية
-          java -jar apktool.jar d Target.apk -o decoded_source
-
-      - name: 3. Surgical_Injection (Inside the APK)
-        run: |
-          echo "🧬 Injecting Sovereign API into APK Internal Assets..."
-          # إنشاء المجلد داخل هيكل اللعبة المفكك
-          mkdir -p decoded_source/assets/python/core/
-          
-          # كتابة المحرك في قلب المجلدات الداخلية للعبة
-          cat << 'EOF' > decoded_source/assets/python/core/sovereign.py
-          class GameAPI:
-              def __init__(self):
-                  self.status = "Active"
-              def spawn_bots(self, count):
-                  print(f"🔥 GEASS INTERNAL: Spawning {count} Bots.")
+          echo "🎨 Designing the floating command console UI..."
+          cat << 'EOF' > ./GEASS/payload/res/layout/layout_geass.xml
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="400dp"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:background="#BF000000"
+              android:padding="8dp">
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="GEASS SOVEREIGN CONSOLE"
+                  android:textColor="#FFC107"
+                  android:textSize="16sp"
+                  android:layout_gravity="center_horizontal"
+                  android:paddingBottom="4dp"/>
+              <EditText
+                  android:id="@+id/python_code_editor"
+                  android:layout_width="match_parent"
+                  android:layout_height="200dp"
+                  android:hint="Enter Sovereign Python script..."
+                  android:inputType="textMultiLine"
+                  android:background="#E6FFFFFF"
+                  android:textColor="#000000"
+                  android:textSize="12sp"
+                  android:gravity="top|start"
+                  android:scrollbars="vertical"/>
+              <Button
+                  android:id="@+id/execute_button"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="EXECUTE SCRIPT"
+                  android:backgroundTint="#FF5722"/>
+              <Switch
+                  android:id="@+id/mode_switch"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Data Mode (Fast) / Graphic Mode (Visual)"
+                  android:textColor="#FFFFFF"
+                  android:layout_gravity="center_horizontal"/>
+          </LinearLayout>
           EOF
-          
-          # تغيير اسم اللعبة داخل ملف الرموز الحقيقي
-          sed -i 's/>Free Fire</>GEASS SOVEREIGN</g' decoded_source/res/values/strings.xml
-          echo "✅ Identity Altered."
+          echo "✅ UI blueprint created."
 
-      - name: 4. Re-Assemble_the_Monster
+      - name: 3. FORGE THE NEURAL BRIDGE (C++ JNI)
         run: |
-          echo "🏗️ Rebuilding (Compressing 500MB back)..."
-          # هذه الخطوة هي التي تحقن الأكواد فعلياً في ملف dex واحد
-          java -jar apktool.jar b decoded_source -o ./GEASS/final_bundle/Geass_Sovereign_Real.apk
+          echo "🔗 Forging the C++ Neural Bridge to link UI with Python Core..."
+          cat << 'EOF' > bridge.cpp
+          #include <jni.h>
+          #include <android/log.h>
+          // هذا الجسر هو مجرد واجهة، التنفيذ الفعلي سيتم ربطه ديناميكياً داخل اللعبة
+          extern "C" {
+              JNIEXPORT void JNICALL
+              Java_com_geass_overlay_NativeBridge_executePython(JNIEnv* env, jobject, jstring code) {
+                  const char* pyCode = env->GetStringUTFChars(code, NULL);
+                  __android_log_print(ANDROID_LOG_INFO, "GEASS_BRIDGE", "Received command: %s", pyCode);
+                  // هنا سيتم استدعاء دالة من libpython_geass.so لتنفيذ الكود
+                  env->ReleaseStringUTFChars(code, pyCode);
+              }
 
-      - name: 5. Sovereign_Signing
+              JNIEXPORT void JNICALL
+              Java_com_geass_overlay_NativeBridge_setEngineMode(JNIEnv* env, jobject, jboolean isDataMode) {
+                  if (isDataMode) {
+                      __android_log_print(ANDROID_LOG_INFO, "GEASS_BRIDGE", "Switching to Data-Only Mode.");
+                  } else {
+                      __android_log_print(ANDROID_LOG_INFO, "GEASS_BRIDGE", "Switching to Full Graphics Mode.");
+                  }
+                  // هنا سيتم استدعاء دالة للتحكم بمحرك الرسوميات
+              }
+          }
+          EOF
+          aarch64-linux-gnu-g++ -shared -fPIC bridge.cpp -o ./GEASS/payload/lib/libgeass_bridge.so
+          echo "✅ Neural Bridge forged."
+
+      - name: 4. ACQUIRE THE PYTHON HEART
         run: |
-          echo "✍️ Signing with RSA 2048-bit Key..."
-          keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS"
+          echo "❤️ Acquiring the Python Heart (arm64-v8a runtime)..."
+          wget -q -O python_runtime.zip "https://github.com/beeware/python-android-support/releases/download/3.11/python-3.11-arm64-v8a.zip"
+          unzip -q python_runtime.zip -d python_core
+          cp python_core/python/lib/libpython3.11.so ./GEASS/payload/lib/libpython_geass.so
+          echo "✅ Python Heart is secured."
+
+      - name: 5. PERFORM THE DIGITAL SURGERY
+        run: |
+          echo "🔬 Acquiring target vessel and beginning disassembly..."
+          wget -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          java -jar apktool.jar d Target.apk -o decoded_source
           
-          # توقيع الملف الذي نتج عن عملية البناء الفعلية
+          echo "💉 Performing surgical implantation of all components..."
+          # حقن القلب (Python) والجسر (Bridge)
+          cp ./GEASS/payload/lib/*.so decoded_source/lib/arm64-v8a/
+          # حقن تصميم الواجهة
+          cp ./GEASS/payload/res/layout/layout_geass.xml decoded_source/res/layout/
+          
+          echo "📜 Amending the Manifest to grant new permissions and register services..."
+          # تعديل AndroidManifest.xml لإضافة إذن الظهور فوق التطبيقات وتسجيل الخدمة العائمة
+          # هذه الخطوة تتطلب معرفة دقيقة ببنية الملف، وقد تحتاج لتعديلات أكثر تعقيداً (مثل تحويل Java إلى Smali)
+          sed -i '/<application/a \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' decoded_source/AndroidManifest.xml
+          sed -i '/<\/application>/i \    <service android:name="com.geass.overlay.GeassOverlayService" android:enabled="true" android:exported="true"/>' decoded_source/AndroidManifest.xml
+          echo "✅ All payloads implanted and manifest amended."
+
+      - name: 6. RE-ASSEMBLE AND SIGN WITH SOVEREIGN KEY
+        run: |
+          echo "🏗️ Re-assembling the new Sovereign entity..."
+          java -jar apktool.jar b decoded_source -o ./GEASS/final_apk/Geass_Sovereign_Raw.apk
+          
+          echo "✍️ Signing the entity with the unique GEASS Sovereign Key..."
+          keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS,O=Sovereign,C=AI"
           apksigner sign --ks geass.jks --ks-pass pass:123456 \
-            --out ./GEASS/final_bundle/Geass_Sovereign_Signed.apk \
-            ./GEASS/final_bundle/Geass_Sovereign_Real.apk
+            --out ./GEASS/final_apk/Geass_Sovereign_Genesis.apk \
+            ./GEASS/final_apk/Geass_Sovereign_Raw.apk
+          echo "✅ Assembly complete. The Sovereign entity is born."
 
-      - name: 6. Extraction_of_Evidence
+      - name: 7. CREATE THE GENESIS ARTWORK
         run: |
-          # التأكد من أن الملف بداخل الـ APK فعلاً عبر فحص محتويات الملف الناتج
-          echo "🔍 Verification: Checking if sovereign.py is inside the NEW APK..."
-          unzip -l ./GEASS/final_bundle/Geass_Sovereign_Signed.apk | grep "sovereign.py" > verification.txt
-          cp verification.txt ./GEASS/final_bundle/
+          echo "🖼️ Creating a visual representation of the Sovereign Console..."
+          convert -size 400x300 xc:none -background '#BF000000' \
+            -fill white -draw "roundrectangle 5,5 395,295 10,10" \
+            -font "DejaVu-Sans-Bold" -pointsize 16 -fill '#FFC107' -draw "text 70,30 'GEASS SOVEREIGN CONSOLE'" \
+            -fill black -background white -draw "rectangle 15,50 385,220" \
+            -fill '#9E9E9E' -pointsize 12 -draw "text 25,70 'from sovereign import GameAPI\n\nplayer = GameAPI.get_player()\nGameAPI.set_invincible(player, True)'" \
+            -fill white -background '#FF5722' -draw "rectangle 15,230 385,260" \
+            -fill black -pointsize 14 -draw "text 140,250 'EXECUTE SCRIPT'" \
+            ./GEASS/artwork/GEASS_Sovereign_Console.png
+          echo "✅ Artwork created."
 
-      - name: 7. Final_Export
+      - name: 8. DEPLOY THE SOVEREIGN APK
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_REAL_INJECTED_APK
-          path: ./GEASS/final_bundle/
+          name: GEASS_SOVEREIGN_GENESIS_APK
+          path: ./GEASS/final_apk/Geass_Sovereign_Genesis.apk
+      
+      - name: 9. DEPLOY THE SOVEREIGN ARTWORK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GEASS_SOVEREIGN_ARTWORK
+          path: ./GEASS/artwork/GEASS_Sovereign_Console.png
