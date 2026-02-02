@@ -1,49 +1,53 @@
-name: GEASS-IMAGE-AUDIT
+name: GEASS-LAB-VISUAL-CHECK
 
 on:
   workflow_dispatch:
 
 jobs:
   visual_audit:
-    runs-on: macos-latest # macOS ضروري لتشغيل المحاكي والتقاط الصور
+    runs-on: ubuntu-latest # أسرع في التشغيل ولا يوجد وقت انتظار طويل
     steps:
       - name: 1. FETCH LATEST RELEASE
         uses: dsaltares/fetch-gh-release-asset@master
         with:
           version: 'latest'
           asset: 'Geass_Internal_Citadel.apk'
-          target: './citadel_to_test.apk'
+          target: './latest_citadel.apk'
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. VIRTUAL BOOT & SCREENSHOT
+      - name: 2. QUICK STRUCTURAL AUDIT
+        run: |
+          echo "🔍 Checking Internal Files..."
+          unzip -l latest_citadel.apk | grep "assets/python/internal_master.py" && echo "✅ Python: INJECTED"
+          unzip -l latest_citadel.apk | grep "res/layout/geass_cockpit.xml" && echo "✅ UI: INJECTED"
+
+      - name: 3. VIRTUAL BOOT & VISUAL SCREENSHOT
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
           target: google_apis
           arch: x86_64
           force-avd-creation: true
-          emulator-boot-timeout: 1000
-          # إعدادات مخففة جداً لضمان عدم التعليق
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 3072
           script: |
             adb wait-for-device
-            echo "🚀 Device Ready. Installing APK..."
-            adb install -r citadel_to_test.apk
+            echo "🚀 Emulator Ready. Installing..."
+            adb install -r latest_citadel.apk
             
             echo "⏱️ Launching Game..."
             adb shell monkey -p com.dts.freefireth -c android.intent.category.LAUNCHER 1
             
-            echo "⏳ Waiting 45 seconds for Splash Screen..."
-            sleep 45
+            echo "⏳ Waiting 60 seconds for engine initialization..."
+            sleep 60
             
             echo "📸 Taking Screenshot..."
-            adb shell screencap -p /sdcard/audit_frame.png
-            adb pull /sdcard/audit_frame.png laboratory_result.png
+            adb shell screencap -p /sdcard/frame.png
+            adb pull /sdcard/frame.png laboratory_result.png
             
-            echo "📜 Pulling Logcat Snippet..."
-            adb logcat -d *:W > internal_logs.txt
+            echo "📜 Pulling Logs..."
+            adb logcat -d > internal_logs.txt
 
-      - name: 3. UPLOAD VISUAL EVIDENCE (Artifact)
+      - name: 4. UPLOAD EVIDENCE
         uses: actions/upload-artifact@v4
         with:
           name: CITADEL_VISUAL_REPORT
