@@ -1,63 +1,76 @@
-# .github/workflows/geass-bundle-ripper.yml
-name: GEASS-BUNDLE-RIPPER
+# .github/workflows/geass-deep-extractor.yml
+name: GEASS-DEEP-EXTRACTOR
 
 on:
   workflow_dispatch:
 
 jobs:
-  rip_bundles:
+  rip_assets:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Environment Setup
+      - name: 1. Setup Environment
         run: |
           sudo apt-get update
-          pip install UnityPy pillow 
+          pip install UnityPy pillow
           mkdir -p ./GEASS/extracted
 
-      - name: 2. Download Game
-        run: wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
-
-      - name: 3. Smart Asset Extraction
+      - name: 2. Download and Unzip APK
         run: |
-          cat << 'EOF' > rip_v2.py
+          wget -q -O Game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          # فك ضغط الـ APK يدوياً للوصول للملفات الداخلية
+          unzip Game.apk -d extracted_apk
+
+      - name: 3. Targeted Asset Extraction
+        run: |
+          cat << 'EOF' > rip_v3.py
           import UnityPy
           import os
 
           def extract():
-              # تحميل الـ APK مع إجبار المكتبة على قراءة الـ Bundles
-              env = UnityPy.load("Game.apk")
+              # تحديد مسار ملفات الداتا داخل الأندرويد
+              base_path = "extracted_apk/assets/bin/Data/"
               count = 0
               
-              # استهداف ملفات الـ Assets فقط التي تحتوي على صور
-              for path, obj in env.container.items():
+              if not os.path.exists(base_path):
+                  print("❌ Data path not found, scanning entire extracted folder...")
+                  base_path = "extracted_apk/"
+
+              # تحميل المجلد بالكامل بدلاً من ملف الـ APK
+              env = UnityPy.load(base_path)
+              
+              for obj in env.objects:
                   if obj.type.name in ["Texture2D", "Sprite"]:
-                      data = obj.read()
                       try:
-                          img = data.image
-                          img.save(f"./GEASS/extracted/asset_{count}.png")
-                          print(f"✅ Saved: {path}")
-                          count += 1
-                      except Exception as e:
+                          data = obj.read()
+                          if data.image:
+                              data.image.save(f"./GEASS/extracted/vision_{count}.png")
+                              print(f"✅ Extracted: {data.name}")
+                              count += 1
+                      except:
                           continue
                   if count >= 10: break
-
-              # إذا لم يجد في الحاويات، نبحث في الأشياء الخام (Raw Objects)
+              
               if count == 0:
-                  for obj in env.objects:
-                      if obj.type.name in ["Texture2D", "Sprite"]:
-                          data = obj.read()
-                          try:
-                              data.image.save(f"./GEASS/extracted/raw_{count}.png")
-                              count += 1
-                          except: continue
-                      if count >= 10: break
+                  print("⚠️ No images found. Trying to find UnityFS files directly...")
+                  # بحث يدوي عن ملفات البندل
+                  for root, dirs, files in os.walk("extracted_apk"):
+                      for f in files:
+                          if "unity" in f or "sharedassets" in f:
+                              try:
+                                  sub_env = UnityPy.load(os.path.join(root, f))
+                                  for sub_obj in sub_env.objects:
+                                      if sub_obj.type.name == "Texture2D":
+                                          sub_obj.read().image.save(f"./GEASS/extracted/deep_{count}.png")
+                                          count += 1
+                                          if count >= 10: break
+                              except: continue
 
           extract()
           EOF
-          python3 rip_v2.py
+          python3 rip_v3.py
 
-      - name: 4. Upload Extracted Vision
-        uses: actions/upload-artifact@v4
+      - name: 4. Upload Vision
+        uses: artifacts/upload-artifact@v4
         with:
-          name: GEASS_BUNDLE_VISION
+          name: GEASS_FINAL_VISION
           path: ./GEASS/extracted/
