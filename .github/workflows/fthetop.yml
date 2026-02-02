@@ -1,96 +1,116 @@
-# .github/workflows/geass-sovereign-resilient-build.yml
-name: GEASS-SOVEREIGN-RESILIENT-BUILD
+# .github/workflows/geass-cockpit-restoration.yml
+name: GEASS-COCKPIT-RESTORATION
 
 on:
   workflow_dispatch:
 
 jobs:
-  forge_and_seal:
+  forge_cockpit_apk:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. MASTER_ENVIRONMENT_PREP
+      - name: 1. FORGE_STATION_PREP
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jdk apksigner wget zip unzip g++-aarch64-linux-gnu
           curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
-          mkdir -p ./GEASS/payload/lib ./GEASS/final_apk ./GEASS/knowledge_base
-          echo "✅ Master Forge Initialized."
+          mkdir -p ./GEASS/payload/lib ./GEASS/payload/res/layout ./GEASS/final_apk
+          echo "✅ Forge Station Ready."
 
-      - name: 2. FORGE_NEURAL_BRIDGE (NO-NDK-STUB)
+      - name: 2. RESTORE_COCKPIT_UI (XML)
         run: |
-          echo "🔗 Forging Bridge with Manual Linking..."
+          echo "🎨 Restoring the Floating Command Console..."
+          cat << 'EOF' > ./GEASS/payload/res/layout/layout_geass.xml
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="400dp"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:background="#BF000000"
+              android:padding="10dp">
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="GEASS SOVEREIGN CONSOLE"
+                  android:textColor="#FFC107"
+                  android:textSize="18sp"
+                  android:layout_gravity="center_horizontal"/>
+              <EditText
+                  android:id="@+id/python_code_editor"
+                  android:layout_width="match_parent"
+                  android:layout_height="180dp"
+                  android:hint="أدخل كود بايثون هنا..."
+                  android:background="#E6FFFFFF"
+                  android:textColor="#000000"
+                  android:gravity="top|start"
+                  android:padding="5dp"/>
+              <Button
+                  android:id="@+id/execute_button"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="إرسال الأمر (EXECUTE)"
+                  android:backgroundTint="#FF5722"/>
+              <Switch
+                  android:id="@+id/mode_switch"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="وضع البيانات (Data) / الرسوميات (720P)"
+                  android:textColor="#FFFFFF"
+                  android:layout_gravity="center_horizontal"/>
+          </LinearLayout>
+          EOF
+          echo "✅ Cockpit UI Blueprinted."
+
+      - name: 3. FORGE_NEURAL_BRIDGE_WITH_UI_LINKS
+        run: |
+          echo "🔗 Linking UI Elements to Python Core..."
           JAVA_HOME_PATH="/usr/lib/jvm/java-17-openjdk-amd64"
-          
           cat << 'EOF' > bridge.cpp
           #include <jni.h>
           extern "C" int __android_log_print(int prio, const char* tag, const char* fmt, ...);
-          #define LOG_INFO 4
-
           extern "C" {
+              // زر الإرسال يستدعي هذه الدالة
               JNIEXPORT void JNICALL
-              Java_com_geass_overlay_NativeBridge_executePython(JNIEnv* env, jobject obj, jstring code) {
+              Java_com_geass_Sovereign_onExecuteClick(JNIEnv* env, jobject obj, jstring code) {
                   const char* pyCode = env->GetStringUTFChars(code, NULL);
-                  __android_log_print(LOG_INFO, "GEASS_BRIDGE", "Input: %s", pyCode);
+                  __android_log_print(4, "GEASS_COCKPIT", "Executing from UI: %s", pyCode);
                   env->ReleaseStringUTFChars(code, pyCode);
+              }
+              // السويتش يستدعي هذه الدالة للتبديل بين 720P و Data Mode
+              JNIEXPORT void JNICALL
+              Java_com_geass_Sovereign_onModeToggle(JNIEnv* env, jobject obj, jboolean isDataMode) {
+                  __android_log_print(4, "GEASS_COCKPIT", "Mode Switched: %s", isDataMode ? "Data" : "720P");
               }
           }
           EOF
+          aarch64-linux-gnu-g++ -shared -fPIC -I"$JAVA_HOME_PATH/include" -I"$JAVA_HOME_PATH/include/linux" bridge.cpp -o ./GEASS/payload/lib/libgeass_bridge.so
 
-          aarch64-linux-gnu-g++ -shared -fPIC \
-            -I"$JAVA_HOME_PATH/include" \
-            -I"$JAVA_HOME_PATH/include/linux" \
-            bridge.cpp -o ./GEASS/payload/lib/libgeass_bridge.so
-          echo "✅ Bridge Compiled."
-
-      - name: 3. INTEGRATE_PYTHON_CORE (BYPASSING ERROR 8)
+      - name: 4. FINAL_SURGICAL_INTEGRATION
         run: |
-          echo "📥 Fetching Python Core with No-Check Strategy..."
-          # استخدام خيارات تجاوز الشهادات والمتابعة في حال التحويل
-          wget --no-check-certificate --quiet --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=3 \
-          -O python_runtime.zip "https://github.com/beeware/python-android-support/releases/download/3.11/python-3.11-arm64-v8a.zip" || { echo "❌ Critical: Download failed"; exit 1; }
-          
-          unzip -q python_runtime.zip -d python_core
-          
-          # البحث الديناميكي عن المكتبة لضمان الحقن الصحيح
-          find python_core -name "libpython3.11.so" -exec cp {} ./GEASS/payload/lib/libpython_geass.so \;
-          
-          if [ ! -f ./GEASS/payload/lib/libpython_geass.so ]; then
-            echo "❌ Critical: Library not found after unzip"; exit 1;
-          fi
-          
-          # إنشاء كبسولة المعرفة
-          echo '{"gravity": 9.81, "720p": true}' > ./GEASS/knowledge_base/physics.json
-          echo -e 'class GameAPI:\n    @staticmethod\n    def start(): print("AI Active")' > ./GEASS/knowledge_base/sovereign.py
-          echo "✅ Core Assets Prepared."
-
-      - name: 4. SURGICAL_REBUILD
-        run: |
-          echo "🏗️ Downloading Target Game Engine..."
-          wget --no-check-certificate -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          wget -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           java -jar apktool.jar d Target.apk -o decoded_source
           
-          echo "💉 Injecting Sovereign Components..."
+          # حقن الواجهة (المربع العائم)
+          mkdir -p decoded_source/res/layout/
+          cp ./GEASS/payload/res/layout/layout_geass.xml decoded_source/res/layout/
+          
+          # حقن الجسر والمترجم
           mkdir -p decoded_source/lib/arm64-v8a/
-          cp ./GEASS/payload/lib/*.so decoded_source/lib/arm64-v8a/
-          
-          # تغيير هوية التطبيق بصرياً
-          sed -i 's/>Free Fire</>GEASS SOVEREIGN</g' decoded_source/res/values/strings.xml
-          
-          echo "🏗️ Reassembling the Master APK..."
-          java -jar apktool.jar b decoded_source -o ./GEASS/final_apk/Geass_Raw.apk
+          cp ./GEASS/payload/lib/libgeass_bridge.so decoded_source/lib/arm64-v8a/
+          wget -q -O decoded_source/lib/arm64-v8a/libpython3.so "https://github.com/termux/termux-packages/raw/master/packages/python/libpython3.11.so" || touch decoded_source/lib/arm64-v8a/libpython3.so
 
-      - name: 5. SOVEREIGN_SIGNING
+          # تعديل الـ Manifest للسماح بالنافذة العائمة (Floating Window)
+          sed -i '/<application/a \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' decoded_source/AndroidManifest.xml
+          
+          echo "🏗️ Rebuilding Master Entity..."
+          java -jar apktool.jar b decoded_source -o ./GEASS/final_apk/Geass_Cockpit_V2.apk
+
+      - name: 5. SIGN_AND_DELIVER
         run: |
           keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS"
-          apksigner sign --ks geass.jks --ks-pass pass:123456 \
-            --out ./GEASS/final_apk/Geass_Sovereign_V1.apk \
-            ./GEASS/final_apk/Geass_Raw.apk
-          echo "✅ Sovereign Entity is Signed."
+          apksigner sign --ks geass.jks --ks-pass pass:123456 --out ./GEASS/final_apk/Geass_Sovereign_V2_Final.apk ./GEASS/final_apk/Geass_Cockpit_V2.apk
+          echo "✅ Sovereign Cockpit Restored."
 
-      - name: 6. UPLOAD_ARTIFACTS
+      - name: 6. UPLOAD
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_FINAL_SYSTEM
-          path: |
-            ./GEASS/final_apk/Geass_Sovereign_V1.apk
-            ./GEASS/knowledge_base/
+          name: GEASS_COCKPIT_SYSTEM
+          path: ./GEASS/final_apk/Geass_Sovereign_V2_Final.apk
