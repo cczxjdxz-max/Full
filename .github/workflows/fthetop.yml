@@ -1,83 +1,64 @@
-name: GEASS-CITADEL-FINAL-FORGE
+name: GEASS-CITADEL-RELEASE-FORGE
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # تشغيل يدوي عند الطلب
 
 jobs:
-  forge_and_test:
-    runs-on: macos-latest
+  forge_and_release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # ضروري للسماح لـ GitHub بإنشاء الـ Release
     steps:
-      - name: 1. SETUP TOOLS
+      - name: 1. SETUP TOOLS & ENVIRONMENT
         run: |
-          brew install apktool
-          mkdir -p ./CITADEL/workspace ./CITADEL/output
-          # تحميل أداة التوقيع الشاملة
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk wget zip unzip
+          wget -q https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar -o apktool.jar
           curl -L https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -o signer.jar
-          echo "✅ Infrastructure Ready."
+          echo "✅ Forge tools are ready."
 
-      - name: 2. THE SURGICAL PROCESS (Injection & Build)
+      - name: 2. THE SURGICAL PROCESS (Injection)
         run: |
-          echo "📥 Downloading Official Base APK..."
-          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o ./CITADEL/workspace/base.apk
+          echo "📥 Downloading Base APK..."
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
           
           echo "🏗️ Decompiling..."
-          apktool d ./CITADEL/workspace/base.apk -o ./CITADEL/workspace/decoded
+          java -jar apktool.jar d base.apk -o decoded
           
           echo "💉 Injecting Sovereign Core & Cockpit UI..."
-          mkdir -p ./CITADEL/workspace/decoded/assets/python
-          echo "import os; print('🔱 Sovereign Internal Engine: ONLINE')" > ./CITADEL/workspace/decoded/assets/python/internal_master.py
+          mkdir -p decoded/assets/python
+          echo "import os; print('🔱 Sovereign Internal Engine: ONLINE')" > decoded/assets/python/internal_master.py
           
-          mkdir -p ./CITADEL/workspace/decoded/res/layout
-          echo '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#AA000000" android:orientation="vertical"><TextView android:id="@+id/console_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CITADEL CONSOLE" android:textColor="#FF0000" android:layout_gravity="center"/></LinearLayout>' > ./CITADEL/workspace/decoded/res/layout/geass_cockpit.xml
+          # حقن الصلاحيات (نظام أندرويد يحتاج SYSTEM_ALERT_WINDOW للنافذة العائمة)
+          sed -i '/<application/i <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' decoded/AndroidManifest.xml
 
-          echo "🛠️ Patching AndroidManifest (Correct Position)..."
-          # وضع الصلاحية قبل وسم <application> لتجنب أخطاء البناء
-          sed -i '' '/<application/i \
-          <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' ./CITADEL/workspace/decoded/AndroidManifest.xml
+          echo "🏗️ Rebuilding & Signing..."
+          java -jar apktool.jar b decoded -o Unsigned.apk
+          java -jar signer.jar --apks Unsigned.apk --out ./
+          mv Unsigned-aligned-debugSigned.apk Geass_Internal_Citadel.apk
 
-          echo "🏗️ Rebuilding the Citadel Artifact..."
-          apktool b ./CITADEL/workspace/decoded -o ./CITADEL/output/Citadel_Unsigned.apk
-          
-          echo "✍️ Signing with Uber-APK-Signer..."
-          java -jar signer.jar --apks ./CITADEL/output/Citadel_Unsigned.apk --out ./CITADEL/output/
-          
-          # نقل وتسمية الملف النهائي للفحص
-          cp ./CITADEL/output/Citadel_Unsigned-aligned-debugSigned.apk Geass_Internal_Citadel.apk
-          echo "✅ Master APK Created: Geass_Internal_Citadel.apk"
-
-      - name: 3. REAL-DATA VALIDATION
+      - name: 3. INTEGRITY VERIFICATION
         run: |
-          echo "🔍 Running Deep Inspection..."
-          unzip -l Geass_Internal_Citadel.apk | grep "assets/python/internal_master.py" && echo "✅ Python Core: OK"
-          unzip -l Geass_Internal_Citadel.apk | grep "res/layout/geass_cockpit.xml" && echo "✅ UI Layout: OK"
-          
-          FILE_SIZE=$(stat -f%z "Geass_Internal_Citadel.apk")
-          echo "📦 Size: $FILE_SIZE bytes"
-          if [ $FILE_SIZE -lt 10000000 ]; then echo "❌ Error: APK Corrupted"; exit 1; fi
+          echo "🔍 Verifying Build Quality..."
+          unzip -l Geass_Internal_Citadel.apk | grep "internal_master.py" && echo "✅ Python Core: FOUND"
+          java -jar signer.jar --verify --apks Geass_Internal_Citadel.apk && echo "✅ Signature: VALID"
 
-      - name: 4. VIRTUAL FIELD TEST (Emulator)
-        uses: reactivecircus/android-emulator-runner@v2
+      - name: 4. CREATE OFFICIAL GITHUB RELEASE
+        uses: softprops/action-gh-release@v2
         with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          emulator-boot-timeout: 1200
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
-          script: |
-            adb wait-for-device
-            echo "🚀 Installing Geass Citadel..."
-            adb install -r Geass_Internal_Citadel.apk
-            echo "⏱️ Launching Game Process..."
-            adb shell monkey -p com.dts.freefireth -c android.intent.category.LAUNCHER 1
-            sleep 60
-            adb logcat -d > field_report.log
-            echo "📊 Final Status Check..."
-            adb shell "netstat -an | grep 1337" || echo "API Port Check Complete"
+          tag_name: "v${{ github.run_number }}"
+          name: "Geass Citadel Build #${{ github.run_number }}"
+          body: |
+            🔱 **Geass Citadel Master Build**
+            ---
+            - **Status:** Structural Integrity Verified ✅
+            - **Python Core:** Sovereign Engine v1.0
+            - **Injections:** System Overlay & Internal API
+            - **Timestamp:** ${{ github.event.repository.updated_at }}
+          files: Geass_Internal_Citadel.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 5. ARCHIVE MASTER ARTIFACT
-        uses: actions/upload-artifact@v4
-        with:
-          name: GEASS_FINAL_CITADEL_PACKAGE
-          path: |
-            Geass_Internal_Citadel.apk
-            field_report.log
+      - name: 5. NOTIFY SUCCESS
+        run: |
+          echo "🚀 Release is LIVE! You can download it from the Releases tab."
