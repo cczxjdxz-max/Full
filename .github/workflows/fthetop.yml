@@ -1,93 +1,90 @@
-# .github/workflows/geass-sovereign-final-fusion.yml
-name: GEASS-SOVEREIGN-FINAL-FUSION
+# .github/workflows/geass-sovereign-final-fix.yml
+name: GEASS-SOVEREIGN-FINAL-FIX
 
 on:
   workflow_dispatch:
 
 jobs:
-  forge_the_sovereign_entity:
+  forge_and_seal:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP THE MASTER FORGE
+      - name: 1. MASTER_ENVIRONMENT_PREP
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk apksigner wget zip unzip g++-aarch64-linux-gnu imagemagick
+          sudo apt-get install -y openjdk-17-jdk apksigner wget zip unzip g++-aarch64-linux-gnu
           curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
-          mkdir -p ./GEASS/payload/lib ./GEASS/payload/res/layout ./GEASS/final_apk ./GEASS/knowledge_base
-          echo "✅ Master Forge is ready."
+          mkdir -p ./GEASS/payload/lib ./GEASS/final_apk ./GEASS/knowledge_base
+          echo "✅ Master Forge Initialized."
 
-      - name: 2. FORGE THE NEURAL BRIDGE (C++ JNI - FIXED)
+      - name: 2. FORGE_NEURAL_BRIDGE (NO-NDK-STUB)
         run: |
-          echo "🔗 Forging the C++ Neural Bridge with Fixed JNI Paths..."
-          # تحديد مسار الـ JDK في سيرفر جيثب
+          echo "🔗 Forging Bridge with Manual Linking..."
           JAVA_HOME_PATH="/usr/lib/jvm/java-17-openjdk-amd64"
           
           cat << 'EOF' > bridge.cpp
           #include <jni.h>
-          #include <android/log.h>
+          
+          // تعريف يدوي للتعامل مع نظام لوج أندرويد بدون ملفات خارجية
+          extern "C" int __android_log_print(int prio, const char* tag, const char* fmt, ...);
+          #define LOG_INFO 4
+
           extern "C" {
               JNIEXPORT void JNICALL
               Java_com_geass_overlay_NativeBridge_executePython(JNIEnv* env, jobject obj, jstring code) {
                   const char* pyCode = env->GetStringUTFChars(code, NULL);
-                  __android_log_print(ANDROID_LOG_INFO, "GEASS_BRIDGE", "Executing Sovereign Code: %s", pyCode);
+                  __android_log_print(LOG_INFO, "GEASS_BRIDGE", "Input: %s", pyCode);
                   env->ReleaseStringUTFChars(code, pyCode);
               }
           }
           EOF
 
-          # التجميع مع ربط مسارات الـ JNI
+          # تجميع المكتبة باستخدام مسارات جافا الموجودة في السيرفر
           aarch64-linux-gnu-g++ -shared -fPIC \
             -I"$JAVA_HOME_PATH/include" \
             -I"$JAVA_HOME_PATH/include/linux" \
             bridge.cpp -o ./GEASS/payload/lib/libgeass_bridge.so
-          echo "✅ Neural Bridge forged successfully."
+          echo "✅ Bridge Compiled Successfully."
 
-      - name: 3. ACQUIRE THE PYTHON CORE
+      - name: 3. INTEGRATE_PYTHON_AND_KNOWLEDGE
         run: |
+          # سحب محرك بايثون
           wget -q -O python_runtime.zip "https://github.com/beeware/python-android-support/releases/download/3.11/python-3.11-arm64-v8a.zip"
           unzip -q python_runtime.zip -d python_core
           cp python_core/python/lib/libpython3.11.so ./GEASS/payload/lib/libpython_geass.so
-          echo "✅ Python Core secured."
+          
+          # إنشاء كبسولة المعرفة
+          echo '{"gravity": 9.81, "720p": true}' > ./GEASS/knowledge_base/physics.json
+          echo 'class GameAPI:\n  def start(): print("AI Active")' > ./GEASS/knowledge_base/sovereign.py
+          echo "✅ Core Assets Prepared."
 
-      - name: 4. PREPARE KNOWLEDGE CAPSULE
+      - name: 4. SURGICAL_REBUILD
         run: |
-          cat << 'EOF' > ./GEASS/knowledge_base/game_physics.json
-          {"gravity": 9.81, "recoil": 0.0, "720p_optimized": true}
-          EOF
-          cat << 'EOF' > ./GEASS/knowledge_base/sovereign.py
-          class GameAPI:
-              def spawn_bots(n): print(f"Spawning {n} bots.")
-          EOF
-          echo "✅ Knowledge Capsule ready."
-
-      - name: 5. SURGICAL INJECTION AND REBUILD
-        run: |
+          echo "🏗️ Downloading Target..."
           wget -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           java -jar apktool.jar d Target.apk -o decoded_source
           
-          # حقن المكتبات والمنطق
+          echo "💉 Injecting Components..."
           mkdir -p decoded_source/lib/arm64-v8a/
           cp ./GEASS/payload/lib/*.so decoded_source/lib/arm64-v8a/
-          mkdir -p decoded_source/assets/python/core/
-          cp ./GEASS/knowledge_base/sovereign.py decoded_source/assets/python/core/
           
-          # تغيير الهوية
+          # تغيير الاسم وتعديل الهوية
           sed -i 's/>Free Fire</>GEASS SOVEREIGN</g' decoded_source/res/values/strings.xml
           
-          # إعادة البناء
+          echo "🏗️ Reassembling..."
           java -jar apktool.jar b decoded_source -o ./GEASS/final_apk/Geass_Raw.apk
 
-      - name: 6. SIGN THE SOVEREIGN ENTITY
+      - name: 5. SOVEREIGN_SIGNING
         run: |
           keytool -genkey -v -keystore geass.jks -alias geass -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=GEASS"
           apksigner sign --ks geass.jks --ks-pass pass:123456 \
-            --out ./GEASS/final_apk/Geass_Sovereign_Final.apk \
+            --out ./GEASS/final_apk/Geass_Sovereign_V1.apk \
             ./GEASS/final_apk/Geass_Raw.apk
+          echo "✅ APK Signed and Ready."
 
-      - name: 7. DEPLOY ALL ARTIFACTS
+      - name: 6. UPLOAD_ARTIFACTS
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_SOVEREIGN_SYSTEM
+          name: GEASS_FINAL_SYSTEM
           path: |
-            ./GEASS/final_apk/Geass_Sovereign_Final.apk
+            ./GEASS/final_apk/Geass_Sovereign_V1.apk
             ./GEASS/knowledge_base/
