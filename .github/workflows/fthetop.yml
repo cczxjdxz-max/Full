@@ -1,5 +1,5 @@
-# .github/workflows/geass-sovereign-final-fix.yml
-name: GEASS-SOVEREIGN-FINAL-FIX
+# .github/workflows/geass-sovereign-resilient-build.yml
+name: GEASS-SOVEREIGN-RESILIENT-BUILD
 
 on:
   workflow_dispatch:
@@ -23,8 +23,6 @@ jobs:
           
           cat << 'EOF' > bridge.cpp
           #include <jni.h>
-          
-          // تعريف يدوي للتعامل مع نظام لوج أندرويد بدون ملفات خارجية
           extern "C" int __android_log_print(int prio, const char* tag, const char* fmt, ...);
           #define LOG_INFO 4
 
@@ -38,39 +36,47 @@ jobs:
           }
           EOF
 
-          # تجميع المكتبة باستخدام مسارات جافا الموجودة في السيرفر
           aarch64-linux-gnu-g++ -shared -fPIC \
             -I"$JAVA_HOME_PATH/include" \
             -I"$JAVA_HOME_PATH/include/linux" \
             bridge.cpp -o ./GEASS/payload/lib/libgeass_bridge.so
-          echo "✅ Bridge Compiled Successfully."
+          echo "✅ Bridge Compiled."
 
-      - name: 3. INTEGRATE_PYTHON_AND_KNOWLEDGE
+      - name: 3. INTEGRATE_PYTHON_CORE (BYPASSING ERROR 8)
         run: |
-          # سحب محرك بايثون
-          wget -q -O python_runtime.zip "https://github.com/beeware/python-android-support/releases/download/3.11/python-3.11-arm64-v8a.zip"
+          echo "📥 Fetching Python Core with No-Check Strategy..."
+          # استخدام خيارات تجاوز الشهادات والمتابعة في حال التحويل
+          wget --no-check-certificate --quiet --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=3 \
+          -O python_runtime.zip "https://github.com/beeware/python-android-support/releases/download/3.11/python-3.11-arm64-v8a.zip" || { echo "❌ Critical: Download failed"; exit 1; }
+          
           unzip -q python_runtime.zip -d python_core
-          cp python_core/python/lib/libpython3.11.so ./GEASS/payload/lib/libpython_geass.so
+          
+          # البحث الديناميكي عن المكتبة لضمان الحقن الصحيح
+          find python_core -name "libpython3.11.so" -exec cp {} ./GEASS/payload/lib/libpython_geass.so \;
+          
+          if [ ! -f ./GEASS/payload/lib/libpython_geass.so ]; then
+            echo "❌ Critical: Library not found after unzip"; exit 1;
+          fi
           
           # إنشاء كبسولة المعرفة
           echo '{"gravity": 9.81, "720p": true}' > ./GEASS/knowledge_base/physics.json
-          echo 'class GameAPI:\n  def start(): print("AI Active")' > ./GEASS/knowledge_base/sovereign.py
+          echo -e 'class GameAPI:\n    @staticmethod\n    def start(): print("AI Active")' > ./GEASS/knowledge_base/sovereign.py
           echo "✅ Core Assets Prepared."
 
       - name: 4. SURGICAL_REBUILD
         run: |
-          echo "🏗️ Downloading Target..."
-          wget -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          echo "🏗️ Downloading Target Game Engine..."
+          wget --no-check-certificate -q -O Target.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           java -jar apktool.jar d Target.apk -o decoded_source
           
-          echo "💉 Injecting Components..."
+          echo "💉 Injecting Sovereign Components..."
           mkdir -p decoded_source/lib/arm64-v8a/
           cp ./GEASS/payload/lib/*.so decoded_source/lib/arm64-v8a/
           
-          # تغيير الاسم وتعديل الهوية
+          # تغيير هوية التطبيق بصرياً
           sed -i 's/>Free Fire</>GEASS SOVEREIGN</g' decoded_source/res/values/strings.xml
           
-          echo "🏗️ Reassembling..."
+          echo "🏗️ Reassembling the Master APK..."
           java -jar apktool.jar b decoded_source -o ./GEASS/final_apk/Geass_Raw.apk
 
       - name: 5. SOVEREIGN_SIGNING
@@ -79,7 +85,7 @@ jobs:
           apksigner sign --ks geass.jks --ks-pass pass:123456 \
             --out ./GEASS/final_apk/Geass_Sovereign_V1.apk \
             ./GEASS/final_apk/Geass_Raw.apk
-          echo "✅ APK Signed and Ready."
+          echo "✅ Sovereign Entity is Signed."
 
       - name: 6. UPLOAD_ARTIFACTS
         uses: actions/upload-artifact@v4
