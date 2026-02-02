@@ -1,82 +1,81 @@
-name: GIAS-ABSOLUTE-AI-EXTRACTOR
+name: GIAS-TOTAL-AI-FEEDER-250
+
 on:
   workflow_dispatch:
 
 jobs:
-  full_extraction:
+  full_ingestion:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Setup Data Tools
-        run: pip install UnityPy numpy
+      - name: 1. Setup Data Processing Core
+        run: pip install UnityPy numpy Pillow
 
-      - name: 2. Full Game Download
+      - name: 2. Restore Global Game Assets
         run: |
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -o game.apk -d game_files
 
-      - name: 3. The Master Aggregator (المجمع النهائي)
+      - name: 3. The "Absolute Knowledge" Script (استخراج المعرفة المطلقة)
         run: |
-          cat << 'EOF' > final_aggregator.py
+          cat << 'EOF' > absolute_extractor.py
           import UnityPy
           import os
           import json
+          from PIL import Image
 
-          # الحاويات الموحدة التي طلبتها
-          ai_database = {
-              "BERMUDA_FULL": [],      # الخرائط، التضاريس، العقبات
-              "SKINS_MASTER": [],      # كل السكنات والملابس
-              "EVENTS_LOGIC": [],      # الأحداث والمهام والمنطق
-              "WEAPONS_ALL": [],       # كل الأسلحة، المقذوفات، الخطاف
-              "GRENADES_DB": [],       # القنابل والمتفجرات
-              "CHARACTERS_DATA": [],   # الشخصيات، الهيت بوكس، العظام
-              "PHYSICS_MASTER": [],    # الفيزياء والجاذبية (مثل الملف الذي رفعته)
-              "CORE_LOGIC": []         # منطق اللعبة العام والسيستم
+          # تصنيفات بناء العقل الجبار
+          categories = {
+              "SPATIAL_AWARENESS": [], # خرائط، كوليدرز، تضاريس
+              "COMBAT_GENOME": [],     # أسلحة، ارتداد، سرعة، خطاف
+              "PHYSICS_LAWS": [],      # جاذبية، احتكاك، ميكانيكا العالم
+              "ENTITY_VULNERABILITY": [], # شخصيات، هيت بوكس، عظام
+              "VISUAL_DICTIONARY": [], # سكنات، أيقونات، خرائط حرارية
+              "LOGIC_DECISION_TREES": [] # كيف تفكر اللعبة (أنظمة، قوانين)
           }
 
-          # كلمات البحث للتصنيف والدمج
           tags = {
-              "BERMUDA_FULL": [b"Bermuda", b"Map", b"Terrain", b"StaticMesh", b"Collision"],
-              "SKINS_MASTER": [b"Skin", b"Costume", b"Cloth", b"Bundle", b"Material"],
-              "EVENTS_LOGIC": [b"Event", b"Mission", b"Quest", b"Activity", b"BattlePass"],
-              "WEAPONS_ALL": [b"Weapon", b"Gun", b"Recoil", b"Hook", b"Grappling", b"Ammo"],
-              "GRENADES_DB": [b"Grenade", b"Bomb", b"Explosion", b"Flashbang", b"Mine"],
-              "CHARACTERS_DATA": [b"Character", b"Hero", b"Skill", b"Avatar", b"Hitbox", b"Bone"],
-              "PHYSICS_MASTER": [b"Physics", b"Gravity", b"Mass", b"Velocity", b"PhysicsManager"],
-              "CORE_LOGIC": [b"Manager", b"System", b"Config", b"Rule", b"Logic"]
+              "SPATIAL_AWARENESS": [b"Bermuda", b"Map", b"Terrain", b"StaticMesh", b"Collision"],
+              "COMBAT_GENOME": [b"Weapon", b"Gun", b"Recoil", b"Hook", b"Ammo", b"Bullet"],
+              "PHYSICS_LAWS": [b"Physics", b"Gravity", b"Mass", b"Velocity"],
+              "ENTITY_VULNERABILITY": [b"Character", b"Hero", b"Hitbox", b"Bone", b"Skeleton"],
+              "VISUAL_DICTIONARY": [b"Skin", b"Bundle", b"Material", b"Texture"],
+              "LOGIC_DECISION_TREES": [b"Manager", b"System", b"Config", b"Rule", b"Logic"]
           }
 
-          print("🚀 Starting the Absolute Aggregation of 40,000+ files...")
+          print("🧬 Extracting the Game's DNA for the High-IQ Agent...")
 
           for root, dirs, files in os.walk("game_files"):
               for file in files:
                   try:
                       env = UnityPy.load(os.path.join(root, file))
                       for obj in env.objects:
+                          # سحب البيانات البرمجية
                           try:
                               data = obj.read().read_typetree()
                           except:
-                              data = {"f_id": file, "type": obj.type.name, "hex": obj.get_raw_data().hex()[:1000]}
+                              data = {"f_id": file, "raw_hex": obj.get_raw_data().hex()[:1000]}
                           
-                          data_str = str(data).encode()
-                          for category, keywords in tags.items():
-                              if any(k in data_str for k in keywords):
-                                  ai_database[category].append(data)
+                          # التصنيف والدمج
+                          content_str = str(data).encode()
+                          for cat, keys in tags.items():
+                              if any(k in content_str for k in keys):
+                                  categories[cat].append(data)
                                   break
                   except: continue
 
-          # حفظ الملفات الضخمة الموحدة
-          os.makedirs("FINAL_AI_WORLD", exist_ok=True)
-          for category, content in ai_database.items():
-              print(f"💾 Saving Master File: {category} (Size: {len(content)} objects)")
-              with open(f"FINAL_AI_WORLD/{category}.json", "w", encoding='utf-8') as f:
+          # دمج كل شيء في ملفات عملاقة للتحليل
+          os.makedirs("ULTIMATE_AI_DATASET", exist_ok=True)
+          for cat, content in categories.items():
+              print(f"💾 Archiving {cat}: {len(content)} objects.")
+              with open(f"ULTIMATE_AI_DATASET/{cat}.json", "w", encoding='utf-8') as f:
                   json.dump(content, f, ensure_ascii=False)
-
-          print("✅ MISSION COMPLETE: All game data merged into 8 Master Files!")
+          
+          print("✅ All Game Secrets Extracted into ULTIMATE_AI_DATASET/")
           EOF
-          python3 final_aggregator.py
+          python3 absolute_extractor.py
 
-      - name: 4. Export AI Biome
+      - name: 4. Export Global Intelligence
         uses: actions/upload-artifact@v4
         with:
-          name: FULL_FREEFIRE_MASTER_DATASET
-          path: FINAL_AI_WORLD/
+          name: HIGH_IQ_AI_KNOWLEDGE_BASE
+          path: ULTIMATE_AI_DATASET/
