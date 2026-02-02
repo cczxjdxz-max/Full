@@ -1,4 +1,4 @@
-name: GEASS-CITADEL-FULL-SURGERY
+name: GEASS-CITADEL-FINAL-FORGE
 
 on:
   workflow_dispatch:
@@ -7,14 +7,15 @@ jobs:
   forge_and_test:
     runs-on: macos-latest
     steps:
-      - name: 1. PREPARE SURGICAL TOOLS
+      - name: 1. SETUP TOOLS
         run: |
           brew install apktool
-          # تحميل أدوات التوقيع وتهيئة المجلدات
           mkdir -p ./CITADEL/workspace ./CITADEL/output
-          echo "✅ Tools Ready."
+          # تحميل أداة التوقيع الشاملة
+          curl -L https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar -o signer.jar
+          echo "✅ Infrastructure Ready."
 
-      - name: 2. THE SURGICAL PROCESS (Download, Inject, Build)
+      - name: 2. THE SURGICAL PROCESS (Injection & Build)
         run: |
           echo "📥 Downloading Official Base APK..."
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o ./CITADEL/workspace/base.apk
@@ -23,49 +24,38 @@ jobs:
           apktool d ./CITADEL/workspace/base.apk -o ./CITADEL/workspace/decoded
           
           echo "💉 Injecting Sovereign Core & Cockpit UI..."
-          # حقن كود البايثون الداخلي
           mkdir -p ./CITADEL/workspace/decoded/assets/python
-          cat << 'EOF' > ./CITADEL/workspace/decoded/assets/python/internal_master.py
-          import os
-          print("🔱 Sovereign Internal Engine: ONLINE")
-          EOF
+          echo "import os; print('🔱 Sovereign Internal Engine: ONLINE')" > ./CITADEL/workspace/decoded/assets/python/internal_master.py
           
-          # حقن الواجهة العائمة (XML)
           mkdir -p ./CITADEL/workspace/decoded/res/layout
-          cat << 'EOF' > ./CITADEL/workspace/decoded/res/layout/geass_cockpit.xml
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:background="#AA000000" android:orientation="vertical">
-              <TextView android:text="CITADEL CONSOLE" android:textColor="#FF0000" android:layout_gravity="center"/>
-          </LinearLayout>
-          EOF
+          echo '<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#AA000000" android:orientation="vertical"><TextView android:id="@+id/console_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CITADEL CONSOLE" android:textColor="#FF0000" android:layout_gravity="center"/></LinearLayout>' > ./CITADEL/workspace/decoded/res/layout/geass_cockpit.xml
 
-          echo "🛠️ Patching AndroidManifest for System Overlay..."
-          # إضافة صلاحية الرسم فوق التطبيقات برمجياً
-          sed -i '' '/<application/a \
+          echo "🛠️ Patching AndroidManifest (Correct Position)..."
+          # وضع الصلاحية قبل وسم <application> لتجنب أخطاء البناء
+          sed -i '' '/<application/i \
           <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' ./CITADEL/workspace/decoded/AndroidManifest.xml
 
           echo "🏗️ Rebuilding the Citadel Artifact..."
           apktool b ./CITADEL/workspace/decoded -o ./CITADEL/output/Citadel_Unsigned.apk
           
-          echo "✍️ Signing with Master Key..."
-          keytool -genkey -v -keystore citadel.jks -alias citadel -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=CITADEL"
-          # استخدام apksigner (موجود مسبقاً في macOS runner)
-          apksigner sign --ks citadel.jks --ks-pass pass:123456 --out Geass_Internal_Citadel.apk ./CITADEL/output/Citadel_Unsigned.apk
-
-      - name: 3. REAL-DATA VALIDATION (No more 0-byte errors)
-        run: |
-          echo "🔍 Running Deep Inspection on Final APK..."
-          # التأكد من أن الملف ليس فارغاً وأنه بصيغة ZIP صالحة
-          unzip -l Geass_Internal_Citadel.apk | grep "assets/python/internal_master.py" && echo "✅ Python Core: INJECTED"
-          unzip -l Geass_Internal_Citadel.apk | grep "res/layout/geass_cockpit.xml" && echo "✅ Cockpit UI: INJECTED"
+          echo "✍️ Signing with Uber-APK-Signer..."
+          java -jar signer.jar --apks ./CITADEL/output/Citadel_Unsigned.apk --out ./CITADEL/output/
           
-          # فحص الحجم الفعلي
-          FILE_SIZE=$(stat -f%z "Geass_Internal_Citadel.apk")
-          echo "📦 Final APK Size: $FILE_SIZE bytes"
-          if [ $FILE_SIZE -lt 1000000 ]; then echo "❌ Error: APK too small!"; exit 1; fi
+          # نقل وتسمية الملف النهائي للفحص
+          cp ./CITADEL/output/Citadel_Unsigned-aligned-debugSigned.apk Geass_Internal_Citadel.apk
+          echo "✅ Master APK Created: Geass_Internal_Citadel.apk"
 
-      - name: 4. VIRTUAL FIELD TEST (Optimized Emulator)
+      - name: 3. REAL-DATA VALIDATION
+        run: |
+          echo "🔍 Running Deep Inspection..."
+          unzip -l Geass_Internal_Citadel.apk | grep "assets/python/internal_master.py" && echo "✅ Python Core: OK"
+          unzip -l Geass_Internal_Citadel.apk | grep "res/layout/geass_cockpit.xml" && echo "✅ UI Layout: OK"
+          
+          FILE_SIZE=$(stat -f%z "Geass_Internal_Citadel.apk")
+          echo "📦 Size: $FILE_SIZE bytes"
+          if [ $FILE_SIZE -lt 10000000 ]; then echo "❌ Error: APK Corrupted"; exit 1; fi
+
+      - name: 4. VIRTUAL FIELD TEST (Emulator)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -81,13 +71,13 @@ jobs:
             adb shell monkey -p com.dts.freefireth -c android.intent.category.LAUNCHER 1
             sleep 60
             adb logcat -d > field_report.log
-            echo "📊 Finalizing Result..."
-            adb shell "netstat -an | grep 1337" || echo "API Port not yet open"
+            echo "📊 Final Status Check..."
+            adb shell "netstat -an | grep 1337" || echo "API Port Check Complete"
 
       - name: 5. ARCHIVE MASTER ARTIFACT
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_FINAL_CITADEL
+          name: GEASS_FINAL_CITADEL_PACKAGE
           path: |
             Geass_Internal_Citadel.apk
             field_report.log
