@@ -1,89 +1,65 @@
-name: SOVEREIGN-REAL-DATA-FORGE
+name: GEASS-INTERNAL-CITADEL-WITH-TEST
+
 on:
   workflow_dispatch:
 
 jobs:
-  forge:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # للسماح للوورك فلو بتحديث الـ README والنتائج
+  forge_and_test:
+    runs-on: macos-latest  # نستخدم macOS لأنه يدعم تسريع المحاكي (Hardware Acceleration)
     steps:
-      - name: 1. Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: 2. Install High-Precision Environment
+      - name: 1. INITIALIZE FORGE
         run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static g++-aarch64-linux-gnu unzip curl git
-          pip install torch numpy frida-tools
+          sudo apt-get update || true
+          brew install apktool
+          mkdir -p ./INTERNAL_GEASS/output
+          echo "✅ Forge initialized on macOS runner."
 
-      - name: 3. Real-Time Engine Extraction
+      - name: 2. SURGICAL INJECTION (Building the APK)
         run: |
-          echo "📥 Downloading Live APK..."
-          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o Game.apk
-          echo "🔓 Extracting Production Binaries..."
-          unzip -j Game.apk "lib/arm64-v8a/libunity.so" -d .
-          unzip -j Game.apk "lib/arm64-v8a/libil2cpp.so" -d .
+          # (هنا نضع نفس خطوات الحقن السابقة لاستخراج libunity وحقن الواجهة والـ API)
+          echo "💉 Injecting Sovereign Engine into APK..."
+          # محاكاة لعملية البناء الناجحة
+          touch Geass_Internal_Citadel.apk 
 
-      - name: 4. Sovereign Execution & Real Data Logging
+      - name: 3. DEPLOY VIRTUAL TEST ENVIRONMENT (الاستشعار الذاتي)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          script: |
+            echo "🚀 Installing the Citadel APK..."
+            adb install Geass_Internal_Citadel.apk
+            
+            echo "⏱️ Launching Game & Internal API..."
+            adb shell monkey -p com.dts.freefireth -c android.intent.category.LAUNCHER 1
+            
+            echo "🔍 Capturing 60 seconds of Internal Logs..."
+            sleep 60
+            adb logcat -d > citadel_field_report.log
+            
+            echo "📊 Checking API Status on Port 1337..."
+            adb shell "netstat -an | grep 1337" >> citadel_field_report.log
+
+      - name: 4. GENERATE SOVEREIGN REPORT (README Update)
         run: |
-          # إنشاء فلتر الرسوميات الصامت
-          cat << 'EOF' > null_graphics.c
-          #include <stdint.h>
-          void* eglGetDisplay(void* nd) { return (void*)1; }
-          int eglInitialize(void* d, int* ma, int* mi) { return 1; }
-          void glDrawArrays(uint32_t mo, int f, int c) {}
-          EOF
-          aarch64-linux-gnu-gcc -shared -fPIC null_graphics.c -o libnullgraphics.so
+          echo "📝 Analyzing Logs for Integrity..."
+          if grep -q "Internal API Server active" citadel_field_report.log; then
+            echo "### ✅ TEST RESULT: SUCCESS" >> README.md
+            echo "- Game Status: Running" >> README.md
+            echo "- Cockpit API: Active on Port 1337" >> README.md
+          else
+            echo "### ❌ TEST RESULT: CRITICAL FAILURE" >> README.md
+            echo "- Reason: Internal Engine didn't start" >> README.md
+          fi
+          
+          echo "#### Raw Log Snippet:" >> README.md
+          tail -n 20 citadel_field_report.log >> README.md
 
-          # إنشاء محرك التدريب المرتبط بالذاكرة الحقيقية
-          cat << 'EOF' > sovereign_engine.py
-          import torch, numpy as np, os, time, frida, subprocess
-
-          class SovereignBrain(torch.nn.Module):
-              def __init__(self):
-                  super().__init__()
-                  self.net = torch.nn.Sequential(torch.nn.Linear(1200, 2048), torch.nn.ReLU(), torch.nn.Linear(2048, 4))
-              def forward(self, x): return self.net(x)
-
-          def log_real_results(cycle, gap, survival):
-              with open("README.md", "a") as f:
-                  f.write(f"| {cycle} | {gap:.8f} units | {survival}% | {time.strftime('%H:%M:%S')} |\n")
-
-          def start_forge():
-              # إعداد ملف النتائج
-              with open("README.md", "w") as f:
-                  f.write("# 🔱 Sovereign Training: Real-Memory Logs\n\n")
-                  f.write("| Cycle | Memory Gap (Precision) | Survival vs 100 | Timestamp |\n")
-                  f.write("| :--- | :--- | :--- | :--- |\n")
-
-              env = os.environ.copy()
-              env["LD_PRELOAD"] = "./libnullgraphics.so"
-              
-              # تشغيل النواة بوضعية التصحيح لسحب البيانات
-              subprocess.Popen(["qemu-aarch64-static", "-g", "1234", "./libunity.so"], env=env)
-              time.sleep(15)
-
-              model = SovereignBrain()
-              optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-
-              print("🔥 Training on REAL DATA initiated...")
-              for i in range(10000): # دورات مكثفة
-                  # محاكاة سحب البيانات ومعالجة الفجوة (Gap) بين الهدف والتوقع
-                  mock_real_gap = 0.5 / (i + 1) # هنا يتم ربطها بـ Frida API لاحقاً
-                  if i % 100 == 0:
-                      log_real_results(i, mock_real_gap, 99.9)
-                      os.system("git config user.name 'SovereignForge' && git config user.email 'forge@ai.com'")
-                      os.system("git add README.md && git commit -m 'Real-time Stats' && git push || true")
-              
-              torch.save(model.state_dict(), "SOVEREIGN_FINAL.pth")
-
-          if __name__ == "__main__": start_forge()
-          EOF
-          python3 sovereign_engine.py
-
-      - name: 5. Upload Sovereign Artifact
+      - name: 5. UPLOAD FINAL APK & LOGS
         uses: actions/upload-artifact@v4
         with:
-          name: FINAL_SOVEREIGN_BRAIN
-          path: SOVEREIGN_FINAL.pth
+          name: CITADEL_FINAL_AND_LOGS
+          path: |
+            Geass_Internal_Citadel.apk
+            citadel_field_report.log
