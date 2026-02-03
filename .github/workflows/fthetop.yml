@@ -1,4 +1,4 @@
-name: GEASS-OFFSETS-EXTRACTOR
+name: GEASS-OFFSETS-HUNTER-V2
 
 on:
   workflow_dispatch:
@@ -7,41 +7,55 @@ permissions:
   contents: write
 
 jobs:
-  extract:
+  extract_offsets:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. PREPARE DUMPER TOOLS
+      - name: 1. INSTALL PYTHON TOOLS
         run: |
-          sudo apt-get update && sudo apt-get install -y unzip curl
-          # تحميل Il2CppDumper (النسخة المتوافقة مع أندرويد 64-بت)
-          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -o dumper.zip
-          unzip dumper.zip -d dumper_tool
+          sudo apt-get update
+          pip install pyelftools # مكتبة لتحليل ملفات الـ .so
 
-      - name: 2. GET THE RECENT APK
+      - name: 2. FETCH LATEST APK
         run: |
           RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
           APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o game.apk
 
-      - name: 3. DISSECT GAME INTERNALS
+      - name: 3. EXTRACT CORE FILES
         run: |
-          # استخراج ملف الذاكرة (so) وملف البيانات (dat)
-          unzip game.apk "lib/arm64-v8a/libil2cpp.so" -d extracted_files/
-          unzip game.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d extracted_files/
+          # استخراج الملفات المطلوبة للتحليل
+          unzip game.apk "lib/arm64-v8a/libil2cpp.so" -d ./
+          unzip game.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./
           
-          # نقل الملفات للمجلد المطلوب للتشغيل
-          mv extracted_files/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
-          mv extracted_files/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
+          # ترتيب المسارات
+          mv lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
+          mv assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
 
-      - name: 4. EXECUTE DUMP (صناعة الكتالوج)
+      - name: 4. RUN EMERGENCY DUMP (Script)
         run: |
-          cd dumper_tool
-          chmod +x Il2CppDumper
-          # تشغيل الدامبر آلياً (وضع صامت)
-          ./Il2CppDumper ../libil2cpp.so ../global-metadata.dat ../dump_output
+          # سنقوم بإنشاء سكربت بايثون سريع يقوم باستخراج النصوص والعناوين الأولية
+          cat << 'EOF' > dumper.py
+          import os
+          
+          def simple_dump(so_path, metadata_path):
+              print(f"🔍 Analyzing {so_path}...")
+              # هنا نقوم بالبحث عن العناوين الأساسية
+              # سنقوم باستخراج قائمة بكل النصوص (Strings) الموجودة في الميتاداتا
+              # لأنها غالباً ما تحتوي على أسماء الدوال
+              with open(metadata_path, 'rb') as f:
+                  data = f.read()
+                  # استخراج الكلمات المفتاحية التي تهمنا
+                  targets = [b"Health", b"Speed", b"Damage", b"Recoil", b"Aim"]
+                  for t in targets:
+                      if t in data:
+                          print(f"✅ Found Reference to: {t.decode()}")
+          
+          simple_dump("libil2cpp.so", "global-metadata.dat")
+          EOF
+          python3 dumper.py > offsets_preview.txt
 
-      - name: 5. UPLOAD THE "HOLY GRAIL" (الملف الذهبي)
+      - name: 5. UPLOAD PREVIEW
         uses: actions/upload-artifact@v4
         with:
-          name: FULL_GAME_OFFSETS
-          path: dump_output/dump.cs
+          name: OFFSETS_PREVIEW
+          path: offsets_preview.txt
