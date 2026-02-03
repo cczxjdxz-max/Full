@@ -1,61 +1,46 @@
-name: GEASS-OFFSETS-HUNTER-V2
+name: GEASS-DEEP-REVERSE
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  extract_offsets:
+  deep_search:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. INSTALL PYTHON TOOLS
-        run: |
-          sudo apt-get update
-          pip install pyelftools # مكتبة لتحليل ملفات الـ .so
+      - name: 1. PREPARE SCANNER
+        run: pip install pyelftools
 
-      - name: 2. FETCH LATEST APK
+      - name: 2. FETCH APK & EXTRACT
         run: |
           RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
           APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o game.apk
+          unzip game.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./
 
-      - name: 3. EXTRACT CORE FILES
+      - name: 3. GEASS DEEP ANALYSIS (التحليل العميق)
         run: |
-          # استخراج الملفات المطلوبة للتحليل
-          unzip game.apk "lib/arm64-v8a/libil2cpp.so" -d ./
-          unzip game.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./
-          
-          # ترتيب المسارات
-          mv lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
-          mv assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
+          cat << 'EOF' > deep_analyzer.py
+          import struct
 
-      - name: 4. RUN EMERGENCY DUMP (Script)
-        run: |
-          # سنقوم بإنشاء سكربت بايثون سريع يقوم باستخراج النصوص والعناوين الأولية
-          cat << 'EOF' > dumper.py
-          import os
-          
-          def simple_dump(so_path, metadata_path):
-              print(f"🔍 Analyzing {so_path}...")
-              # هنا نقوم بالبحث عن العناوين الأساسية
-              # سنقوم باستخراج قائمة بكل النصوص (Strings) الموجودة في الميتاداتا
-              # لأنها غالباً ما تحتوي على أسماء الدوال
-              with open(metadata_path, 'rb') as f:
+          def find_offsets():
+              print("🕵️ Analyzing Game Brain...")
+              # البحث عن دوال الموارد والسكنات
+              # الكلمات المفتاحية للسيطرة الكاملة
+              keywords = ["GetItem", "Skin", "Event", "Inventory", "Unlock", "Equip"]
+              
+              with open("assets/bin/Data/Managed/Metadata/global-metadata.dat", "rb") as f:
                   data = f.read()
-                  # استخراج الكلمات المفتاحية التي تهمنا
-                  targets = [b"Health", b"Speed", b"Damage", b"Recoil", b"Aim"]
-                  for t in targets:
-                      if t in data:
-                          print(f"✅ Found Reference to: {t.decode()}")
-          
-          simple_dump("libil2cpp.so", "global-metadata.dat")
-          EOF
-          python3 dumper.py > offsets_preview.txt
+                  for word in keywords:
+                      pos = data.find(word.encode())
+                      if pos != -1:
+                          print(f"🔱 Found Critical Point: {word} at Hex {hex(pos)}")
 
-      - name: 5. UPLOAD PREVIEW
+          find_offsets()
+          EOF
+          python3 deep_analyzer.py > deep_report.txt
+
+      - name: 4. UPLOAD RESULTS
         uses: actions/upload-artifact@v4
         with:
-          name: OFFSETS_PREVIEW
-          path: offsets_preview.txt
+          name: DEEP_REVERSE_REPORT
+          path: deep_report.txt
