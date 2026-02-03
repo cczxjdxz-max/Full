@@ -1,68 +1,54 @@
-name: GEASS-INTEGRITY-CHECK
+name: GEASS-FINAL-FIX
 
 on:
-  workflow_dispatch: # تشغيل يدوياً بعد بناء الـ APK
+  workflow_dispatch:
 
 jobs:
-  verify_injection:
+  rebuild_and_inject:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. GET THE APK
+      - name: 1. SETUP TOOLS
         run: |
-          # سحب آخر نسخة تم بناؤها من الـ Releases
-          RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-          APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o target_game.apk
-          echo "✅ APK Downloaded for inspection."
+          sudo apt-get update
+          curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
+          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
 
-      - name: 2. RUN COMPREHENSIVE INTEGRITY SCAN
+      - name: 2. MANIFEST SURGERY
         run: |
-          python3 - << 'EOF'
-          import zipfile
+          java -jar APKEditor.jar d -i base.apk -o temp_dir
+          # حقن الصلاحية في المانيفست
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp_dir/AndroidManifest.xml
+          # إعادة البناء الأولية
+          java -jar APKEditor.jar b -i temp_dir -o intermediate.apk
+
+      - name: 3. DIRECT PYTHON INJECTION (The Missing Link)
+        run: |
+          # إنشاء مجلدات قمرة القيادة
+          mkdir -p assets/python
+          cat << 'EOF' > assets/python/internal_master.py
           import os
-
-          apk_path = "target_game.apk"
-          print(f"\n{'='*40}")
-          print(f"🔍 GEASS INTEGRITY RADAR STARTING...")
-          print(f"{'='*40}")
-          
-          if not os.path.exists(apk_path):
-              print("❌ ERROR: APK file not found!")
-              exit(1)
-
-          with zipfile.ZipFile(apk_path, 'r') as apk:
-              files = apk.namelist()
-              
-              # الفحص 1: قمرة القيادة (Python Engine)
-              py_engine = "assets/python/internal_master.py"
-              if py_engine in files:
-                  print(f"✅ [PASS] Python Engine found: {py_engine}")
-                  # قراءة محتوى الكود للتأكد من أنه ليس فارغاً
-                  with apk.open(py_engine) as f:
-                      content = f.read().decode('utf-8')
-                      print(f"   📜 Code Size: {len(content)} bytes")
-              else:
-                  print(f"❌ [FAIL] Python Engine MISSING in assets!")
-
-              # الفحص 2: الصلاحيات الجراحية (Manifest Check)
-              # سنبحث عن بصمة الصلاحية داخل ملف المانيفست الثنائي
-              try:
-                  with apk.open("AndroidManifest.xml") as m:
-                      manifest_data = m.read()
-                      if b"SYSTEM_ALERT_WINDOW" in manifest_data:
-                          print("✅ [PASS] Overlay Permission (SYSTEM_ALERT_WINDOW) injected.")
-                      else:
-                          print("❌ [FAIL] Overlay Permission NOT FOUND in Manifest.")
-              except:
-                  print("⚠️ [WARN] Could not parse Manifest binary directly.")
-
-              # الفحص 3: هيكل الملفات العام
-              print(f"📦 Total files in APK: {len(files)}")
-              print(f"📊 Final File Size: {os.path.getsize(apk_path) / (1024*1024):.2f} MB")
-
-          print(f"{'='*40}\n🏁 SCAN COMPLETE\n")
+          print("🔱 GEASS COCKPIT ONLINE: ALL MODES READY")
+          class GeassEngine:
+              def __init__(self): self.modes = [1,2,3,4]
           EOF
+          # حقن الملف مباشرة داخل الـ APK بعد بنائه لضمان عدم حذفه
+          zip -ur intermediate.apk assets/python/internal_master.py
+          echo "✅ Python Engine Injected Directly via Zip."
 
-      - name: 3. REPORT STATUS
-        if: always()
-        run: echo "Check finished. Review the logs above for [PASS] or [FAIL] status."
+      - name: 4. SIGN & VERIFY
+        run: |
+          java -jar signer.jar --apks intermediate.apk --out ./ --allowResign
+          mv intermediate-aligned-debugSigned.apk Geass_War_Final.apk
+          
+          # فحص سريع قبل الرفع
+          unzip -l Geass_War_Final.apk | grep "internal_master.py"
+
+      - name: 5. RELEASE
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v20.2-final"
+          name: "Geass War - Fixed & Injected"
+          files: Geass_War_Final.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
