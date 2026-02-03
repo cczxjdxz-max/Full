@@ -1,4 +1,4 @@
-name: GEASS-FINAL-FUSION
+name: GEASS-FORCED-FUSION
 
 on:
   workflow_dispatch:
@@ -10,42 +10,44 @@ jobs:
   fusion:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP SURGICAL TOOLS
+      - name: 1. SETUP TOOLS
         run: |
           sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
           curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
 
       - name: 2. FETCH CURRENT APK
         run: |
-          # جلب آخر ملف تم رفعه آلياً
           RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
           APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o current.apk
 
-      - name: 3. INJECT MENU & FIX PERMISSIONS (Direct Edit)
+      - name: 3. FORCED INJECTION (الجراحة القسرية)
         run: |
-          # أ- حقن كود الواجهة العائمة الحقيقي داخل البايثون
-          echo 'import os; print("🔱 GEASS MENU ACTIVE"); os.system("msg * \"Menu Loaded\"")' > internal_master.py
-          zip -u current.apk assets/python/internal_master.py || zip -g current.apk assets/python/internal_master.py
+          # أ- إنشاء هيكل المجلدات وحقن البايثون
+          mkdir -p assets/python
+          echo 'import os; print("🔱 GEASS MENU ACTIVE")' > assets/python/internal_master.py
+          # استخدام -r للإضافة القسرية للمجلدات والملفات
+          zip -r current.apk assets/
           
-          # ب- إجبار حقن الصلاحيات (التي كانت تفشل) عن طريق استبدال الملف كلياً
-          unzip current.apk AndroidManifest.xml
-          # إضافة الصلاحية يدوياً في الملف المستخرج
-          sed -i '/<application/i <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' AndroidManifest.xml
-          zip -u current.apk AndroidManifest.xml
+          # ب- استخراج وتعديل المانيفست بأسلوب آمن
+          unzip -o current.apk AndroidManifest.xml
+          # التأكد من عدم تكرار الصلاحية إذا كانت موجودة، وإضافتها إن لم تكن
+          if ! grep -q "SYSTEM_ALERT_WINDOW" AndroidManifest.xml; then
+            sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' AndroidManifest.xml
+          fi
+          # إعادة الملف للمكان الصحيح بالقوة
+          zip -f current.apk AndroidManifest.xml || zip -u current.apk AndroidManifest.xml
 
       - name: 4. FINAL V2/V3 SIGNING
         run: |
-          # التوقيع هو الختم الذي يجعل أندرويد يثق بكل التعديلات أعلاه
           java -jar signer.jar --apks current.apk --out ./ --allowResign
           mv current-aligned-debugSigned.apk Geass_Ultimate_Ready.apk
 
-      - name: 5. RELEASE THE READY VERSION
+      - name: 5. RELEASE
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v5.0-ready"
-          name: "Geass Citadel - ULTIMATE READY"
-          body: "النسخة النهائية: الواجهة محقونة، الصلاحيات مثبتة، والتوقيع كامل."
+          tag_name: "v6.0-final"
+          name: "Geass Citadel - FINAL READY"
           files: Geass_Ultimate_Ready.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
