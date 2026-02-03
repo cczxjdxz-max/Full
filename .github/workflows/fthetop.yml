@@ -1,4 +1,4 @@
-name: GEASS-ULTIMATE-WAR-FORGE
+name: GEASS-WAR-FORGE-V2
 
 on:
   workflow_dispatch:
@@ -7,56 +7,57 @@ jobs:
   build_ultimate_system:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP TOOLS & BASE
+      - name: 1. SETUP TOOLS
         run: |
           sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
+          # تحميل APKEditor (الإصدار المستقر)
           curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
           curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
+
+      - name: 2. FETCH BASE APK
+        run: |
+          # سحب النسخة الخام
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
 
-      - name: 2. INJECT MULTI-MODE ENGINE
+      - name: 3. MODDING & REPACKING (Corrected Commands)
         run: |
-          mkdir -p assets/python
-          cat << 'EOF' > assets/python/internal_master.py
+          # فك الملف لتعديل الخصائص والمانيفست
+          java -jar APKEditor.jar d -i base.apk -o temp_dir
+          
+          # تعديل اسم الحزمة والملصق يدوياً في المانيفست لضمان الدقة
+          sed -i 's/package="[^"]*"/package="com.geass.war.system"/' temp_dir/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="Geass War Lab"/' temp_dir/AndroidManifest.xml
+          
+          # حقن صلاحية الـ Overlay (الظهور فوق التطبيقات)
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp_dir/AndroidManifest.xml
+          
+          # حقن محرك البايثون (قمرة القيادة)
+          mkdir -p temp_dir/assets/python
+          cat << 'EOF' > temp_dir/assets/python/internal_master.py
           import os
-          import json
-
           class GeassWarEngine:
               def __init__(self):
                   self.modes = {1: "Data", 2: "Visual", 3: "Gladiator", 4: "Dev"}
                   self.xp_path = "/sdcard/Geass_Citadel/AI_Brain/"
-
               def execute_war_scenario(self):
-                  """الوضع 4: أنت وبوت ضد 9 بوتات بنفس الذكاء"""
-                  print("⚔️ Initializing 2 vs 9 Scenario...")
-                  # استدعاء الدوال من الكتالوج المرفوع (AI_UpdateAiming, upSpeed)
-                  # تخصيص الفريق (TeamID) عبر Frida
-                  # script.exports.setupTeams(player_team=1, ally_count=1, enemy_count=9)
-                  print("✅ Ally spawned. 9 Enemies ready. Good luck, Master.")
-
+                  print("⚔️ 2 vs 9 Scenario Initialized. Ally: Master AI, Enemies: 9 Master AI.")
           engine = GeassWarEngine()
-          # واجهة الربط مع أوامر المستخدم
-          def on_command_received(cmd):
-              exec(cmd)
           EOF
-          zip -r base.apk assets/
 
-      - name: 3. SURGERY & SIGNING
+          # إعادة البناء
+          java -jar APKEditor.jar b -i temp_dir -o patched.apk
+
+      - name: 4. FINAL SIGNING
         run: |
-          java -jar APKEditor.jar m -i base.apk -o final.apk --rename-pkg com.geass.war.system --rename-label "Geass War Lab"
-          # حقن صلاحية الظهور فوق التطبيقات (Overlay)
-          java -jar APKEditor.jar d -i final.apk -o temp
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp/AndroidManifest.xml
-          java -jar APKEditor.jar b -i temp -o patched.apk
-          # التوقيع النهائي
+          # التوقيع الشامل لضمان التثبيت على أندرويد 11+
           java -jar signer.jar --apks patched.apk --out ./ --allowResign
-          mv patched-aligned-debugSigned.apk Geass_War_Edition.apk
+          mv patched-aligned-debugSigned.apk Geass_War_Edition_V2.apk
 
-      - name: 4. DEPLOY THE SYSTEM
+      - name: 5. DEPLOY
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v20.0-war-master"
-          name: "Geass War Edition - The 2vs9 Simulation"
-          files: Geass_War_Edition.apk
+          tag_name: "v20.1-fixed"
+          name: "Geass War Edition - Fixed Build"
+          files: Geass_War_Edition_V2.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
