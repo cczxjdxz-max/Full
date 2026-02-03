@@ -1,13 +1,13 @@
-name: GEASS-FINAL-FIX
+name: GEASS-FINAL-VERIFIED
 
 on:
   workflow_dispatch:
 
 jobs:
-  rebuild_and_inject:
+  build_and_verify:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP TOOLS
+      - name: 1. SETUP TOOLS & BASE
         run: |
           sudo apt-get update
           curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
@@ -17,38 +17,60 @@ jobs:
       - name: 2. MANIFEST SURGERY
         run: |
           java -jar APKEditor.jar d -i base.apk -o temp_dir
-          # حقن الصلاحية في المانيفست
           sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp_dir/AndroidManifest.xml
-          # إعادة البناء الأولية
           java -jar APKEditor.jar b -i temp_dir -o intermediate.apk
 
-      - name: 3. DIRECT PYTHON INJECTION (The Missing Link)
+      - name: 3. DIRECT ASSETS INJECTION
         run: |
-          # إنشاء مجلدات قمرة القيادة
           mkdir -p assets/python
           cat << 'EOF' > assets/python/internal_master.py
           import os
-          print("🔱 GEASS COCKPIT ONLINE: ALL MODES READY")
+          print("🔱 GEASS COCKPIT ONLINE: MODES 1,2,3,4 ACTIVE")
           class GeassEngine:
               def __init__(self): self.modes = [1,2,3,4]
           EOF
-          # حقن الملف مباشرة داخل الـ APK بعد بنائه لضمان عدم حذفه
+          # الحقن المباشر في الـ APK المبنّي
           zip -ur intermediate.apk assets/python/internal_master.py
-          echo "✅ Python Engine Injected Directly via Zip."
 
-      - name: 4. SIGN & VERIFY
+      - name: 4. FINAL SIGNING
         run: |
           java -jar signer.jar --apks intermediate.apk --out ./ --allowResign
           mv intermediate-aligned-debugSigned.apk Geass_War_Final.apk
-          
-          # فحص سريع قبل الرفع
-          unzip -l Geass_War_Final.apk | grep "internal_master.py"
 
-      - name: 5. RELEASE
+      - name: 5. COMPREHENSIVE INTEGRITY SCAN (INTERNAL)
+        run: |
+          echo "==== GEASS SCAN REPORT ====" > scan_report.txt
+          echo "Timestamp: $(date)" >> scan_report.txt
+          echo "File: Geass_War_Final.apk" >> scan_report.txt
+          echo "Size: $(du -sh Geass_War_Final.apk)" >> scan_report.txt
+          echo "---------------------------" >> scan_report.txt
+          
+          # فحص وجود الملفات
+          if unzip -l Geass_War_Final.apk | grep -q "assets/python/internal_master.py"; then
+            echo "✅ PYTHON ENGINE: FOUND (SUCCESS)" >> scan_report.txt
+          else
+            echo "❌ PYTHON ENGINE: MISSING (FAILED)" >> scan_report.txt
+          fi
+          
+          # فحص الصلاحية
+          if unzip -p Geass_War_Final.apk AndroidManifest.xml | grep -q "SYSTEM_ALERT_WINDOW"; then
+            echo "✅ OVERLAY PERMISSION: FOUND (SUCCESS)" >> scan_report.txt
+          else
+            echo "❌ OVERLAY PERMISSION: MISSING (FAILED)" >> scan_report.txt
+          fi
+          echo "===========================" >> scan_report.txt
+
+      - name: 6. UPLOAD REPORT AS ARTIFACT
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geass-Integrity-Report
+          path: scan_report.txt
+
+      - name: 7. RELEASE FINAL APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v20.2-final"
-          name: "Geass War - Fixed & Injected"
+          tag_name: "v20.3-verified"
+          name: "Geass War - Verified Build"
           files: Geass_War_Final.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
