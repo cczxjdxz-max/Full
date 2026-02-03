@@ -1,65 +1,53 @@
-name: GEASS-INTEGRITY-SCAN
+name: GEASS-QUICK-FIX
 
 on:
   workflow_dispatch:
 
 jobs:
-  verify:
+  patch_latest:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: 1. FETCH ASSET (Corrected Inputs)
+      - name: 1. FETCH BROKEN APK
         uses: dsaltares/fetch-gh-release-asset@master
         with:
           version: 'latest'
-          file: 'Geass_Internal_Citadel.apk' # تم تصحيح المسمى من asset إلى file
-          target: './citadel.apk'
+          file: 'Geass_Internal_Citadel.apk'
+          target: './broken.apk'
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. RUN DEEP SCAN
+      - name: 2. SURGICAL REPAIR (تعديل المطلوب فقط)
         run: |
-          sudo apt-get update && sudo apt-get install -y apksigner
+          # تجهيز الأدوات الضرورية فقط
+          sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
+          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
           
-          # 1. فحص التوقيع الرقمي
-          apksigner verify --verbose citadel.apk > signature_report.txt 2>&1 || echo "failed" > signature_report.txt
+          echo "🛠️ Fix 1: Injecting missing Permissions..."
+          # استخراج المانيفست، تعديله، ثم إعادته للملف دون فك الضغط الكامل لتوفير الوقت
+          unzip broken.apk AndroidManifest.xml
+          # إضافة الصلاحية في سطر جديد بعد وسم manifest مباشرة
+          sed -i '/<manifest/a <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' AndroidManifest.xml
+          zip -u broken.apk AndroidManifest.xml
           
-          # 2. فحص الصلاحيات المحقونة
-          unzip -p citadel.apk AndroidManifest.xml > manifest_dump
-          strings manifest_dump | grep "SYSTEM_ALERT_WINDOW" > permissions_report.txt || echo "missing" > permissions_report.txt
+          echo "🛠️ Fix 2: Global Re-Signing..."
+          # إعادة التوقيع بـ v2 و v3 ومحاذاة الملف (ZipAlign)
+          java -jar signer.jar --apks broken.apk --out ./ --allowResign
           
-          # 3. فحص وجود المكونات الداخلية
-          unzip -l citadel.apk > file_list.txt
+          mv broken-aligned-debugSigned.apk Geass_Fixed_Citadel.apk
 
-      - name: 3. FINAL VERDICT TABLE
+      - name: 3. FINAL VERIFICATION
         run: |
-          echo "### 🔱 GEASS CITADEL INTEGRITY REPORT 🔱" >> $GITHUB_STEP_SUMMARY
-          echo "تحليل استقرار النسخة قبل التحميل لتقليل استهلاك البيانات:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| الاختبار | النتيجة البرمجية | الحالة |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          
-          # تقرير التوقيع
-          if grep -q "verified" signature_report.txt; then
-            echo "| التوقيع الرقمي | سليم (Signed) | ✅ جاهز للتثبيت |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| التوقيع الرقمي | تالف أو مفقود | ❌ لن يثبت |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # تقرير الصلاحيات
-          if grep -q "SYSTEM_ALERT_WINDOW" permissions_report.txt; then
-            echo "| نافذة الـ Overlay | مفعلة (Permission) | ✅ ستظهر الواجهة |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| نافذة الـ Overlay | مفقودة | ❌ الواجهة لن تعمل |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # تقرير ملفات البايثون
-          if grep -q "assets/python/internal_master.py" file_list.txt; then
-            echo "| محرك البايثون | موجود (Injected) | ✅ النخاع حي |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| محرك البايثون | غير موجود | ❌ الحقن فشل |" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "🔍 Checking if Fixes applied..."
+          unzip -p Geass_Fixed_Citadel.apk AndroidManifest.xml | strings | grep "SYSTEM_ALERT_WINDOW" && echo "✅ PERMISSION: FIXED"
+          java -jar signer.jar --verify --apks Geass_Fixed_Citadel.apk && echo "✅ SIGNATURE: FIXED"
 
-      - name: 4. ARCHIVE LOGS (Small Files)
-        uses: actions/upload-artifact@v4
+      - name: 4. UPDATE RELEASE WITH FIXED VERSION
+        uses: softprops/action-gh-release@v2
         with:
-          name: SCAN_LOGS
-          path: "*.txt"
+          tag_name: "v2.1-fixed"
+          name: "Geass Citadel - Fully Repaired"
+          body: "تم إصلاح التوقيع وإضافة صلاحيات النافذة العائمة بنجاح."
+          files: Geass_Fixed_Citadel.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
