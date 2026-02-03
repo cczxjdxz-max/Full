@@ -1,62 +1,52 @@
-name: FINAL-GEASS-AUDIT
+name: TOTAL-REPAIR-V3
 
 on:
   workflow_dispatch:
 
 jobs:
-  audit_report:
+  full_rebuild:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: 1. FETCH FIXED ASSET
-        uses: dsaltares/fetch-gh-release-asset@master
-        with:
-          version: 'latest'
-          file: 'Geass_Fixed_Citadel.apk' # تأكد من مطابقة اسم الملف في الـ Release الأخير
-          target: './final_citadel.apk'
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 2. DEEP FORENSIC SCAN
+      - name: 1. SETUP TOOLS
         run: |
-          sudo apt-get update && sudo apt-get install -y apksigner
-          
-          echo "--- SIGNATURE ANALYSIS ---" > full_report.txt
-          apksigner verify --verbose --print-certs final_citadel.apk >> full_report.txt 2>&1
-          
-          echo -e "\n--- PERMISSION ANALYSIS ---" >> full_report.txt
-          unzip -p final_citadel.apk AndroidManifest.xml > manifest_dump
-          strings manifest_dump | grep "SYSTEM_ALERT_WINDOW" >> full_report.txt || echo "Permission Not Found" >> full_report.txt
-          
-          echo -e "\n--- INTERNAL STRUCTURE ---" >> full_report.txt
-          unzip -l final_citadel.apk | grep -E "assets/python/|res/layout/" >> full_report.txt
+          sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
+          curl -L "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar" -o apktool.jar
+          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
 
-      - name: 3. VISUAL VERDICT TABLE
+      - name: 2. FULL DECOMPILE & PATCH
         run: |
-          echo "### 🔱 GEASS CITADEL FINAL VERDICT 🔱" >> $GITHUB_STEP_SUMMARY
-          echo "تم تأكيد جاهزية النسخة للتشغيل الميداني." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| الاختبار | النتيجة | التفاصيل |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          # جلب الملف "المكسور"
+          curl -L "رابط_ملفك_المباشر_أو_استخدام_fetch_action" -o broken.apk || exit 1
           
-          # فحص التوقيع V2/V3
-          if grep -q "Verified using v2 scheme: true" full_report.txt; then
-            echo "| التوقيع الرقمي | ✅ ناجح | يدعم أندرويد 11+ (V2/V3) |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| التوقيع الرقمي | ⚠️ جزئي | قد لا يعمل على بعض الإصدارات |" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "🏗️ فك التشفير العميق (Deep Decompile)..."
+          java -jar apktool.jar d broken.apk -o decoded_dir -f
           
-          # فحص الصلاحيات
-          if grep -q "SYSTEM_ALERT_WINDOW" full_report.txt; then
-            echo "| نظام الواجهة العائمة | ✅ مفعل | صلاحية Overlay موجودة |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| نظام الواجهة العائمة | ❌ مفقود | الواجهة لن تظهر |" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "💉 حقن الصلاحية في الملف المفكوك..."
+          # الآن الملف نصي واضح، التعديل سينجح حتماً
+          sed -i '/<application/i <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' decoded_dir/AndroidManifest.xml
           
-          # فحص الحجم لتوفير البيانات
-          FILE_SIZE=$(du -h final_citadel.apk | cut -f1)
-          echo "| حجم الملف للتحميل | 📦 $FILE_SIZE | تأكد من توفر مساحة كافية |" >> $GITHUB_STEP_SUMMARY
+          echo "🏗️ إعادة البناء الشاملة..."
+          java -jar apktool.jar b decoded_dir -o repatched_unsigned.apk
+          
+          echo "🔏 التوقيع الرقمي الكامل (V2/V3)..."
+          java -jar signer.jar --apks repatched_unsigned.apk --out ./ --allowResign
+          
+          mv repatched_unsigned-aligned-debugSigned.apk Geass_Master_V3.apk
 
-      - name: 4. UPLOAD FULL REPORT
-        uses: actions/upload-artifact@v4
+      - name: 3. SELF-AUDIT (التأكد قبل الرفع)
+        run: |
+          unzip -p Geass_Master_V3.apk AndroidManifest.xml | strings | grep "SYSTEM_ALERT_WINDOW" && echo "FINAL_CHECK=PASSED" >> $GITHUB_ENV
+          java -jar signer.jar --verify --apks Geass_Master_V3.apk >> verify_log.txt
+
+      - name: 4. PUBLISH MASTER RELEASE
+        if: env.FINAL_CHECK == 'PASSED'
+        uses: softprops/action-gh-release@v2
         with:
-          name: FINAL_FORENSIC_REPORT
-          path: full_report.txt
+          tag_name: "v3.0-master"
+          name: "Geass Citadel - FINAL MASTER"
+          body: "إصلاح شامل: الصلاحيات محقونة والتوقيع كامل V2/V3. جاهز للتحميل."
+          files: Geass_Master_V3.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
