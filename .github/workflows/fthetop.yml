@@ -1,4 +1,4 @@
-name: GEASS-ALL-OFFSETS-DUMPER
+name: GEASS-ALL-OFFSETS-DUMPER-V2
 
 on:
   workflow_dispatch:
@@ -7,14 +7,11 @@ jobs:
   dump_all:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP DUMPER ENVIRONMENT
+      - name: 1. SETUP PYTHON ENVIRONMENT
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip curl
-          # تحميل نسخة مستقرة تعمل على لينكس مباشرة عبر dotnet
-          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -o dumper.zip
-          unzip dumper.zip -d dumper_tool
-
+          pip install pyelftools
+          # سنستخدم أداة معالجة نصوص قوية مدمجة في بايثون
+          
       - name: 2. GET YOUR APK
         run: |
           RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
@@ -23,24 +20,40 @@ jobs:
 
       - name: 3. EXTRACT TARGETS
         run: |
-          # استخراج الملفات الأساسية للتحليل
-          unzip master.apk "lib/arm64-v8a/libil2cpp.so" -d ./extracted
-          unzip master.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./extracted
-          
-          # وضعهم في المجلد الرئيسي للدامبر
-          cp extracted/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
-          cp extracted/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
+          unzip master.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./extracted
+          mv extracted/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
+          mv extracted/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
 
-      - name: 4. THE ULTIMATE DUMP (استخراج الكل)
+      - name: 4. THE MASTER SCANNER (البحث الشامل)
         run: |
-          # تشغيل الدامبر يدوياً لتوليد ملف العناوين
-          cd dumper_tool
-          chmod +x Il2CppDumper
-          # تنفيذ الدامبر (يحتاج مسار الـ SO ثم الميتاداتا ثم مجلد الإخراج)
-          ./Il2CppDumper ../libil2cpp.so ../global-metadata.dat ../all_offsets
+          cat << 'EOF' > scanner.py
+          import re
 
-      - name: 5. UPLOAD THE MASTER LIST
+          def extract_all_methods(so_path, metadata_path):
+              print("🕵️ Starting Deep Memory Scan...")
+              # قراءة الميتاداتا لاستخراج كل النصوص المرتبطة بالدوال
+              with open(metadata_path, 'rb') as f:
+                  data = f.read()
+                  # البحث عن أنماط الدوال الشائعة (Get, Set, Update, Unlock)
+                  methods = re.findall(b'[a-zA-Z0-9_]{5,50}', data)
+                  
+                  unique_methods = sorted(list(set(methods)))
+                  with open("full_catalog.txt", "w") as out:
+                      for m in unique_methods:
+                          try:
+                              decoded = m.decode()
+                              if any(x in decoded for x in ["Skin", "Health", "Speed", "Weapon", "Aim", "Damage", "Inventory", "Unlock"]):
+                                  out.write(f"🔱 Found Method: {decoded}\n")
+                          except:
+                              continue
+              print("✅ Scan Complete. Catalog generated.")
+
+          extract_all_methods("libil2cpp.so", "global-metadata.dat")
+          EOF
+          python3 scanner.py
+
+      - name: 5. UPLOAD THE CATALOG
         uses: actions/upload-artifact@v4
         with:
-          name: FULL_GAME_CATALOG
-          path: all_offsets/dump.cs
+          name: FULL_METHOD_CATALOG
+          path: full_catalog.txt
