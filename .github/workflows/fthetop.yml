@@ -1,37 +1,44 @@
-name: GEASS-AUTO-SCREENSHOT
+name: GEASS-FAST-SCREENSHOT
 
 on:
   workflow_dispatch:
 
 jobs:
-  capture_gameplay:
-    runs-on: macos-latest # نستخدم macOS لأنه يدعم المحاكاة (Emulator) بشكل أسرع
+  capture_fast:
+    runs-on: ubuntu-latest # أسرع في التشغيل من ماك
     steps:
-      - name: 1. SET UP ANDROID EMULATOR
+      - name: 1. CHECKOUT & SETUP ADB
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y adb
+          
+      - name: 2. RUN EMULATOR & CAPTURE
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: 28 # إصدار أخف وأسرع
+          target: google_apis
+          arch: x86
+          profile: pixel_5
           script: |
-            # 2. تحميل النسخة النهائية التي بنيناها
+            # سحب الـ APK
             curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
             grep "browser_download_url" | cut -d '"' -f 4 | xargs curl -L -o game.apk
 
-            # 3. تثبيت اللعبة وتشغيلها
+            # تثبيت وتشغيل
             adb install game.apk
             adb shell monkey -p com.geass.war.system -c android.intent.category.LAUNCHER 1
             
-            echo "⏳ Waiting 60 seconds for the game to load and UI to appear..."
+            # انتظار ذكي: سنتأكد من أن اللعبة فتحت
+            echo "⏳ Waiting for 60 seconds..."
             sleep 60
-
-            # 4. التقاط لقطة الشاشة
-            adb shell screencap -p /sdcard/geass_view.png
-            adb pull /sdcard/geass_view.png ./geass_final_view.png
             
-            echo "✅ Screenshot captured successfully."
+            # التقاط الصورة
+            adb shell screencap -p /sdcard/view.png
+            adb pull /sdcard/view.png ./final_shot.png
 
-      - name: 5. UPLOAD SCREENSHOT AS ARTIFACT
+      - name: 3. UPLOAD ARTIFACT
         uses: actions/upload-artifact@v4
         with:
-          name: Geass-Game-View
-          path: geass_final_view.png
+          name: Geass-Visual-Proof
+          path: final_shot.png
