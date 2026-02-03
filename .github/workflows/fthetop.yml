@@ -1,71 +1,47 @@
-name: GEASS-ULTIMATE-AUDIT
+name: GEASS-OFFSETS-EXTRACTOR
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  audit:
+  extract:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. FETCH PERFECT APK
-        uses: dsaltares/fetch-gh-release-asset@master
-        with:
-          version: 'latest'
-          file: 'Geass_Perfect_Master.apk'
-          target: './final_master.apk'
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 2. FINAL FORENSIC SCAN
+      - name: 1. PREPARE DUMPER TOOLS
         run: |
-          sudo apt-get update && sudo apt-get install -y apksigner
-          
-          echo "--- SIGNATURE REPORT ---" > audit_report.txt
-          apksigner verify --verbose final_master.apk >> audit_report.txt 2>&1
-          
-          echo -e "\n--- PERMISSION INTEGRITY ---" >> audit_report.txt
-          unzip -p final_master.apk AndroidManifest.xml > m_dump
-          # فحص وجود الصلاحية في الملف الثنائي
-          strings m_dump | grep "SYSTEM_ALERT_WINDOW" >> audit_report.txt || echo "❌ PERMISSION_NOT_FOUND" >> audit_report.txt
-          
-          echo -e "\n--- FUNCTIONAL ENGINE CHECK ---" >> audit_report.txt
-          unzip -p final_master.apk assets/python/internal_master.py > engine_check.py
-          if grep -q "class GameAPI" engine_check.py; then
-            echo "✅ Engine Logic: INTACT" >> audit_report.txt
-          else
-            echo "❌ Engine Logic: DAMAGED" >> audit_report.txt
-          fi
+          sudo apt-get update && sudo apt-get install -y unzip curl
+          # تحميل Il2CppDumper (النسخة المتوافقة مع أندرويد 64-بت)
+          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -o dumper.zip
+          unzip dumper.zip -d dumper_tool
 
-      - name: 3. FINAL VERDICT (التقرير النهائي)
+      - name: 2. GET THE RECENT APK
         run: |
-          echo "### 🔱 GEASS PERFECT MASTER - FINAL STATUS 🔱" >> $GITHUB_STEP_SUMMARY
-          echo "تم الانتهاء من فحص النسخة النهائية:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| المعيار | الحالة | النتيجة |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          
-          # فحص التوقيع
-          if grep -q "Verified using v2 scheme: true" audit_report.txt; then
-            echo "| قوة التوقيع | ✅ V2/V3 Full | جاهز للتثبيت على جميع الأجهزة |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| قوة التوقيع | ⚠️ V1 Only | قد يظهر تحذير من جوجل |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # فحص الصلاحيات
-          if grep -q "SYSTEM_ALERT_WINDOW" audit_report.txt; then
-            echo "| نظام الواجهة | ✅ مفعل برمجياً | صلاحية الرسم فوق التطبيقات موجودة |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| نظام الواجهة | ❌ فشل الحقن | المانيفست لم يتعدل |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # فحص المحرك
-          if grep -q "Engine Logic: INTACT" audit_report.txt; then
-            echo "| محرك GameAPI | ✅ نشط | ملف الذكاء الاصطناعي موجود |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| محرك GameAPI | ❌ مفقود | الملف تضرر أثناء النقل |" >> $GITHUB_STEP_SUMMARY
-          fi
+          RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o game.apk
 
-      - name: 4. ARCHIVE LOGS
+      - name: 3. DISSECT GAME INTERNALS
+        run: |
+          # استخراج ملف الذاكرة (so) وملف البيانات (dat)
+          unzip game.apk "lib/arm64-v8a/libil2cpp.so" -d extracted_files/
+          unzip game.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d extracted_files/
+          
+          # نقل الملفات للمجلد المطلوب للتشغيل
+          mv extracted_files/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
+          mv extracted_files/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
+
+      - name: 4. EXECUTE DUMP (صناعة الكتالوج)
+        run: |
+          cd dumper_tool
+          chmod +x Il2CppDumper
+          # تشغيل الدامبر آلياً (وضع صامت)
+          ./Il2CppDumper ../libil2cpp.so ../global-metadata.dat ../dump_output
+
+      - name: 5. UPLOAD THE "HOLY GRAIL" (الملف الذهبي)
         uses: actions/upload-artifact@v4
         with:
-          name: FINAL_MASTER_REPORT
-          path: audit_report.txt
+          name: FULL_GAME_OFFSETS
+          path: dump_output/dump.cs
