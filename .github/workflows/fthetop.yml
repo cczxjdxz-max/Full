@@ -1,59 +1,69 @@
-name: GEASS-ALL-OFFSETS-DUMPER-V2
+name: GEASS-AI-TRAINING-LAB
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  dump_all:
+  build_lab:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP PYTHON ENVIRONMENT
+      - name: 1. SETUP DEVELOPMENT TOOLS
         run: |
-          pip install pyelftools
-          # سنستخدم أداة معالجة نصوص قوية مدمجة في بايثون
-          
-      - name: 2. GET YOUR APK
+          sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
+          curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
+          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
+
+      - name: 2. CLONE & RE-IDENTITY
         run: |
-          RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-          APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o master.apk
+          # سحب النسخة الأخيرة وتغيير هويتها لتكون مختبراً مستقلاً
+          # (استخدام رابط التحميل التلقائي الذي أعددناه سابقاً)
+          java -jar APKEditor.jar m -i base.apk -o lab.apk --rename-pkg com.geass.ai.lab --rename-label "Geass AI Lab"
 
-      - name: 3. EXTRACT TARGETS
+      - name: 3. INJECT DUAL-MODE ENGINE (Visual vs Data)
         run: |
-          unzip master.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./extracted
-          mv extracted/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
-          mv extracted/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
+          mkdir -p assets/python
+          cat << 'EOF' > assets/python/internal_master.py
+          import frida
+          import os
 
-      - name: 4. THE MASTER SCANNER (البحث الشامل)
-        run: |
-          cat << 'EOF' > scanner.py
-          import re
+          # مسار حفظ بيانات التدريب
+          DATA_DIR = "/sdcard/Geass_AI_Data/"
 
-          def extract_all_methods(so_path, metadata_path):
-              print("🕵️ Starting Deep Memory Scan...")
-              # قراءة الميتاداتا لاستخراج كل النصوص المرتبطة بالدوال
-              with open(metadata_path, 'rb') as f:
-                  data = f.read()
-                  # البحث عن أنماط الدوال الشائعة (Get, Set, Update, Unlock)
-                  methods = re.findall(b'[a-zA-Z0-9_]{5,50}', data)
-                  
-                  unique_methods = sorted(list(set(methods)))
-                  with open("full_catalog.txt", "w") as out:
-                      for m in unique_methods:
-                          try:
-                              decoded = m.decode()
-                              if any(x in decoded for x in ["Skin", "Health", "Speed", "Weapon", "Aim", "Damage", "Inventory", "Unlock"]):
-                                  out.write(f"🔱 Found Method: {decoded}\n")
-                          except:
-                              continue
-              print("✅ Scan Complete. Catalog generated.")
+          JS_CODE = """
+          var isTrainingMode = false; // التحكم عبر السويتش العلوي
 
-          extract_all_methods("libil2cpp.so", "global-metadata.dat")
+          function toggleSimulation(enable) {
+              var base = Module.findBaseAddress('libil2cpp.so');
+              
+              if (enable) {
+                  // 1. تسريع الوقت (Speed Hack للتدريب)
+                  // 2. تعطيل Render Shadows/Textures
+                  console.log("🔱 DATA MODE: High-Speed Simulation Active");
+              } else {
+                  // العودة لوضع 720p Visual
+                  console.log("🔱 VISUAL MODE: Monitoring Active");
+              }
+          }
+
+          // هوك على دالة الخبرة والحركة (من الكتالوج الخاص بك)
+          // AI_UpdateAiming & upSpeed
+          """
           EOF
-          python3 scanner.py
+          zip -r lab.apk assets/
 
-      - name: 5. UPLOAD THE CATALOG
-        uses: actions/upload-artifact@v4
+      - name: 4. SIGN & DEPLOY
+        run: |
+          java -jar signer.jar --apks lab.apk --out ./ --allowResign
+          mv lab-aligned-debugSigned.apk Geass_AI_Lab_V1.apk
+
+      - name: 5. RELEASE LAB VERSION
+        uses: softprops/action-gh-release@v2
         with:
-          name: FULL_METHOD_CATALOG
-          path: full_catalog.txt
+          tag_name: "v14.0-ai-lab"
+          name: "Geass AI Lab - Simulation Engine"
+          files: Geass_AI_Lab_V1.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
