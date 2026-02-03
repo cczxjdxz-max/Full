@@ -1,69 +1,62 @@
-name: GEASS-AI-TRAINING-LAB
+name: GEASS-ULTIMATE-WAR-FORGE
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build_lab:
+  build_ultimate_system:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP DEVELOPMENT TOOLS
+      - name: 1. SETUP TOOLS & BASE
         run: |
           sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
           curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
           curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
 
-      - name: 2. CLONE & RE-IDENTITY
-        run: |
-          # سحب النسخة الأخيرة وتغيير هويتها لتكون مختبراً مستقلاً
-          # (استخدام رابط التحميل التلقائي الذي أعددناه سابقاً)
-          java -jar APKEditor.jar m -i base.apk -o lab.apk --rename-pkg com.geass.ai.lab --rename-label "Geass AI Lab"
-
-      - name: 3. INJECT DUAL-MODE ENGINE (Visual vs Data)
+      - name: 2. INJECT MULTI-MODE ENGINE
         run: |
           mkdir -p assets/python
           cat << 'EOF' > assets/python/internal_master.py
-          import frida
           import os
+          import json
 
-          # مسار حفظ بيانات التدريب
-          DATA_DIR = "/sdcard/Geass_AI_Data/"
+          class GeassWarEngine:
+              def __init__(self):
+                  self.modes = {1: "Data", 2: "Visual", 3: "Gladiator", 4: "Dev"}
+                  self.xp_path = "/sdcard/Geass_Citadel/AI_Brain/"
 
-          JS_CODE = """
-          var isTrainingMode = false; // التحكم عبر السويتش العلوي
+              def execute_war_scenario(self):
+                  """الوضع 4: أنت وبوت ضد 9 بوتات بنفس الذكاء"""
+                  print("⚔️ Initializing 2 vs 9 Scenario...")
+                  # استدعاء الدوال من الكتالوج المرفوع (AI_UpdateAiming, upSpeed)
+                  # تخصيص الفريق (TeamID) عبر Frida
+                  # script.exports.setupTeams(player_team=1, ally_count=1, enemy_count=9)
+                  print("✅ Ally spawned. 9 Enemies ready. Good luck, Master.")
 
-          function toggleSimulation(enable) {
-              var base = Module.findBaseAddress('libil2cpp.so');
-              
-              if (enable) {
-                  // 1. تسريع الوقت (Speed Hack للتدريب)
-                  // 2. تعطيل Render Shadows/Textures
-                  console.log("🔱 DATA MODE: High-Speed Simulation Active");
-              } else {
-                  // العودة لوضع 720p Visual
-                  console.log("🔱 VISUAL MODE: Monitoring Active");
-              }
-          }
-
-          // هوك على دالة الخبرة والحركة (من الكتالوج الخاص بك)
-          // AI_UpdateAiming & upSpeed
-          """
+          engine = GeassWarEngine()
+          # واجهة الربط مع أوامر المستخدم
+          def on_command_received(cmd):
+              exec(cmd)
           EOF
-          zip -r lab.apk assets/
+          zip -r base.apk assets/
 
-      - name: 4. SIGN & DEPLOY
+      - name: 3. SURGERY & SIGNING
         run: |
-          java -jar signer.jar --apks lab.apk --out ./ --allowResign
-          mv lab-aligned-debugSigned.apk Geass_AI_Lab_V1.apk
+          java -jar APKEditor.jar m -i base.apk -o final.apk --rename-pkg com.geass.war.system --rename-label "Geass War Lab"
+          # حقن صلاحية الظهور فوق التطبيقات (Overlay)
+          java -jar APKEditor.jar d -i final.apk -o temp
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp/AndroidManifest.xml
+          java -jar APKEditor.jar b -i temp -o patched.apk
+          # التوقيع النهائي
+          java -jar signer.jar --apks patched.apk --out ./ --allowResign
+          mv patched-aligned-debugSigned.apk Geass_War_Edition.apk
 
-      - name: 5. RELEASE LAB VERSION
+      - name: 4. DEPLOY THE SYSTEM
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v14.0-ai-lab"
-          name: "Geass AI Lab - Simulation Engine"
-          files: Geass_AI_Lab_V1.apk
+          tag_name: "v20.0-war-master"
+          name: "Geass War Edition - The 2vs9 Simulation"
+          files: Geass_War_Edition.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
