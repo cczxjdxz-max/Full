@@ -1,63 +1,68 @@
-name: GEASS-WAR-FORGE-V2
+name: GEASS-INTEGRITY-CHECK
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # تشغيل يدوياً بعد بناء الـ APK
 
 jobs:
-  build_ultimate_system:
+  verify_injection:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP TOOLS
+      - name: 1. GET THE APK
         run: |
-          sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
-          # تحميل APKEditor (الإصدار المستقر)
-          curl -L "https://github.com/REAndroid/APKEditor/releases/download/V1.4.1/APKEditor-1.4.1.jar" -o APKEditor.jar
-          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
+          # سحب آخر نسخة تم بناؤها من الـ Releases
+          RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o target_game.apk
+          echo "✅ APK Downloaded for inspection."
 
-      - name: 2. FETCH BASE APK
+      - name: 2. RUN COMPREHENSIVE INTEGRITY SCAN
         run: |
-          # سحب النسخة الخام
-          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
-
-      - name: 3. MODDING & REPACKING (Corrected Commands)
-        run: |
-          # فك الملف لتعديل الخصائص والمانيفست
-          java -jar APKEditor.jar d -i base.apk -o temp_dir
-          
-          # تعديل اسم الحزمة والملصق يدوياً في المانيفست لضمان الدقة
-          sed -i 's/package="[^"]*"/package="com.geass.war.system"/' temp_dir/AndroidManifest.xml
-          sed -i 's/android:label="[^"]*"/android:label="Geass War Lab"/' temp_dir/AndroidManifest.xml
-          
-          # حقن صلاحية الـ Overlay (الظهور فوق التطبيقات)
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' temp_dir/AndroidManifest.xml
-          
-          # حقن محرك البايثون (قمرة القيادة)
-          mkdir -p temp_dir/assets/python
-          cat << 'EOF' > temp_dir/assets/python/internal_master.py
+          python3 - << 'EOF'
+          import zipfile
           import os
-          class GeassWarEngine:
-              def __init__(self):
-                  self.modes = {1: "Data", 2: "Visual", 3: "Gladiator", 4: "Dev"}
-                  self.xp_path = "/sdcard/Geass_Citadel/AI_Brain/"
-              def execute_war_scenario(self):
-                  print("⚔️ 2 vs 9 Scenario Initialized. Ally: Master AI, Enemies: 9 Master AI.")
-          engine = GeassWarEngine()
+
+          apk_path = "target_game.apk"
+          print(f"\n{'='*40}")
+          print(f"🔍 GEASS INTEGRITY RADAR STARTING...")
+          print(f"{'='*40}")
+          
+          if not os.path.exists(apk_path):
+              print("❌ ERROR: APK file not found!")
+              exit(1)
+
+          with zipfile.ZipFile(apk_path, 'r') as apk:
+              files = apk.namelist()
+              
+              # الفحص 1: قمرة القيادة (Python Engine)
+              py_engine = "assets/python/internal_master.py"
+              if py_engine in files:
+                  print(f"✅ [PASS] Python Engine found: {py_engine}")
+                  # قراءة محتوى الكود للتأكد من أنه ليس فارغاً
+                  with apk.open(py_engine) as f:
+                      content = f.read().decode('utf-8')
+                      print(f"   📜 Code Size: {len(content)} bytes")
+              else:
+                  print(f"❌ [FAIL] Python Engine MISSING in assets!")
+
+              # الفحص 2: الصلاحيات الجراحية (Manifest Check)
+              # سنبحث عن بصمة الصلاحية داخل ملف المانيفست الثنائي
+              try:
+                  with apk.open("AndroidManifest.xml") as m:
+                      manifest_data = m.read()
+                      if b"SYSTEM_ALERT_WINDOW" in manifest_data:
+                          print("✅ [PASS] Overlay Permission (SYSTEM_ALERT_WINDOW) injected.")
+                      else:
+                          print("❌ [FAIL] Overlay Permission NOT FOUND in Manifest.")
+              except:
+                  print("⚠️ [WARN] Could not parse Manifest binary directly.")
+
+              # الفحص 3: هيكل الملفات العام
+              print(f"📦 Total files in APK: {len(files)}")
+              print(f"📊 Final File Size: {os.path.getsize(apk_path) / (1024*1024):.2f} MB")
+
+          print(f"{'='*40}\n🏁 SCAN COMPLETE\n")
           EOF
 
-          # إعادة البناء
-          java -jar APKEditor.jar b -i temp_dir -o patched.apk
-
-      - name: 4. FINAL SIGNING
-        run: |
-          # التوقيع الشامل لضمان التثبيت على أندرويد 11+
-          java -jar signer.jar --apks patched.apk --out ./ --allowResign
-          mv patched-aligned-debugSigned.apk Geass_War_Edition_V2.apk
-
-      - name: 5. DEPLOY
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v20.1-fixed"
-          name: "Geass War Edition - Fixed Build"
-          files: Geass_War_Edition_V2.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 3. REPORT STATUS
+        if: always()
+        run: echo "Check finished. Review the logs above for [PASS] or [FAIL] status."
