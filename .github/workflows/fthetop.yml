@@ -1,44 +1,25 @@
-name: GEASS-FAST-SCREENSHOT
+name: GEASS-STRICT-VIEW
 
 on:
   workflow_dispatch:
 
 jobs:
-  capture_fast:
-    runs-on: ubuntu-latest # أسرع في التشغيل من ماك
+  capture:
+    runs-on: macos-latest
     steps:
-      - name: 1. CHECKOUT & SETUP ADB
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y adb
-          
-      - name: 2. RUN EMULATOR & CAPTURE
+      - name: RUN EMULATOR AND SNAPSHOT
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 28 # إصدار أخف وأسرع
-          target: google_apis
-          arch: x86
-          profile: pixel_5
+          api-level: 28
           script: |
-            # سحب الـ APK
-            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
-            grep "browser_download_url" | cut -d '"' -f 4 | xargs curl -L -o game.apk
-
-            # تثبيت وتشغيل
+            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest" | grep "browser_download_url" | cut -d '"' -f 4 | xargs curl -L -o game.apk
             adb install game.apk
             adb shell monkey -p com.geass.war.system -c android.intent.category.LAUNCHER 1
-            
-            # انتظار ذكي: سنتأكد من أن اللعبة فتحت
-            echo "⏳ Waiting for 60 seconds..."
             sleep 60
-            
-            # التقاط الصورة
             adb shell screencap -p /sdcard/view.png
             adb pull /sdcard/view.png ./final_shot.png
-
-      - name: 3. UPLOAD ARTIFACT
+      - name: UPLOAD
         uses: actions/upload-artifact@v4
         with:
-          name: Geass-Visual-Proof
+          name: Geass-Final-Screen
           path: final_shot.png
