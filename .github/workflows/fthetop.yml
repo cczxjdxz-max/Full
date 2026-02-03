@@ -1,46 +1,46 @@
-name: GEASS-DEEP-REVERSE
+name: GEASS-ALL-OFFSETS-DUMPER
 
 on:
   workflow_dispatch:
 
 jobs:
-  deep_search:
+  dump_all:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. PREPARE SCANNER
-        run: pip install pyelftools
+      - name: 1. SETUP DUMPER ENVIRONMENT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip curl
+          # تحميل نسخة مستقرة تعمل على لينكس مباشرة عبر dotnet
+          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -o dumper.zip
+          unzip dumper.zip -d dumper_tool
 
-      - name: 2. FETCH APK & EXTRACT
+      - name: 2. GET YOUR APK
         run: |
           RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
           APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o game.apk
-          unzip game.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o master.apk
 
-      - name: 3. GEASS DEEP ANALYSIS (التحليل العميق)
+      - name: 3. EXTRACT TARGETS
         run: |
-          cat << 'EOF' > deep_analyzer.py
-          import struct
+          # استخراج الملفات الأساسية للتحليل
+          unzip master.apk "lib/arm64-v8a/libil2cpp.so" -d ./extracted
+          unzip master.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./extracted
+          
+          # وضعهم في المجلد الرئيسي للدامبر
+          cp extracted/lib/arm64-v8a/libil2cpp.so ./libil2cpp.so
+          cp extracted/assets/bin/Data/Managed/Metadata/global-metadata.dat ./global-metadata.dat
 
-          def find_offsets():
-              print("🕵️ Analyzing Game Brain...")
-              # البحث عن دوال الموارد والسكنات
-              # الكلمات المفتاحية للسيطرة الكاملة
-              keywords = ["GetItem", "Skin", "Event", "Inventory", "Unlock", "Equip"]
-              
-              with open("assets/bin/Data/Managed/Metadata/global-metadata.dat", "rb") as f:
-                  data = f.read()
-                  for word in keywords:
-                      pos = data.find(word.encode())
-                      if pos != -1:
-                          print(f"🔱 Found Critical Point: {word} at Hex {hex(pos)}")
+      - name: 4. THE ULTIMATE DUMP (استخراج الكل)
+        run: |
+          # تشغيل الدامبر يدوياً لتوليد ملف العناوين
+          cd dumper_tool
+          chmod +x Il2CppDumper
+          # تنفيذ الدامبر (يحتاج مسار الـ SO ثم الميتاداتا ثم مجلد الإخراج)
+          ./Il2CppDumper ../libil2cpp.so ../global-metadata.dat ../all_offsets
 
-          find_offsets()
-          EOF
-          python3 deep_analyzer.py > deep_report.txt
-
-      - name: 4. UPLOAD RESULTS
+      - name: 5. UPLOAD THE MASTER LIST
         uses: actions/upload-artifact@v4
         with:
-          name: DEEP_REVERSE_REPORT
-          path: deep_report.txt
+          name: FULL_GAME_CATALOG
+          path: all_offsets/dump.cs
