@@ -1,92 +1,75 @@
-name: GEASS-FUNCTIONAL-FUSION
+name: GEASS-FUNCTIONAL-AUDIT
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  fusion:
+  audit:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. SETUP TOOLS
-        run: |
-          sudo apt-get update && sudo apt-get install -y openjdk-17-jdk curl zip unzip
-          curl -L "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar" -o signer.jar
-
-      - name: 2. FETCH CURRENT APK
-        run: |
-          RELEASE_JSON=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-          APK_URL=$(echo "$RELEASE_JSON" | grep -oP '"browser_download_url": "\K[^"]+\.apk(?=")' | head -1)
-          if [ -z "$APK_URL" ]; then echo "❌ No APK found!"; exit 1; fi
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/octet-stream" "$APK_URL" -o current.apk
-
-      - name: 3. INJECT FUNCTIONAL ENGINE
-        run: |
-          mkdir -p assets/python
-          cat << 'EOF' > assets/python/internal_master.py
-          import os
-
-          class GameAPI:
-              @staticmethod
-              def get_player_by_name(name):
-                  print(f"[API] Searching for player: {name}")
-                  return {"name": name, "id": 123}
-
-              @staticmethod
-              def clear_inventory(player):
-                  print(f"[API] Clearing inventory for player: {player['name']}")
-
-              @staticmethod
-              def give_item(player, item, quantity):
-                  print(f"[API] Giving {quantity} of {item} to player: {player['name']}")
-
-              @staticmethod
-              def set_health(player, amount):
-                  print(f"[API] Setting health of {player['name']} to {amount}")
-
-              @staticmethod
-              def spawn_bots(count, positions):
-                  print(f"[API] Spawning {count} bots.")
-                  return [{"id": i} for i in range(count)]
-
-              @staticmethod
-              def command_attack(bots, target):
-                  print(f"[API] Commanding {len(bots)} bots to attack target: {target['name']}")
-
-          def execute_scenario(code):
-              try:
-                  global_vars = {"GameAPI": GameAPI}
-                  exec(code, global_vars)
-                  print("[Engine] Scenario executed successfully.")
-              except Exception as e:
-                  print(f"[Engine] Error: {e}")
-
-          print("🔱 GEASS FUNCTIONAL ENGINE: ONLINE. Ready for scenarios.")
-          EOF
-          
-          # حقن المجلد والملف داخل الـ APK
-          zip -r current.apk assets/
-          
-          # تصحيح المانيفست لضمان ظهور الواجهة التي ستتحكم في هذا المحرك
-          unzip -o current.apk AndroidManifest.xml
-          if ! grep -q "SYSTEM_ALERT_WINDOW" AndroidManifest.xml; then
-            sed -i '/<application/i \    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>' AndroidManifest.xml
-          fi
-          zip -f current.apk AndroidManifest.xml
-
-      - name: 4. FINAL SIGNING & RELEASE
-        run: |
-          java -jar signer.jar --apks current.apk --out ./ --allowResign
-          mv current-aligned-debugSigned.apk Geass_Functional_Ready.apk
-
-      - name: 5. PUBLISH RELEASE
-        uses: softprops/action-gh-release@v2
+      - name: 1. FETCH FUNCTIONAL APK
+        uses: dsaltares/fetch-gh-release-asset@master
         with:
-          tag_name: "v7.0-functional"
-          name: "Geass Citadel - FUNCTIONAL READY"
-          body: "تم دمج المحرك الوظيفي (GameAPI) بنجاح. النسخة الآن قادرة على تنفيذ السيناريوهات البرمجية."
-          files: Geass_Functional_Ready.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version: 'latest'
+          file: 'Geass_Functional_Ready.apk'
+          target: './functional.apk'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. FORENSIC CODE ANALYSIS
+        run: |
+          sudo apt-get update && sudo apt-get install -y apksigner
+          
+          echo "--- SIGNATURE VERIFICATION ---" > audit_log.txt
+          apksigner verify --verbose functional.apk >> audit_log.txt 2>&1
+          
+          echo -e "\n--- PERMISSION INTEGRITY ---" >> audit_log.txt
+          unzip -p functional.apk AndroidManifest.xml > m_dump
+          strings m_dump | grep "SYSTEM_ALERT_WINDOW" >> audit_log.txt || echo "❌ PERMISSION MISSING" >> audit_log.txt
+          
+          echo -e "\n--- ENGINE CODE VERIFICATION (INTERNAL_MASTER) ---" >> audit_log.txt
+          # فحص محتوى ملف البايثون للتأكد من وجود الـ API
+          unzip -p functional.apk assets/python/internal_master.py > engine_content.py
+          if grep -q "class GameAPI" engine_content.py; then
+            echo "✅ GameAPI Structure: FOUND" >> audit_log.txt
+          else
+            echo "❌ GameAPI Structure: NOT FOUND" >> audit_log.txt
+          fi
+          
+          if grep -q "def execute_scenario" engine_content.py; then
+            echo "✅ Execution Engine: ACTIVE" >> audit_log.txt
+          fi
+
+      - name: 3. READINESS SUMMARY
+        run: |
+          echo "### 🔱 GEASS FUNCTIONAL READINESS REPORT 🔱" >> $GITHUB_STEP_SUMMARY
+          echo "تحليل النسخة الوظيفية (V7.0 Functional):" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| الاختبار | الحالة | المكون البرمجي |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          
+          # فحص التوقيع
+          if grep -q "Verified using v2 scheme: true" audit_log.txt; then
+            echo "| التوقيع الرقمي | ✅ كامل | V2/V3 Full Signature |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| التوقيع الرقمي | ⚠️ جزئي | قد يتطلب تثبيت يدوي |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # فحص الصلاحيات
+          if grep -q "SYSTEM_ALERT_WINDOW" audit_log.txt; then
+            echo "| نظام الـ Overlay | ✅ مفعل | جاهز لرسم القائمة |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| نظام الـ Overlay | ❌ مفقود | لن تظهر الواجهة |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # فحص المحرك الوظيفي
+          if grep -q "GameAPI Structure: FOUND" audit_log.txt; then
+            echo "| محرك العمليات | ✅ ذكي | GameAPI & Scenarios Ready |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| محرك العمليات | ❌ معطل | الملف فارغ أو لم يُحقن |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 4. SAVE AUDIT LOGS
+        uses: actions/upload-artifact@v4
+        with:
+          name: FUNCTIONAL_AUDIT_REPORT
+          path: audit_log.txt
