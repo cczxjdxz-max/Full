@@ -23,20 +23,18 @@ jobs:
       - name: 3. STEP 1: COMPLETE ANATOMICAL AUTOPSY (Address Dumping)
         run: |
           echo "🔬 Performing full anatomical scan..."
-          # استخدام أداة 'strings' لاستخراج كل النصوص القابلة للقراءة
+          # التأكد من عدم وجود مسافات غريبة هنا
           strings subject_brain.so > Full_Anatomy_Map.txt
           echo "✅ Anatomical map (Full_Anatomy_Map.txt) has been generated."
 
       - name: 4. STEP 2: PRECISION HEX SURGERY (Package Name Change)
         run: |
           echo "💉 Performing precision Hex replacement on the subject..."
-          # الجراحة الآلية لتغيير الـ Package Name
           sed -i 's/com.dts.freefireth\x00\x00\x00\x00/com.zero.geass\x00\x00\x00\x00/g' subject_brain.so
           echo "✅ Surgical replacement complete. Subject's identity has been altered."
 
       - name: 5. PACKAGE & DEPLOY THE RESULTS
         run: |
-          # ضغط الدماغ المعدل مع الخريطة التشريحية
           zip -9 Autopsy_And_Surgery_Results.zip subject_brain.so Full_Anatomy_Map.txt
           echo "📦 Procedure complete. Packaging results for the Commander."
 
