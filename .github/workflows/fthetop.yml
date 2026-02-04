@@ -11,32 +11,31 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y curl unzip binutils
-          echo "✅ Forensic and surgical tools are ready."
+          echo "✅ Tools Ready"
 
       - name: 2. ACQUIRE THE SUBJECT
         run: |
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
           unzip base.apk "lib/arm64-v8a/libil2cpp.so" -d workspace
           mv workspace/lib/arm64-v8a/libil2cpp.so ./subject_brain.so
-          echo "✅ Subject acquired and prepped for procedure."
+          echo "✅ Subject Prepped"
 
-      - name: 3. STEP 1: COMPLETE ANATOMICAL AUTOPSY (Address Dumping)
+      - name: 3. STEP 1: COMPLETE ANATOMICAL AUTOPSY
         run: |
-          echo "🔬 Performing full anatomical scan..."
-          # التأكد من عدم وجود مسافات غريبة هنا
+          echo "🔬 Scanning..."
           strings subject_brain.so > Full_Anatomy_Map.txt
-          echo "✅ Anatomical map (Full_Anatomy_Map.txt) has been generated."
+          echo "✅ Map Generated"
 
-      - name: 4. STEP 2: PRECISION HEX SURGERY (Package Name Change)
+      - name: 4. STEP 2: PRECISION HEX SURGERY
         run: |
-          echo "💉 Performing precision Hex replacement on the subject..."
+          echo "💉 Altering Identity..."
           sed -i 's/com.dts.freefireth\x00\x00\x00\x00/com.zero.geass\x00\x00\x00\x00/g' subject_brain.so
-          echo "✅ Surgical replacement complete. Subject's identity has been altered."
+          echo "✅ Identity Altered"
 
-      - name: 5. PACKAGE & DEPLOY THE RESULTS
+      - name: 5. PACKAGE RESULTS
         run: |
           zip -9 Autopsy_And_Surgery_Results.zip subject_brain.so Full_Anatomy_Map.txt
-          echo "📦 Procedure complete. Packaging results for the Commander."
+          echo "📦 Results Packaged"
 
       - name: 6. UPLOAD RESULTS
         uses: actions/upload-artifact@v4
