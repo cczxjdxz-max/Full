@@ -1,44 +1,39 @@
-name: GEASS-AUTONOMOUS-AUTOPSY-BOT
+name: BUILD-LIBPYTHON-SOURCE
 
 on:
   workflow_dispatch:
 
 jobs:
-  perform_autopsy_and_surgery:
+  build-python:
     runs-on: ubuntu-latest
     steps:
-      - name: 1-Tools
+      - name: 1. INSTALL BUILD DEPENDENCIES
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl unzip binutils
-          echo "✅ Ready"
+          sudo apt-get install -y build-essential checkinstall \
+            libreadline-gplv2-dev libncursesw5-dev libssl-dev \
+            libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev
 
-      - name: 2-Acquire
+      - name: 2. DOWNLOAD PYTHON SOURCE
         run: |
-          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
-          unzip base.apk "lib/arm64-v8a/libil2cpp.so" -d workspace
-          mv workspace/lib/arm64-v8a/libil2cpp.so ./subject_brain.so
-          echo "✅ Prepped"
+          wget https://www.python.org/ftp/python/3.11.0/Python-3.11.0.tar.xz
+          tar -xf Python-3.11.0.tar.xz
 
-      - name: 3-Autopsy
+      - name: 3. CONFIGURE AND BUILD (SHARED LIB)
         run: |
-          echo "🔬 Scanning..."
-          strings subject_brain.so > Full_Anatomy_Map.txt
-          echo "✅ Mapped"
+          cd Python-3.11.0
+          # الخيار --enable-shared هو الأهم لإنتاج ملف .so
+          ./configure --enable-shared --with-system-ffi --with-computed-gotos --enable-optimizations
+          make -j$(nproc)
 
-      - name: 4-Surgery
+      - name: 4. PREPARE THE ARTIFACT
         run: |
-          echo "💉 Hex Edit..."
-          sed -i 's/com.dts.freefireth\x00\x00\x00\x00/com.zero.geass\x00\x00\x00\x00/g' subject_brain.so
-          echo "✅ Altered"
+          # البحث عن ملف المكتبة ونقله للمجلد الرئيسي
+          find Python-3.11.0 -name "libpython3.11.so.1.0" -exec cp {} ./libpython3.11.so \;
+          echo "✅ Library Build Complete"
 
-      - name: 5-Package
-        run: |
-          zip -9 Results.zip subject_brain.so Full_Anatomy_Map.txt
-          echo "📦 Done"
-
-      - name: 6-Upload
+      - name: 5. UPLOAD LIBPYTHON ARTIFACT
         uses: actions/upload-artifact@v4
         with:
-          name: GEASS_RESULTS
-          path: Results.zip
+          name: libpython3.11-binary
+          path: libpython3.11.so
