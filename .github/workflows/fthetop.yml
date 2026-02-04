@@ -7,7 +7,7 @@ jobs:
   perform_autopsy_and_surgery:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. PREPARE FORENSIC & SURGICAL TOOLS
+      - name: 1. PREPARE FORENSIC TOOLS
         run: |
           sudo apt-get update
           sudo apt-get install -y curl unzip binutils
