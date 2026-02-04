@@ -1,49 +1,48 @@
-name: Geass Sovereign Memory Scanner V4
+name: GEASS-AUTONOMOUS-AUTOPSY-BOT
 
-on: 
-  push:
-    branches: [ main ]
-  workflow_dispatch: 
+on:
+  workflow_dispatch:
 
 jobs:
-  memory_analysis:
+  perform_autopsy_and_surgery:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v4 # تحديث للإصدار الرابع
+      - name: 1. PREPARE FORENSIC & SURGICAL TOOLS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl unzip binutils
+          echo "✅ Forensic and surgical tools are ready."
 
-      - name: 🐍 Setup Python Environment
-        uses: actions/setup-python@v5 # تحديث للإصدار الخامس
+      - name: 2. ACQUIRE THE SUBJECT
+        run: |
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o base.apk
+          unzip base.apk "lib/arm64-v8a/libil2cpp.so" -d workspace
+          mv workspace/lib/arm64-v8a/libil2cpp.so ./subject_brain.so
+          echo "✅ Subject acquired and prepped for procedure."
+
+      - name: 3. STEP 1: COMPLETE ANATOMICAL AUTOPSY (Address Dumping)
+        run: |
+          echo "🔬 Performing full anatomical scan..."
+          # استخدام أداة 'strings' لاستخراج كل النصوص القابلة للقراءة من الملف الثنائي
+          # هذا الأمر سيقوم بمسح الملف بالكامل وإخراج أي سلسلة نصية
+          strings subject_brain.so > Full_Anatomy_Map.txt
+          echo "✅ Anatomical map (Full_Anatomy_Map.txt) has been generated."
+
+      - name: 4. STEP 2: PRECISION HEX SURGERY (Package Name Change)
+        run: |
+          echo "💉 Performing precision Hex replacement on the subject..."
+          # نفس الجراحة الآلية التي صممناها سابقاً
+          sed -i 's/com.dts.freefireth\x00\x00\x00\x00/com.zero.geass\x00\x00\x00\x00/g' subject_brain.so
+          echo "✅ Surgical replacement complete. Subject's identity has been altered."
+
+      - name: 5. PACKAGE & DEPLOY THE RESULTS
+        run: |
+          # ضغط الدماغ المعدل مع الخريطة التشريحية معاً
+          zip -9 Autopsy_And_Surgery_Results.zip subject_brain.so Full_Anatomy_Map.txt
+          echo "📦 Procedure complete. Packaging results for the Commander."
+
+      - name: 6. UPLOAD RESULTS
+        uses: actions/upload-artifact@v4
         with:
-          python-version: '3.11'
-
-      - name: 🛠️ Install Analysis Tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyelftools 
-
-      - name: 🔍 Running Deep Memory Scan
-        run: |
-          # تشغيل المحرك لاستخراج العناوين (Mode 4)
-          python internal_master.py --package com.dts.freefireth --quality 720P
-        env:
-          SOUND_OUTPUT: "Media"
-
-      - name: 📄 Generate Hex Map Artifact
-        run: |
-          echo "=== GEASS MASTER MEMORY MAP - VERSION 2026 ===" > Geass_Artifact_Report.txt
-          echo "Status: Analysis Success" >> Geass_Artifact_Report.txt
-          echo "Target Mode: 2 vs 9 (Tactical Control)" >> Geass_Artifact_Report.txt
-          echo "------------------------------------------" >> Geass_Artifact_Report.txt
-          echo "Enemy_Group_Addr: 0x8A12B000 [Hex: 09 00 00 00]" >> Geass_Artifact_Report.txt
-          echo "Ally_Bot_Logic: 0x7F21A4B0 [Hex: 01 00 00 00]" >> Geass_Artifact_Report.txt
-          echo "Memory_Protect_Bypass: 0x12B004CC [Hex: 00 00 00 00]" >> Geass_Artifact_Report.txt
-
-      - name: 📤 Upload Geass Artifact
-        uses: actions/upload-artifact@v4 # هذا هو الإصدار المطلوب لحل مشكلة الـ Deprecation
-        with:
-          name: Geass-Final-Report
-          path: Geass_Artifact_Report.txt
-          compression-level: 9 # لأقصى سرعة في الرفع
-          retention-days: 1 # حفظ الملف ليوم واحد للسرية
+          name: GEASS_PROCEDURE_RESULTS
+          path: Autopsy_And_Surgery_Results.zip
