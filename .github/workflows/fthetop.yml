@@ -20,29 +20,30 @@ jobs:
 
       - name: Build Il2CppDumper from Source
         run: |
-          git clone https://github.com/Perfare/Il2CppDumper.git
-          cd Il2CppDumper
-          # بناء الأداة
+          # 1. سحب الكود لمجلد مؤقت لتجنب تضارب الأسماء
+          git clone https://github.com/Perfare/Il2CppDumper.git source_code
+          cd source_code
+          
+          # 2. بناء الأداة
           dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true /p:PublishSingleFile=true
           
-          # البحث عن الملف التنفيذي في كل المجلدات الناتجة ونقله للمجلد الرئيسي
-          # نستخدم -iname للبحث بغض النظر عن حالة الأحرف
-          find . -type f -executable -name "Il2CppDumper" -exec cp {} ../Il2CppDumper \;
+          # 3. البحث عن الملف التنفيذي ونسخه باسم مختلف (dumper) للمجلد الرئيسي
+          find bin/Release/net8.0/linux-x64/publish/ -type f -executable -exec cp {} ../dumper \;
           
           cd ..
-          if [ -f "./Il2CppDumper" ]; then
-            chmod +x Il2CppDumper
-            echo "[+] Il2CppDumper is ready at $(pwd)/Il2CppDumper"
+          if [ -f "./dumper" ]; then
+            chmod +x dumper
+            echo "[+] Dumper is ready as: ./dumper"
           else
-            echo "[-] Error: Executable not found after build!"
+            echo "[-] Error: Executable not found!"
             exit 1
           fi
 
-      - name: Run Il2CppDumper
+      - name: Run Dumper
         run: |
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
-            # تشغيل الأداة مع توجيه الإدخالات تلقائياً (تجنب التوقف لطلب إدخال)
-            echo -e "\n" | ./Il2CppDumper libil2cpp.so global-metadata.dat .
+            # تشغيل الأداة باسمها الجديد وتمرير Enter تلقائياً
+            echo -e "\n" | ./dumper libil2cpp.so global-metadata.dat .
           else
             echo "[-] Error: Missing game files in root directory!"
             exit 1
@@ -59,7 +60,6 @@ jobs:
           
           if os.path.exists(dump_file):
               print("[+] Starting extraction...")
-              # نمط البحث عن العناوين والأسماء
               pattern = re.compile(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(")
               extracted_data = {}
               
@@ -69,20 +69,18 @@ jobs:
                       address, name = match.groups()
                       extracted_data[name] = address
               
-              # حفظ وضغط البيانات بصيغة JSON
               json_bytes = json.dumps(extracted_data, separators=(',', ':')).encode('utf-8')
               with gzip.open(output_zip, 'wb') as f:
                   f.write(json_bytes)
               
               print(f"[+] Done! Found {len(extracted_data)} methods.")
-              # حذف الملف الضخم فوراً
               os.remove(dump_file)
           else:
-              print("[-] dump.cs not found. Check Dumper output logs.")
+              print("[-] dump.cs not found. Check logs above.")
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: Full-Game-Offsets
+          name: Compact-Offsets-JSON
           path: offsets.json.gz
           retention-days: 2
