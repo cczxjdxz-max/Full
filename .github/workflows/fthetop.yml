@@ -21,10 +21,12 @@ jobs:
       - name: Download and Extract APK
         run: |
           echo "[+] Downloading Free Fire APK..."
+          # تحميل اللعبة من الرابط مباشرة
           wget -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           
           echo "[+] Extracting required files from APK..."
-          unzip -j game.apk "lib/armeabi-v7a/libil2cpp.so" -d . || unzip -j game.apk "lib/arm64-v8a/libil2cpp.so" -d .
+          # استخراج مكتبة الـ lib والميتادات
+          unzip -j game.apk "lib/arm64-v8a/libil2cpp.so" -d . || unzip -j game.apk "lib/armeabi-v7a/libil2cpp.so" -d .
           unzip -j game.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d .
           
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
@@ -45,34 +47,42 @@ jobs:
 
       - name: Run Dumper
         run: |
-          # تشغيل الدامبر مع ضغط Enter تلقائياً
+          # تمرير إدخال فارغ لتجاوز أي أسئلة تفاعلية من الأداة
           echo -e "\n" | ./dumper libil2cpp.so global-metadata.dat .
         continue-on-error: true
 
-      - name: Extract Offsets (Inline Python)
+      - name: Extract Offsets to JSON (Inline Python)
         shell: python
         run: |
           import os, re, json, gzip
+          
           dump_file = "dump.cs"
-          output_zip = "offsets.json.gz"
+          # سنقوم بحفظ الملف بصيغة json عادية داخل الـ zip ليكون سهل القراءة
+          output_json = "all_offsets.json"
+          
           if os.path.exists(dump_file):
+              print("[+] Extracting data...")
+              # نمط البحث عن الـ RVA واسم الدالة
               pattern = re.compile(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(")
               extracted_data = {}
+              
               with open(dump_file, "r", encoding="utf-8") as f:
                   content = f.read()
                   for match in pattern.finditer(content):
                       address, name = match.groups()
                       extracted_data[name] = address
-              json_bytes = json.dumps(extracted_data, separators=(',', ':')).encode('utf-8')
-              with gzip.open(output_zip, 'wb') as f:
-                  f.write(json_bytes)
-              print(f"[+] Done! Extracted {len(extracted_data)} offsets.")
+              
+              # حفظ النتائج كملف JSON مرتب
+              with open(output_json, "w", encoding="utf-8") as jf:
+                  json.dump(extracted_data, jf, indent=4)
+              
+              print(f"[+] Done! Extracted {len(extracted_data)} methods to JSON.")
           else:
-              print("[-] dump.cs not found.")
+              print("[-] Error: dump.cs not found.")
 
-      - name: Upload Result
+      - name: Upload JSON Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FreeFire-Offsets-JSON
-          path: offsets.json.gz
+          path: all_offsets.json
           retention-days: 2
