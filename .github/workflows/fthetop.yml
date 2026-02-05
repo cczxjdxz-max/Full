@@ -1,4 +1,4 @@
-name: Super Compact Offset Extractor (Source Build)
+name: Full Compact Offset Extractor
 
 on:
   push:
@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  extract:
+  build-and-extract:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Your Code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up .NET (Required for Building Dumper)
+      - name: Set up .NET SDK
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '6.0.x' # أو النسخة التي يتطلبها المشروع
+          dotnet-version: '8.0.x'
 
-      - name: Clone and Build Il2CppDumper
+      - name: Build Il2CppDumper from Source
         run: |
           git clone https://github.com/Perfare/Il2CppDumper.git
           cd Il2CppDumper
-          dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
-          # نقل الأداة الناتجة للمجلد الرئيسي
-          cp Il2CppDumper/bin/Release/net*/linux-x64/publish/Il2CppDumper ../
+          # بناء النسخة المخصصة لـ Linux مع تحديد الإصدار 8.0
+          dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true /p:PublishSingleFile=true
+          cp bin/Release/net8.0/linux-x64/publish/Il2CppDumper ../
           cd ..
           chmod +x Il2CppDumper
 
@@ -35,22 +35,23 @@ jobs:
 
       - name: Run Il2CppDumper
         run: |
-          # التأكد من وجود ملفات اللعبة في المستودع
+          # تأكد من وجود الملفات libil2cpp.so و global-metadata.dat في المستودع
           ./Il2CppDumper libil2cpp.so global-metadata.dat .
         continue-on-error: true
 
-      - name: Execute Compact Extractor
+      - name: Run Python Extractor
         run: python Extractor.py
 
-      - name: Clean up Large Files
+      - name: Cleanup Large Files
         run: |
           rm -rf Il2CppDumper/
           rm -f dump.cs
           rm -f dummy.dll
+          rm -f script.py
 
-      - name: Upload Compact Artifact
+      - name: Upload Compact Offsets Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Compact-Offsets-JSON
+          name: Game-Offsets-JSON
           path: offsets.json.gz
           retention-days: 3
