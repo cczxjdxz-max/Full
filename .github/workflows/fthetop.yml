@@ -1,4 +1,4 @@
-name: Auto APK Offset Extractor (Ultimate Fix)
+name: Big APK Deep Extractor
 
 on:
   push:
@@ -6,94 +6,76 @@ on:
   workflow_dispatch:
 
 jobs:
-  process-apk:
+  extract:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up .NET & Python
+      - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '8.0.x'
 
-      - name: Download and Extract APK
+      - name: Download & Heavy Extraction
         run: |
-          echo "[+] Downloading APK..."
+          echo "[+] Downloading Large APK (500MB+)..."
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           
-          echo "[+] Extracting lib and metadata..."
-          # استخراج الملفات بغض النظر عن المسار الداخلي
-          unzip -o game.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d out_files || unzip -o game.apk "lib/armeabi-v7a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d out_files
+          echo "[+] Extracting APK (Deep Scan)..."
+          unzip -q game.apk -d base_dir
           
-          # تجميع الملفات في المجلد الرئيسي
-          find out_files -name "libil2cpp.so" -exec cp {} . \;
-          find out_files -name "global-metadata.dat" -exec cp {} . \;
+          # البحث عن الملفات في كل المجلدات الناتجة (بما فيها مجلدات الـ OBB المدمجة)
+          find base_dir -name "libil2cpp.so" -exec cp {} ./libil2cpp.so \;
+          find base_dir -name "global-metadata.dat" -exec cp {} ./global-metadata.dat \;
           
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
-            echo "[+] Files ready."
+             echo "[+] Success: Files located."
+             echo "Lib Path: $(find base_dir -name 'libil2cpp.so')"
           else
-            echo "[-] Error: APK files not found."
-            exit 1
+             echo "[-] Failure: Files not found. Checking directory structure..."
+             ls -R base_dir | grep -E "libil2cpp|global-metadata"
+             exit 1
           fi
 
-      - name: Build & Run Il2CppDumper
+      - name: Build & Run Dumper
         run: |
-          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git source_code
-          cd source_code
-          dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true /p:PublishSingleFile=true
-          
-          # البحث عن الملف التنفيذي ونقله بغض النظر عن مساره
-          find . -type f -executable -name "Il2CppDumper" -exec cp {} ../dumper \;
+          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
+          dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true
+          find . -name "Il2CppDumper" -type f -executable -exec cp {} ../dumper \;
           cd ..
-          
-          if [ -f "./dumper" ]; then
-            chmod +x dumper
-            echo "1" | ./dumper libil2cpp.so global-metadata.dat . || true
-          else
-            echo "[!] Dumper build failed to find executable."
-          fi
+          chmod +x dumper
+          # محاولة التشغيل مع دعم خيارات الميتادات المختلفة
+          echo "1" | ./dumper libil2cpp.so global-metadata.dat . || echo "2" | ./dumper libil2cpp.so global-metadata.dat .
 
-      - name: Run Cpp2IL (Strong Fallback)
-        if: hashFiles('dump.cs') == ''
-        run: |
-          echo "[!] dump.cs missing. Running Cpp2IL..."
-          wget -q https://github.com/SamboyCoding/Cpp2IL/releases/download/v2022.1.0-pre-release.10/Cpp2IL-Net8.0-Linux-x64 -O cpp2il
-          chmod +x cpp2il
-          # تشغيل Cpp2IL لاستخراج المعلومات كـ Dummy DLLs أو ملفات نصية
-          ./cpp2il --game-path . --output-as-csv || true
-
-      - name: Final Extraction to JSON
+      - name: Final Python JSON Pack
         shell: python
         run: |
           import os, re, json
-          data = {}
-          # محاولة الاستخراج من dump.cs (Il2CppDumper)
+          
+          # نبحث عن dump.cs أو أي ملف ينتجه الدامبر
+          output_file = "all_offsets.json"
           if os.path.exists("dump.cs"):
-              print("[+] Processing dump.cs...")
+              data = {}
               with open("dump.cs", "r", encoding="utf-8") as f:
                   content = f.read()
+                  # استخراج كل العناوين (RVAs)
                   matches = re.finditer(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(", content)
-                  for m in matches: data[m.group(2)] = m.group(1)
-          
-          # محاولة الاستخراج من cpp2il_out.csv (Cpp2IL)
-          elif os.path.exists("cpp2il_out.csv"):
-              print("[+] Processing Cpp2IL CSV...")
-              with open("cpp2il_out.csv", "r") as f:
-                  for line in f:
-                      p = line.split(',')
-                      if len(p) >= 3: data[p[1]] = p[2]
-
-          if data:
-              with open("all_offsets.json", "w") as jf: json.dump(data, jf, indent=4)
-              print(f"[+] Success! {len(data)} items found.")
+                  for m in matches:
+                      data[m.group(2)] = m.group(1)
+              
+              with open(output_file, "w") as jf:
+                  json.dump(data, jf, indent=4)
+              print(f"[+] Done! {len(data)} methods extracted.")
           else:
-              with open("all_offsets.json", "w") as jf:
-                  json.dump({"error": "No data. File might be protected."}, jf)
+              # في حال الفشل، سنرفع قائمة بالملفات لمعرفة ماذا نتج عن العملية
+              with open(output_file, "w") as jf:
+                  json.dump({"error": "Dumper failed to produce dump.cs", "files": os.listdir('.')}, jf)
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: Final-Offsets-JSON
+          name: Full-Game-Offsets
           path: all_offsets.json
