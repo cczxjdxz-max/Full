@@ -1,46 +1,46 @@
-name: BUILD-LIBPYTHON-SOURCE
+name: Super Compact Offset Extractor
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-python:
+  extract:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 1. INSTALL BUILD DEPENDENCIES
-        run: |
-          sudo apt-get update
-          # تم استبدال libreadline-gplv2-dev بـ libreadline-dev للتوافق مع Ubuntu 24.04
-          sudo apt-get install -y build-essential checkinstall \
-            libreadline-dev libncursesw5-dev libssl-dev \
-            libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev
-          echo "✅ Dependencies Installed"
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      - name: 2. DOWNLOAD PYTHON SOURCE
-        run: |
-          wget https://www.python.org/ftp/python/3.11.0/Python-3.11.0.tar.xz
-          tar -xf Python-3.11.0.tar.xz
-          echo "✅ Source Downloaded"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: 3. CONFIGURE AND BUILD (SHARED LIB)
+      - name: Download & Prepare Il2CppDumper
         run: |
-          cd Python-3.11.0
-          # --enable-shared لإنتاج ملف .so
-          # --enable-optimizations لتحسين أداء المكتبة
-          ./configure --enable-shared --enable-optimizations --with-system-ffi
-          make -j$(nproc)
-          echo "✅ Build Process Finished"
+          wget https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip
+          unzip Il2CppDumper-linux-x64.zip
+          chmod +x Il2CppDumper
 
-      - name: 4. PREPARE THE ARTIFACT
+      - name: Run Il2CppDumper
         run: |
-          # البحث عن ملف المكتبة الثنائي
-          find Python-3.11.0 -name "libpython3.11.so.1.0" -exec cp {} ./libpython3.11.so \;
-          # تصغير حجم المكتبة بإزالة بيانات التصحيح (اختياري لكن مفضل)
-          strip --strip-unneeded libpython3.11.so
-          echo "✅ Library Stripped and Ready"
+          ./Il2CppDumper libil2cpp.so global-metadata.dat .
+        continue-on-error: true
 
-      - name: 5. UPLOAD LIBPYTHON ARTIFACT
+      - name: Execute Compact Extractor
+        run: python Extractor.py
+
+      - name: Clean up Large Files
+        run: |
+          rm -f dump.cs
+          rm -f dummy.dll
+          # نحذف الملفات الكبيرة قبل رفع الـ Artifact
+
+      - name: Upload Compact Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: libpython3.11-binary
-          path: libpython3.11.so
+          name: Compact-Offsets-JSON
+          path: offsets.json.gz
+          retention-days: 3
