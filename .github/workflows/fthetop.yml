@@ -1,4 +1,4 @@
-name: Super Compact Offset Extractor
+name: Super Compact Offset Extractor (Source Build)
 
 on:
   push:
@@ -10,22 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Your Code
         uses: actions/checkout@v3
+
+      - name: Set up .NET (Required for Building Dumper)
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x' # أو النسخة التي يتطلبها المشروع
+
+      - name: Clone and Build Il2CppDumper
+        run: |
+          git clone https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
+          dotnet publish -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
+          # نقل الأداة الناتجة للمجلد الرئيسي
+          cp Il2CppDumper/bin/Release/net*/linux-x64/publish/Il2CppDumper ../
+          cd ..
+          chmod +x Il2CppDumper
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Download & Prepare Il2CppDumper
-        run: |
-          wget https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-linux-x64.zip
-          unzip Il2CppDumper-linux-x64.zip
-          chmod +x Il2CppDumper
-
       - name: Run Il2CppDumper
         run: |
+          # التأكد من وجود ملفات اللعبة في المستودع
           ./Il2CppDumper libil2cpp.so global-metadata.dat .
         continue-on-error: true
 
@@ -34,9 +44,9 @@ jobs:
 
       - name: Clean up Large Files
         run: |
+          rm -rf Il2CppDumper/
           rm -f dump.cs
           rm -f dummy.dll
-          # نحذف الملفات الكبيرة قبل رفع الـ Artifact
 
       - name: Upload Compact Artifact
         uses: actions/upload-artifact@v4
