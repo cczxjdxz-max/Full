@@ -1,4 +1,4 @@
-name: Auto APK Offset Extractor (High Compatibility)
+name: Auto APK Offset Extractor (Ultimate Fix)
 
 on:
   push:
@@ -20,78 +20,80 @@ jobs:
 
       - name: Download and Extract APK
         run: |
-          echo "[+] Downloading Free Fire APK..."
+          echo "[+] Downloading APK..."
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           
           echo "[+] Extracting lib and metadata..."
+          # استخراج الملفات بغض النظر عن المسار الداخلي
           unzip -o game.apk "lib/arm64-v8a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d out_files || unzip -o game.apk "lib/armeabi-v7a/libil2cpp.so" "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d out_files
           
+          # تجميع الملفات في المجلد الرئيسي
           find out_files -name "libil2cpp.so" -exec cp {} . \;
           find out_files -name "global-metadata.dat" -exec cp {} . \;
           
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
-            echo "[+] Files are ready for dumping."
+            echo "[+] Files ready."
           else
-            echo "[-] Critical Error: Files not found in APK."
+            echo "[-] Error: APK files not found."
             exit 1
           fi
 
-      - name: Build & Run Il2CppDumper (Attempt 1)
+      - name: Build & Run Il2CppDumper
         run: |
           git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git source_code
           cd source_code
           dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true /p:PublishSingleFile=true
-          cp bin/Release/net8.0/linux-x64/publish/Il2CppDumper ../dumper
+          
+          # البحث عن الملف التنفيذي ونقله بغض النظر عن مساره
+          find . -type f -executable -name "Il2CppDumper" -exec cp {} ../dumper \;
           cd ..
-          chmod +x dumper
-          # تشغيل الدامبر بوضع الخيار 1 تلقائياً
-          echo "1" | ./dumper libil2cpp.so global-metadata.dat . || true
+          
+          if [ -f "./dumper" ]; then
+            chmod +x dumper
+            echo "1" | ./dumper libil2cpp.so global-metadata.dat . || true
+          else
+            echo "[!] Dumper build failed to find executable."
+          fi
 
-      - name: Try Cpp2IL (Attempt 2 - If Dumper Failed)
+      - name: Run Cpp2IL (Strong Fallback)
         if: hashFiles('dump.cs') == ''
         run: |
-          echo "[!] Il2CppDumper failed or produced no dump.cs. Trying Cpp2IL..."
+          echo "[!] dump.cs missing. Running Cpp2IL..."
           wget -q https://github.com/SamboyCoding/Cpp2IL/releases/download/v2022.1.0-pre-release.10/Cpp2IL-Net8.0-Linux-x64 -O cpp2il
           chmod +x cpp2il
+          # تشغيل Cpp2IL لاستخراج المعلومات كـ Dummy DLLs أو ملفات نصية
           ./cpp2il --game-path . --output-as-csv || true
 
-      - name: Extract Offsets to JSON
+      - name: Final Extraction to JSON
         shell: python
         run: |
           import os, re, json
-          
-          # فحص إذا كان الملف موجوداً (دعم صيغتين: dump.cs أو cpp2il_out.csv)
-          extracted_data = {}
-          
+          data = {}
+          # محاولة الاستخراج من dump.cs (Il2CppDumper)
           if os.path.exists("dump.cs"):
               print("[+] Processing dump.cs...")
-              pattern = re.compile(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(")
               with open("dump.cs", "r", encoding="utf-8") as f:
                   content = f.read()
-                  for match in pattern.finditer(content):
-                      addr, name = match.groups()
-                      extracted_data[name] = addr
-                      
+                  matches = re.finditer(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(", content)
+                  for m in matches: data[m.group(2)] = m.group(1)
+          
+          # محاولة الاستخراج من cpp2il_out.csv (Cpp2IL)
           elif os.path.exists("cpp2il_out.csv"):
-              print("[+] Processing Cpp2IL CSV output...")
-              # تنسيق CSV عادة يكون: Type,Name,Address...
+              print("[+] Processing Cpp2IL CSV...")
               with open("cpp2il_out.csv", "r") as f:
                   for line in f:
-                      parts = line.split(',')
-                      if len(parts) >= 3:
-                          name, addr = parts[1], parts[2]
-                          extracted_data[name] = addr
+                      p = line.split(',')
+                      if len(p) >= 3: data[p[1]] = p[2]
 
-          if extracted_data:
-              with open("all_offsets.json", "w") as jf:
-                  json.dump(extracted_data, jf, indent=4)
-              print(f"[+] Found {len(extracted_data)} methods.")
+          if data:
+              with open("all_offsets.json", "w") as jf: json.dump(data, jf, indent=4)
+              print(f"[+] Success! {len(data)} items found.")
           else:
               with open("all_offsets.json", "w") as jf:
-                  json.dump({"error": "No offsets found from any tool. The SO file might be encrypted."}, jf)
+                  json.dump({"error": "No data. File might be protected."}, jf)
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: Offsets-Result
+          name: Final-Offsets-JSON
           path: all_offsets.json
