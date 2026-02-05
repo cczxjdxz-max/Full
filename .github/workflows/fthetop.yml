@@ -1,4 +1,4 @@
-name: Big APK Deep Extractor
+name: Big APK Deep Extractor (Final Fix)
 
 on:
   push:
@@ -20,59 +20,60 @@ jobs:
 
       - name: Download & Heavy Extraction
         run: |
-          echo "[+] Downloading Large APK (500MB+)..."
+          echo "[+] Downloading Large APK..."
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           
-          echo "[+] Extracting APK (Deep Scan)..."
+          echo "[+] Deep scanning APK..."
           unzip -q game.apk -d base_dir
           
-          # البحث عن الملفات في كل المجلدات الناتجة (بما فيها مجلدات الـ OBB المدمجة)
+          # البحث عن الملفات ونقلها للمجلد الرئيسي
           find base_dir -name "libil2cpp.so" -exec cp {} ./libil2cpp.so \;
           find base_dir -name "global-metadata.dat" -exec cp {} ./global-metadata.dat \;
           
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
-             echo "[+] Success: Files located."
-             echo "Lib Path: $(find base_dir -name 'libil2cpp.so')"
+             echo "[+] Files located successfully."
           else
-             echo "[-] Failure: Files not found. Checking directory structure..."
-             ls -R base_dir | grep -E "libil2cpp|global-metadata"
+             echo "[-] Error: Essential files missing."
              exit 1
           fi
 
-      - name: Build & Run Dumper
+      - name: Build Il2CppDumper
         run: |
-          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git
-          cd Il2CppDumper
-          dotnet publish -c Release -f net8.0 -r linux-x64 --self-contained true
-          find . -name "Il2CppDumper" -type f -executable -exec cp {} ../dumper \;
+          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git source_code
+          cd source_code
+          # بناء عادي بدون SingleFile لتجنب أخطاء التشغيل
+          dotnet build -c Release -f net8.0
+          
+          # العودة للمجلد الرئيسي
           cd ..
-          chmod +x dumper
-          # محاولة التشغيل مع دعم خيارات الميتادات المختلفة
-          echo "1" | ./dumper libil2cpp.so global-metadata.dat . || echo "2" | ./dumper libil2cpp.so global-metadata.dat .
+          # تحديد مسار ملف الـ DLL الناتج بدقة
+          DLL_PATH=$(find source_code/bin/Release/net8.0 -name "Il2CppDumper.dll" | head -n 1)
+          echo "DLL_FILE=$DLL_PATH" >> $GITHUB_ENV
+          echo "[+] Dumper DLL found at: $DLL_PATH"
+
+      - name: Run Dumper via Dotnet Core
+        run: |
+          # تشغيل الدامبر باستخدام محرك dotnet مباشرة لتجنب مشاكل الصلاحيات
+          echo "1" | dotnet ${{ env.DLL_FILE }} libil2cpp.so global-metadata.dat . || echo "2" | dotnet ${{ env.DLL_FILE }} libil2cpp.so global-metadata.dat .
 
       - name: Final Python JSON Pack
         shell: python
         run: |
           import os, re, json
-          
-          # نبحث عن dump.cs أو أي ملف ينتجه الدامبر
           output_file = "all_offsets.json"
           if os.path.exists("dump.cs"):
               data = {}
               with open("dump.cs", "r", encoding="utf-8") as f:
                   content = f.read()
-                  # استخراج كل العناوين (RVAs)
                   matches = re.finditer(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(", content)
                   for m in matches:
                       data[m.group(2)] = m.group(1)
-              
               with open(output_file, "w") as jf:
                   json.dump(data, jf, indent=4)
               print(f"[+] Done! {len(data)} methods extracted.")
           else:
-              # في حال الفشل، سنرفع قائمة بالملفات لمعرفة ماذا نتج عن العملية
               with open(output_file, "w") as jf:
-                  json.dump({"error": "Dumper failed to produce dump.cs", "files": os.listdir('.')}, jf)
+                  json.dump({"error": "dump.cs not found", "files_in_root": os.listdir('.')}, jf)
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
