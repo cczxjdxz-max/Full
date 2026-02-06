@@ -1,69 +1,78 @@
-name: Ultimate Full Library Scanner 2026
+name: Auto APK Downloader & Scanner
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # تشغيل يدوي
 
 jobs:
-  deep_scan:
+  download_and_scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      - name: Download Free Fire APK
+        run: |
+          echo "📥 Downloading APK from official CDN..."
+          curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o FreeFire.apk
+          echo "✅ Download complete."
 
-      - name: Run Deep Offset Scanner
+      - name: Extract libil2cpp.so
+        run: |
+          echo "📦 Extracting libil2cpp.so from APK..."
+          # البحث عن ملف الـ arm64 واستخراجه
+          unzip -j FreeFire.apk "lib/arm64-v8a/libil2cpp.so" -d ./ || unzip -j FreeFire.apk "lib/armeabi-v7a/libil2cpp.so" -d ./
+          
+          if [ -f "libil2cpp.so" ]; then
+            echo "✅ Library extracted successfully."
+            ls -lh libil2cpp.so
+          else
+            echo "❌ Error: Could not find libil2cpp.so inside the APK!"
+            exit 1
+          fi
+
+      - name: Deep Offset Scanner (Python)
         shell: python
         run: |
           import os
-          import glob
-
-          # البحث عن أي ملف ينتهي بـ .so داخل المستودع
-          so_files = glob.glob("**/*.so", recursive=True)
           
-          if not so_files:
-              print("❌ Error: No .so files found in the repository!")
-              # إنشاء ملف فارغ لمنع تعطل الأكشن تماماً وتوضيح الخطأ
-              with open("Complete_Offsets_List.txt", "w") as f:
-                  f.write("Error: libil2cpp.so file was not found in the repository.")
-              exit(0)
-
-          target_file = so_files[0]
-          print(f"✅ Found file: {target_file}")
-          
+          target_file = "libil2cpp.so"
           output_file = "Complete_Offsets_List.txt"
+          
+          if not os.path.exists(target_file):
+              print("❌ File not found for scanning!")
+              exit(1)
+
           offsets = []
+          # أنماط ARM64 الاحترافية للبحث عن الدوال
           patterns = [b'\xFD\x7B\xBF\xA9', b'\xFF\x43\x00\xD1', b'\xFD\x7B\xBA\xA9']
           
-          print(f"🔍 Scanning {target_file}...")
+          print(f"🔍 Scanning {target_file} for all potential functions...")
           
           with open(target_file, "rb") as f:
               data = f.read()
               for pattern in patterns:
-                  current_pos = 0
+                  pos = 0
                   while True:
-                      current_pos = data.find(pattern, current_pos)
-                      if current_pos == -1: break
-                      offsets.append(current_pos)
-                      current_pos += 4
+                      pos = data.find(pattern, pos)
+                      if pos == -1: break
+                      offsets.append(pos)
+                      pos += 4
           
           unique_offsets = sorted(list(set(offsets)))
           
           with open(output_file, "w") as out:
-              out.write(f"--- FULL MEMORY SCAN REPORT ---\n")
-              out.write(f"Source File: {target_file}\n")
-              out.write(f"Total Functions Found: {len(unique_offsets)}\n\n")
+              out.write(f"--- FREE FIRE 2026 FULL DUMP ---\n")
+              out.write(f"Source: Official APK Link\n")
+              out.write(f"Total Unique Offsets: {len(unique_offsets)}\n")
+              out.write("-" * 40 + "\n\n")
               for addr in unique_offsets:
                   out.write(f"{hex(addr)}\n")
           
           print(f"✅ Extracted {len(unique_offsets)} offsets.")
 
-      - name: Verify and Upload Artifact
+      - name: Upload Translation Report
         uses: actions/upload-artifact@v4
         with:
-          name: Full-Library-Dump-2026
+          name: FF-Full-Offsets-2026
           path: Complete_Offsets_List.txt
           retention-days: 5
