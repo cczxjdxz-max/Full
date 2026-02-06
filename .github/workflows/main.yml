@@ -1,4 +1,4 @@
-name: Hex Hunter (The Final Stand)
+name: Global Hex Scanner (Deep Search)
 
 on:
   push:
@@ -18,52 +18,51 @@ jobs:
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -q game.apk -d base_dir
           find base_dir -name "libil2cpp.so" -exec cp {} ./lib.so \;
-          echo "[+] Lib Ready: $(ls -lh lib.so)"
 
-      - name: Internal Hex Analysis
+      - name: Multi-Pattern Hex Analysis
         shell: python
         run: |
-          import os, json, struct
+          import os, json
 
-          def hunt_offsets():
+          def deep_hunt():
               lib_path = "lib.so"
               if not os.path.exists(lib_path): return {"error": "Lib not found"}
               
-              results = {}
               with open(lib_path, "rb") as f:
-                  # قراءة رأس ELF (الذي أرسلته سابقاً)
-                  header = f.read(64)
-                  # التحقق من بصمة ELF 64-bit
-                  if header[:4] != b'\x7fELF': return {"error": "Not a valid ELF"}
-                  
-                  f.seek(0)
-                  data = f.read() # قراءة الـ 166 ميجا كاملة في الذاكرة
+                  data = f.read()
 
-                  # البحث عن أنماط الدوال الشائعة (Function Prologues) لـ ARM64
-                  # نمط: STP X29, X30, [SP, #-0x10]! (توقيع بداية معظم الدوال)
-                  pattern = b'\xFD\x7B\xBF\xA9'
-                  
+              # قائمة بأنماط بدايات الدوال المختلفة في معالجات ARM64
+              patterns = {
+                  "Standard_A64": b'\xFD\x7B\xBF\xA9', 
+                  "Varied_A64": b'\xFF\x43\x00\xD1',
+                  "Alt_Prologue": b'\xF4\x4F\xBE\xA9',
+                  "Simple_Push": b'\xFE\x0F\x1F\xF8'
+              }
+              
+              results = {}
+              all_found = []
+
+              for p_name, p_hex in patterns.items():
                   count = 0
-                  offsets = []
-                  pos = data.find(pattern)
-                  while pos != -1 and count < 5000: # استخراج أول 5000 دالة
-                      offsets.append(hex(pos))
-                      pos = data.find(pattern, pos + 1)
+                  pos = data.find(p_hex)
+                  while pos != -1 and count < 1000:
+                      all_found.append({"type": p_name, "offset": hex(pos)})
+                      pos = data.find(p_hex, pos + 1)
                       count += 1
-                  
-                  return {
-                      "Total_Functions_Found": len(offsets),
-                      "Sample_Offsets": offsets[:100], # سنأخذ أول 100 عينة كبداية
-                      "Architecture": "ARM64",
-                      "Message": "Raw Hex Scan Success (Metadata Ignored)"
-                  }
+              
+              return {
+                  "Total_Matches": len(all_found),
+                  "Offsets": all_found[:200], # أول 200 نتيجة
+                  "Library_Size": len(data),
+                  "Advice": "If Total is 0, the library is heavily packed or encrypted with a custom loader."
+              }
 
-          output_data = hunt_offsets()
+          output = deep_hunt()
           with open("all_offsets.json", "w") as jf:
-              json.dump(output_data, jf, indent=4)
+              json.dump(output, jf, indent=4)
 
-      - name: Upload Results
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Hex-Hunter-Results
+          name: Deep-Scan-Results
           path: all_offsets.json
