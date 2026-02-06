@@ -1,4 +1,4 @@
-name: FF-AI Hybrid Patcher (Zip Handler)
+name: FF-AI Hybrid Patcher (10MB Mega Cave)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         default: '1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx'
 
 jobs:
-  build_hybrid:
+  build_mega_hybrid:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -21,48 +21,49 @@ jobs:
           sudo apt-get install -y python3-pip curl unzip file
           pip install gdown lief
 
-      - name: 📥 1. Download and Extract Zip
+      - name: 📥 1. Download and Extract
         run: |
-          echo "جاري سحب الملف المضغوط من جوجل درايف..."
+          echo "جاري سحب الملف من جوجل درايف..."
           gdown --id ${{ github.event.inputs.drive_id }} -O archive.zip
           
-          echo "📦 جاري فك ضغط الأرشيف..."
-          unzip -o archive.zip -d extracted_files
-          
-          echo "🔍 البحث عن ملف libil2cpp.so داخل المجلدات..."
-          # هذا الأمر سيبحث عن الملف مهما كان مكانه داخل الزيب وينقله للمجلد الرئيسي
-          find extracted_files -name "libil2cpp.so" -exec mv {} ./libil2cpp.so \;
+          echo "📦 فك الضغط والبحث عن المكتبة..."
+          unzip -o archive.zip -d temp_folder
+          find temp_folder -name "libil2cpp.so" -exec mv {} ./libil2cpp.so \;
           
           if [ ! -f "libil2cpp.so" ]; then
-            echo "❌ خطأ: لم نجد ملف libil2cpp.so داخل ملف الـ Zip!"
+            echo "❌ لم يتم العثور على libil2cpp.so!"
             exit 1
           fi
-          echo "✅ تم العثور على المكتبة بنجاح وحجمها: $(du -h libil2cpp.so | cut -f1)"
 
-      - name: 🏗️ 2. Inject Code Cave & Modern Logic
+      - name: 🏗️ 2. Inject 10MB Mega Cave
         run: |
           python3 -c "
           import lief
           import sys
 
-          # فتح الملف بعد استخراجه من الزيب
           lib = lief.parse('libil2cpp.so')
           if lib is None:
-              print('❌ فشل LIEF في قراءة الملف المستخرج!')
               sys.exit(1)
 
-          # إنشاء المنطقة الحرة (2MB)
-          section = lief.ELF.Section('.user_logic')
-          section.content = [0] * (2 * 1024 * 1024) 
-          section.flags = 7 # R-W-X
+          # إنشاء منطقة حرة ضخمة (10 ميجابايت)
+          # 10 * 1024 * 1024 = 10,485,760 bytes
+          mega_size = 10 * 1024 * 1024
+          section = lief.ELF.Section('.user_logic_mega')
+          section.content = [0] * mega_size
+          
+          # صلاحيات كاملة: Read + Write + Execute
+          section.flags = 7 
           
           lib.add(section)
-          lib.write('libil2cpp_hybrid.so')
-          print('✅ تم حقن المنطقة الحرة بنجاح.')
+          
+          # إضافة 'وسم' خاص للمنطقة لسهولة التعرف عليها في MT Manager
+          print('💉 Mega Cave (10MB) Injected Successfully!')
+          
+          lib.write('libil2cpp_10mb_hybrid.so')
           "
 
-      - name: 🚀 3. Upload Result
+      - name: 🚀 3. Upload Mega Library
         uses: actions/upload-artifact@v4
         with:
-          name: FF-Hybrid-Ready-Lib
-          path: libil2cpp_hybrid.so
+          name: FF-10MB-Hybrid-Lib
+          path: libil2cpp_10mb_hybrid.so
