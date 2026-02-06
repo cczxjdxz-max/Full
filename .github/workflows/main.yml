@@ -1,7 +1,7 @@
 name: Ultimate Full Library Scanner 2026
 
 on:
-  workflow_dispatch: # تشغيل يدوي
+  workflow_dispatch:
 
 jobs:
   deep_scan:
@@ -19,55 +19,51 @@ jobs:
         shell: python
         run: |
           import os
-          import struct
+          import glob
 
-          # اسم الملف المستهدف (تأكد أن الملف مرفوع في المستودع بنفس الاسم)
-          target_file = "libil2cpp.so"
+          # البحث عن أي ملف ينتهي بـ .so داخل المستودع
+          so_files = glob.glob("**/*.so", recursive=True)
+          
+          if not so_files:
+              print("❌ Error: No .so files found in the repository!")
+              # إنشاء ملف فارغ لمنع تعطل الأكشن تماماً وتوضيح الخطأ
+              with open("Complete_Offsets_List.txt", "w") as f:
+                  f.write("Error: libil2cpp.so file was not found in the repository.")
+              exit(0)
+
+          target_file = so_files[0]
+          print(f"✅ Found file: {target_file}")
+          
           output_file = "Complete_Offsets_List.txt"
-
-          def extract_all_offsets(file_path):
-              if not os.path.exists(file_path):
-                  print(f"❌ Error: {file_path} not found in workspace!")
-                  return False
-
-              offsets = []
-              # أنماط ترويسة الدوال في ARM64
-              # 1. STP X29, X30, [SP, #...]!
-              # 2. SUB SP, SP, #...
-              patterns = [b'\xFD\x7B\xBF\xA9', b'\xFF\x43\x00\xD1', b'\xFD\x7B\xBA\xA9']
-              
-              print(f"🔍 Scanning {file_path} for function signatures...")
-              
-              with open(file_path, "rb") as f:
-                  data = f.read()
-                  for pattern in patterns:
-                      current_pos = 0
-                      while True:
-                          current_pos = data.find(pattern, current_pos)
-                          if current_pos == -1: break
-                          offsets.append(current_pos)
-                          current_pos += 4
-              
-              # ترتيب العناوين وحذف المكرر
-              unique_offsets = sorted(list(set(offsets)))
-              
-              with open(output_file, "w") as out:
-                  out.write(f"--- FULL MEMORY SCAN REPORT (Free Fire 2026) ---\n")
-                  out.write(f"Total Unique Addresses Found: {len(unique_offsets)}\n")
-                  out.write("-" * 45 + "\n\n")
-                  for addr in unique_offsets:
-                      out.write(f"{hex(addr)}\n")
-              
-              print(f"✅ Success! Found {len(unique_offsets)} functions and saved to {output_file}")
-              return True
-
-          extract_all_offsets(target_file)
+          offsets = []
+          patterns = [b'\xFD\x7B\xBF\xA9', b'\xFF\x43\x00\xD1', b'\xFD\x7B\xBA\xA9']
+          
+          print(f"🔍 Scanning {target_file}...")
+          
+          with open(target_file, "rb") as f:
+              data = f.read()
+              for pattern in patterns:
+                  current_pos = 0
+                  while True:
+                      current_pos = data.find(pattern, current_pos)
+                      if current_pos == -1: break
+                      offsets.append(current_pos)
+                      current_pos += 4
+          
+          unique_offsets = sorted(list(set(offsets)))
+          
+          with open(output_file, "w") as out:
+              out.write(f"--- FULL MEMORY SCAN REPORT ---\n")
+              out.write(f"Source File: {target_file}\n")
+              out.write(f"Total Functions Found: {len(unique_offsets)}\n\n")
+              for addr in unique_offsets:
+                  out.write(f"{hex(addr)}\n")
+          
+          print(f"✅ Extracted {len(unique_offsets)} offsets.")
 
       - name: Verify and Upload Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Full-Library-Dump-2026
           path: Complete_Offsets_List.txt
-          if-no-files-found: error # سيفشل الأكشن إذا لم يتم إنشاء الملف
           retention-days: 5
