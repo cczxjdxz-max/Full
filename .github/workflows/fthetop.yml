@@ -1,4 +1,4 @@
-name: Big APK Deep Extractor (Final Fix)
+name: Big APK Deep Extractor (Final Stable)
 
 on:
   push:
@@ -10,78 +10,84 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
       - name: Download & Extract APK
         run: |
-          echo "[+] Downloading APK..."
+          echo "[+] Downloading Free Fire APK (500MB+)..."
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          
+          echo "[+] Unzipping APK and searching for files..."
           unzip -q game.apk -d base_dir
           
-          # نقل الملفات للمجلد الرئيسي
+          # البحث الشامل عن المكتبة والميتادات ونقلها للمجلد الرئيسي
           find base_dir -name "libil2cpp.so" -exec cp {} ./libil2cpp.so \;
           find base_dir -name "global-metadata.dat" -exec cp {} ./global-metadata.dat \;
           
           if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
-             echo "[+] Files found."
+             echo "[+] Found libil2cpp.so and global-metadata.dat"
           else
-             echo "[-] Error: Essential files missing."
+             echo "[-] Error: Required files not found in APK."
              exit 1
           fi
 
-      - name: Build and Run Dumper (Unified Step)
+      - name: Build and Run Dumper
         run: |
-          # 1. بناء الأداة
-          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git source_code
-          cd source_code
-          dotnet build -c Release -f net8.0
+          # 1. جلب كود الأداة
+          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git
           
-          # 2. تحديد موقع الـ DLL بدقة داخل نفس الخطوة
-          DLL_PATH=$(find bin/Release/net8.0 -name "Il2CppDumper.dll" | head -n 1)
-          echo "[+] Found DLL at: $DLL_PATH"
+          # 2. إيجاد مسار ملف المشروع .csproj
+          PROJ_FILE=$(find Il2CppDumper -name "Il2CppDumper.csproj" | head -n 1)
+          echo "[+] Using project file: $PROJ_FILE"
           
-          # 3. تشغيل الأداة فوراً (نستخدم ../ للرجوع للمكان الموجود فيه libil2cpp.so)
-          echo "1" | dotnet "$DLL_PATH" ../libil2cpp.so ../global-metadata.dat ../
-          
-          cd ..
-          if [ -f "dump.cs" ]; then
-             echo "[+] dump.cs created successfully!"
-          else
-             echo "[-] dump.cs not found. Checking if it's inside source_code folder..."
-             [ -f "source_code/dump.cs" ] && cp source_code/dump.cs .
-          fi
+          # 3. تشغيل الأداة مباشرة (dotnet run سيتولى البناء والتشغيل معاً)
+          # نستخدم $(pwd) لضمان أن المسارات للملفات دقيقة 100%
+          BASE_PATH=$(pwd)
+          echo "1" | dotnet run --project "$PROJ_FILE" -c Release -f net8.0 -- "$BASE_PATH/libil2cpp.so" "$BASE_PATH/global-metadata.dat" "$BASE_PATH"
 
-      - name: Final Python JSON Pack
+      - name: Process Output with Python
         shell: python
         run: |
           import os, re, json
-          output_file = "all_offsets.json"
-          # البحث عن الملف في المجلد الحالي أو المجلد الفرعي
-          target = "dump.cs" if os.path.exists("dump.cs") else "source_code/dump.cs"
           
-          if os.path.exists(target):
-              data = {}
-              with open(target, "r", encoding="utf-8") as f:
+          output_json = "all_offsets.json"
+          # البحث عن ملف dump.cs في كل المجلدات (لأنه قد يظهر في مجلد الأداة أو الرئيسي)
+          dump_path = None
+          for root, dirs, files in os.walk('.'):
+              if "dump.cs" in files:
+                  dump_path = os.path.join(root, "dump.cs")
+                  break
+          
+          if dump_path:
+              print(f"[+] Found {dump_path}. Starting extraction...")
+              offsets = {}
+              # نمط البحث عن الاسم والعنوان (RVA)
+              pattern = re.compile(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(")
+              
+              with open(dump_path, "r", encoding="utf-8") as f:
                   content = f.read()
-                  matches = re.finditer(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(", content)
-                  for m in matches:
-                      data[m.group(2)] = m.group(1)
-              with open(output_file, "w") as jf:
-                  json.dump(data, jf, indent=4)
-              print(f"[+] Success! {len(data)} methods extracted.")
+                  for match in pattern.finditer(content):
+                      addr, name = match.groups()
+                      offsets[name] = addr
+              
+              # حفظ النتائج في ملف JSON مرتب
+              with open(output_json, "w", encoding="utf-8") as jf:
+                  json.dump(offsets, jf, indent=4)
+              print(f"[+] Success! Extracted {len(offsets)} offsets.")
           else:
-              # تقرير فشل ذكي
-              with open(output_file, "w") as jf:
-                  json.dump({"error": "dump.cs not found after execution", "files": os.listdir('.')}, jf)
+              # إذا فشل الدامبر في إنتاج الملف (بسبب التشفير مثلاً)
+              with open(output_json, "w") as jf:
+                  json.dump({"error": "dump.cs not found. Library might be encrypted or protected."}, jf)
 
-      - name: Upload Result
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Full-Game-Offsets
+          name: FreeFire-Offsets
           path: all_offsets.json
+          retention-days: 2
