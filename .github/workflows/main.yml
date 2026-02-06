@@ -1,51 +1,67 @@
-name: Full Library Hex Translator
+name: Ultimate Full Library Scanner
 
 on:
-  workflow_dispatch: # تشغيل يدوي
+  workflow_dispatch: # تشغيل يدوي عند الطلب
 
 jobs:
-  translate:
+  deep_scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup Environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils-aarch64-linux-gnu
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Automated Translation Script
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run Deep Offset Scanner
         shell: python
         run: |
-          import struct
           import os
+          import struct
 
-          # محاكاة استخراج البيانات من الهيكس الضخم الذي أرسلته
-          # هذا الجزء يبحث عن نمط (Pointer to Function) في ARM64
-          def translate_hex_to_offsets():
-              print("🔍 Starting Full Translation of libil2cpp.so...")
-              
-              # في ARM64 العناوين تكون 8 بايت (Little Endian)
-              # من الهيكس الخاص بك، رصدنا سلسلة تبدأ من 0x09FA0000 وما بعدها
-              
-              base_offsets = [
-                  0x09FAD6F0, 0x09FAD718, 0x09FAD730, 0x09FAD748,
-                  0x09FAD820, 0x09FAD910, 0x09FB2970, 0x0A874000
-              ]
-              
-              with open("Final_Offsets_Report.txt", "w") as f:
-                  f.write("--- Free Fire 2026 Offset Translation Report ---\n")
-                  f.write(f"Architecture: ARM64 (ELF64)\n\n")
-                  
-                  for i, addr in enumerate(base_offsets):
-                      # هنا نقوم بحساب الأوفست الحقيقي (العنوان - قاعدة الملف)
-                      real_offset = hex(addr) 
-                      f.write(f"ID: {i:03d} | Offset: {real_offset} | Status: Active_Function\n")
-              
-              print("✅ Translation Complete! Check Final_Offsets_Report.txt")
+          def extract_all_offsets(file_path):
+              if not os.path.exists(file_path):
+                  print(f"❌ Error: {file_path} not found!")
+                  return
 
-          translate_hex_to_offsets()
+              offsets = []
+              # النمط المشترك لبداية الدوال في ARM64 (STP X29, X30, [SP, #...]!)
+              # وهناك أنماط أخرى مثل (SUB SP, SP, #...)
+              patterns = [b'\xFD\x7B\xBF\xA9', b'\xFF\x43\x00\xD1', b'\xFD\x7B\xBA\xA9']
+              
+              print("🔍 Scanning for all function signatures...")
+              
+              with open(file_path, "rb") as f:
+                  data = f.read()
+                  for pattern in patterns:
+                      current_pos = 0
+                      while True:
+                          current_pos = data.find(pattern, current_pos)
+                          if current_pos == -1: break
+                          offsets.append(current_pos)
+                          current_pos += 4
+              
+              # إزالة العناوين المكررة وترتيبها
+              unique_offsets = sorted(list(set(offsets)))
+              
+              with open("Complete_Offsets_List.txt", "w") as out:
+                  out.write(f"--- FULL MEMORY SCAN REPORT ---\n")
+                  out.write(f"Target: {file_path}\n")
+                  out.write(f"Total Unique Addresses Found: {len(unique_offsets)}\n")
+                  out.write("-" * 35 + "\n\n")
+                  for addr in unique_offsets:
+                      out.write(f"{hex(addr)}\n")
+              
+              print(f"✅ Success! Found {len(unique_offsets)} functions.")
 
-      - name: Upload Report
+          # تأكد من أن اسم الملف يطابق ملفك
+          extract_all_offsets("libil2cpp.so")
+
+      - name: Upload Full Results
         uses: actions/upload-artifact@v4
         with:
-          name: Offset-Translation-Map
-          path: Final_Offsets_Report.txt
+          name: Full-Library-Dump-2026
+          path: Complete_Offsets_List.txt
+          retention-days: 5
