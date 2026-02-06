@@ -1,1 +1,95 @@
-نت
+name: Big APK Deep Extractor (No-Crash Edition)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download & Extract APK
+        run: |
+          echo "[+] Downloading Free Fire APK..."
+          wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
+          
+          echo "[+] Extracting files..."
+          unzip -q game.apk -d base_dir
+          find base_dir -name "libil2cpp.so" -exec cp {} ./libil2cpp.so \;
+          find base_dir -name "global-metadata.dat" -exec cp {} ./global-metadata.dat \;
+          
+          if [ -f "libil2cpp.so" ] && [ -f "global-metadata.dat" ]; then
+             echo "[+] Files are ready."
+          else
+             echo "[-] Files missing. Exit."
+             exit 1
+          fi
+
+      - name: Patch, Build and Run Dumper
+        run: |
+          # 1. جلب الأداة
+          git clone --depth 1 https://github.com/Perfare/Il2CppDumper.git
+          
+          # 2. تعديل الكود المصدري لمنع الـ Crash (حذف Console.ReadKey)
+          # هذا التعديل يسمح للأداة بالانغلاق تلقائياً عند الخطأ بدلاً من تعليق الـ Workflow
+          sed -i 's/Console.ReadKey(true);//g' Il2CppDumper/Il2CppDumper/Program.cs
+          sed -i 's/Console.ReadKey();//g' Il2CppDumper/Il2CppDumper/Program.cs
+          
+          # 3. إيجاد ملف المشروع
+          PROJ_FILE=$(find Il2CppDumper -name "Il2CppDumper.csproj" | head -n 1)
+          BASE_PATH=$(pwd)
+          
+          # 4. محاولة التشغيل مع إرسال إدخالات آلية لتجربة أوضاع مختلفة
+          # نستخدم -e لتمرير عدة خيارات (1 ثم 2) في حال طلب الدامبر ذلك
+          echo -e "1\n2\n" | dotnet run --project "$PROJ_FILE" -c Release -f net8.0 -- "$BASE_PATH/libil2cpp.so" "$BASE_PATH/global-metadata.dat" "$BASE_PATH" || true
+
+      - name: Final Python JSON Pack
+        shell: python
+        run: |
+          import os, re, json
+          output_json = "all_offsets.json"
+          
+          # البحث عن dump.cs في كل مكان
+          dump_path = None
+          for root, dirs, files in os.walk('.'):
+              if "dump.cs" in files:
+                  dump_path = os.path.join(root, "dump.cs")
+                  break
+          
+          if dump_path:
+              print(f"[+] Found {dump_path}. Extracting...")
+              offsets = {}
+              pattern = re.compile(r"// RVA: (0x[A-F0-9]+).*?\n\s+.*? ([\w_<>]+)\(")
+              with open(dump_path, "r", encoding="utf-8") as f:
+                  content = f.read()
+                  for match in pattern.finditer(content):
+                      addr, name = match.groups()
+                      offsets[name] = addr
+              
+              with open(output_json, "w", encoding="utf-8") as jf:
+                  json.dump(offsets, jf, indent=4)
+          else:
+              # تقرير فشل مفصل إذا لم يتم إنتاج الملف
+              log_info = {
+                  "error": "Metadata is likely encrypted by Garena.",
+                  "status": "Dumper executed but no dump.cs was found.",
+                  "files_in_root": os.listdir('.')
+              }
+              with open(output_json, "w") as jf:
+                  json.dump(log_info, jf, indent=4)
+
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeFire-Result
+          path: all_offsets.json
