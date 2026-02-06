@@ -1,7 +1,7 @@
-name: Ultimate Full Library Scanner
+name: Ultimate Full Library Scanner 2026
 
 on:
-  workflow_dispatch: # تشغيل يدوي عند الطلب
+  workflow_dispatch: # تشغيل يدوي
 
 jobs:
   deep_scan:
@@ -21,17 +21,22 @@ jobs:
           import os
           import struct
 
+          # اسم الملف المستهدف (تأكد أن الملف مرفوع في المستودع بنفس الاسم)
+          target_file = "libil2cpp.so"
+          output_file = "Complete_Offsets_List.txt"
+
           def extract_all_offsets(file_path):
               if not os.path.exists(file_path):
-                  print(f"❌ Error: {file_path} not found!")
-                  return
+                  print(f"❌ Error: {file_path} not found in workspace!")
+                  return False
 
               offsets = []
-              # النمط المشترك لبداية الدوال في ARM64 (STP X29, X30, [SP, #...]!)
-              # وهناك أنماط أخرى مثل (SUB SP, SP, #...)
+              # أنماط ترويسة الدوال في ARM64
+              # 1. STP X29, X30, [SP, #...]!
+              # 2. SUB SP, SP, #...
               patterns = [b'\xFD\x7B\xBF\xA9', b'\xFF\x43\x00\xD1', b'\xFD\x7B\xBA\xA9']
               
-              print("🔍 Scanning for all function signatures...")
+              print(f"🔍 Scanning {file_path} for function signatures...")
               
               with open(file_path, "rb") as f:
                   data = f.read()
@@ -43,25 +48,26 @@ jobs:
                           offsets.append(current_pos)
                           current_pos += 4
               
-              # إزالة العناوين المكررة وترتيبها
+              # ترتيب العناوين وحذف المكرر
               unique_offsets = sorted(list(set(offsets)))
               
-              with open("Complete_Offsets_List.txt", "w") as out:
-                  out.write(f"--- FULL MEMORY SCAN REPORT ---\n")
-                  out.write(f"Target: {file_path}\n")
+              with open(output_file, "w") as out:
+                  out.write(f"--- FULL MEMORY SCAN REPORT (Free Fire 2026) ---\n")
                   out.write(f"Total Unique Addresses Found: {len(unique_offsets)}\n")
-                  out.write("-" * 35 + "\n\n")
+                  out.write("-" * 45 + "\n\n")
                   for addr in unique_offsets:
                       out.write(f"{hex(addr)}\n")
               
-              print(f"✅ Success! Found {len(unique_offsets)} functions.")
+              print(f"✅ Success! Found {len(unique_offsets)} functions and saved to {output_file}")
+              return True
 
-          # تأكد من أن اسم الملف يطابق ملفك
-          extract_all_offsets("libil2cpp.so")
+          extract_all_offsets(target_file)
 
-      - name: Upload Full Results
+      - name: Verify and Upload Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Full-Library-Dump-2026
           path: Complete_Offsets_List.txt
+          if-no-files-found: error # سيفشل الأكشن إذا لم يتم إنشاء الملف
           retention-days: 5
