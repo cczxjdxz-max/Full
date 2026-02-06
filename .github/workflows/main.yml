@@ -1,64 +1,85 @@
-name: Global IL2CPP Dumper 2026
+name: Build Dumper from Source & Full Map
 
 on:
   workflow_dispatch:
 
 jobs:
-  full_dump:
+  build_and_dump:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Dotnet (Required for Dumper)
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.x'
+          dotnet-version: '6.0.x' # النسخة المطلوبة لبناء الأداة
 
-      - name: Download Files and Dumper
+      - name: Download & Build Il2CppDumper Source
         run: |
-          # تحميل اللعبة
+          echo "🔨 Cloning Il2CppDumper source code..."
+          git clone https://github.com/Perfare/Il2CppDumper.git
+          cd Il2CppDumper
+          echo "🚀 Building the tool from source..."
+          dotnet build -c Release
+          echo "✅ Build successful."
+          # نقل الملفات التنفيذية للمجلد الرئيسي
+          cp -r bin/Release/net6.0/* ../
+          cd ..
+
+      - name: Download Free Fire & Extract
+        run: |
+          echo "📥 Downloading APK..."
           curl -L "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk" -o FreeFire.apk
+          echo "📦 Extracting core files..."
           unzip -j FreeFire.apk "lib/arm64-v8a/libil2cpp.so" -d ./
           unzip -j FreeFire.apk "assets/bin/Data/Managed/Metadata/global-metadata.dat" -d ./
-          
-          # تحميل أداة Il2CppDumper (نسخة CLI لـ Linux)
-          curl -L "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.40/Il2CppDumper-v6.7.40.zip" -o dumper.zip
-          unzip dumper.zip -d dumper_tool
 
-      - name: Execute Dump
+      - name: Execute Custom Dump
         run: |
-          # تشغيل الـ Dumper لربط العناوين بالأسماء
-          # سنستخدم Python لتمرير المدخلات للأداة
-          echo -e "./libil2cpp.so\n./global-metadata.dat" | dotnet ./dumper_tool/Il2CppDumper.dll
-          
-      - name: Format and Translate Output
+          # تشغيل الأداة التي بنيناها للتو
+          # نستخدم echo لتمرير مسارات الملفات للأداة تلقائياً
+          ./Il2CppDumper ./libil2cpp.so ./global-metadata.dat ./Output_Data
+
+      - name: Generate Final Classified Dictionary
         shell: python
         run: |
-          # تنظيف الملف الناتج وترجمته ليكون سهل القراءة
+          import os
           import re
-          
-          with open("DummyDll/dump.cs", "r") as f:
-              content = f.read()
+
+          dump_path = "./Output_Data/dump.cs"
+          if not os.path.exists(dump_path):
+              print("❌ Error: dump.cs was not generated!")
+              exit(1)
+
+          with open(dump_path, "r", encoding="utf-8") as f:
+              data = f.read()
+
+          # استخراج كل الدوال: العنوان، الكلاس، واسم الدالة
+          # البحث عن نمط // RVA: 0x... ثم السطر الذي يليه
+          pattern = r"// RVA: (0x[0-9A-F]+).*?\n\s+(?:public|private|protected|internal).*?\s+(\w+)\("
+          matches = re.findall(pattern, data, re.MULTILINE)
+
+          with open("FULL_SOURCE_DUMP_2026.txt", "w", encoding="utf-8") as out:
+              out.write("--- FREE FIRE 2026: SOURCE-BUILT DICTIONARY ---\n")
+              out.write(f"Total Functions Mapped: {len(matches)}\n")
+              out.write("-" * 50 + "\n\n")
               
-          # استخراج العناوين والأسماء فقط
-          matches = re.findall(r"// RVA: (0x[0-9A-F]+).*?\n\s+(.*?)\(.*?\)", content, re.MULTILINE)
-          
-          with open("Every_Single_Function_2026.txt", "w") as out:
-              out.write("--- FREE FIRE 2026 COMPLETE DICTIONARY ---\n\n")
               for rva, name in matches:
-                  # ترجمة مبسطة لبعض الكلمات المفتاحية
-                  desc = ""
-                  if "Speed" in name: desc = " (سرعة)"
-                  elif "Damage" in name: desc = " (ضرر)"
-                  elif "Jump" in name: desc = " (قفز)"
-                  elif "Recoil" in name: desc = " (ارتداد)"
-                  elif "Aim" in name: desc = " (تصويب)"
+                  # تصنيف ذكي للوظائف بالعربية
+                  info = ""
+                  if any(x in name.lower() for x in ["speed", "move", "walk"]): info = " [سرعة/حركة]"
+                  elif any(x in name.lower() for x in ["recoil", "shake", "spread"]): info = " [ثبات سلاح]"
+                  elif any(x in name.lower() for x in ["damage", "hit", "attack"]): info = " [ضرر/طلقة]"
+                  elif any(x in name.lower() for x in ["aim", "target", "lookat"]): info = " [توجيه/آيم]"
+                  elif any(x in name.lower() for x in ["jump", "gravity", "fly"]): info = " [قفز/طيران]"
                   
-                  out.write(f"Offset: {rva} | Function: {name}{desc}\n")
+                  out.write(f"Address: {rva} | Function: {name}{info}\n")
 
       - name: Upload Everything
         uses: actions/upload-artifact@v4
         with:
-          name: Full-Game-Functions-2026
-          path: Every_Single_Function_2026.txt
+          name: Full-Source-Built-Data
+          path: |
+            FULL_SOURCE_DUMP_2026.txt
+            Output_Data/script.py
