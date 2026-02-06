@@ -1,4 +1,4 @@
-name: Ultimate Hex & ELF Extractor (Fix Error 8)
+name: Hex Hunter (The Final Stand)
 
 on:
   push:
@@ -6,77 +6,64 @@ on:
   workflow_dispatch:
 
 jobs:
-  extract:
+  hunt:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET & Dependencies
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      
-      - name: Install System Libs
+      - name: Prepare 166MB Library
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libicu-dev libssl-dev
-
-      - name: Download and Prepare Files
-        run: |
-          # استبدل الرابط برابط الـ APK الخاص بك
           wget -q -O game.apk "https://dl.cdn.freefiremobile.com/live/package/FreeFire.apk"
           unzip -q game.apk -d base_dir
           find base_dir -name "libil2cpp.so" -exec cp {} ./lib.so \;
-          find base_dir -name "global-metadata.dat" -exec cp {} ./metadata.dat \;
+          echo "[+] Lib Ready: $(ls -lh lib.so)"
 
-      - name: Hex-Fix Metadata
+      - name: Internal Hex Analysis
         shell: python
         run: |
-          import os
-          if os.path.exists("metadata.dat"):
-              with open("metadata.dat", "rb") as f:
-                  data = bytearray(f.read())
-              # إصلاح الـ Magic Number للهيكس ليتوافق مع المعايير (AF 1B B1 FA)
-              data[0:4] = b'\xAF\x1B\xB1\xFA'
-              with open("fixed_metadata.dat", "wb") as f:
-                  f.write(data)
+          import os, json, struct
 
-      - name: Run Cpp2IL with DLL Mode
-        # سنستخدم نسخة الـ DLL لأنها أكثر استقراراً في بيئة GitHub
-        run: |
-          wget -q https://github.com/SamboyCoding/Cpp2IL/releases/download/v2022.1.0-pre-release.10/Cpp2IL-Net8.0-Windows-v2022.1.0-pre-release.10.zip -O cpp2il.zip
-          unzip -q cpp2il.zip -d cpp2il_dir
-          
-          # تشغيل النسخة عبر محرك dotnet مباشرة لتجنب مشاكل الـ Linux Binaries
-          BASE=$(pwd)
-          echo "1" | dotnet ./cpp2il_dir/Cpp2IL.dll --game-path "$BASE" --lib "$BASE/lib.so" --metadata "$BASE/fixed_metadata.dat" --output-as-csv --analysis-level 0 || true
+          def hunt_offsets():
+              lib_path = "lib.so"
+              if not os.path.exists(lib_path): return {"error": "Lib not found"}
+              
+              results = {}
+              with open(lib_path, "rb") as f:
+                  # قراءة رأس ELF (الذي أرسلته سابقاً)
+                  header = f.read(64)
+                  # التحقق من بصمة ELF 64-bit
+                  if header[:4] != b'\x7fELF': return {"error": "Not a valid ELF"}
+                  
+                  f.seek(0)
+                  data = f.read() # قراءة الـ 166 ميجا كاملة في الذاكرة
 
-      - name: Emergency Python Hex Scanner
-        if: always()
-        shell: python
-        run: |
-          import os, json, re
-          
-          final_data = {}
-          # إذا نجحت الأداة في إنتاج ملف CSV
-          if os.path.exists("cpp2il_out.csv"):
-              with open("cpp2il_out.csv", "r") as f:
-                  for line in f:
-                      p = line.split(',')
-                      if len(p) >= 3: final_data[p[1].strip()] = p[2].strip()
-          
-          # إذا فشلت، سنبحث عن دوال مشهورة في الهيكس (Pattern Matching)
-          if not final_data:
-              final_data["Note"] = "Standard tools failed. File remains encrypted or obfuscated."
-              final_data["File_Header_Check"] = "ELF 64-bit Detected"
+                  # البحث عن أنماط الدوال الشائعة (Function Prologues) لـ ARM64
+                  # نمط: STP X29, X30, [SP, #-0x10]! (توقيع بداية معظم الدوال)
+                  pattern = b'\xFD\x7B\xBF\xA9'
+                  
+                  count = 0
+                  offsets = []
+                  pos = data.find(pattern)
+                  while pos != -1 and count < 5000: # استخراج أول 5000 دالة
+                      offsets.append(hex(pos))
+                      pos = data.find(pattern, pos + 1)
+                      count += 1
+                  
+                  return {
+                      "Total_Functions_Found": len(offsets),
+                      "Sample_Offsets": offsets[:100], # سنأخذ أول 100 عينة كبداية
+                      "Architecture": "ARM64",
+                      "Message": "Raw Hex Scan Success (Metadata Ignored)"
+                  }
 
+          output_data = hunt_offsets()
           with open("all_offsets.json", "w") as jf:
-              json.dump(final_data, jf, indent=4)
+              json.dump(output_data, jf, indent=4)
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
         with:
-          name: Analysis-Results
+          name: Hex-Hunter-Results
           path: all_offsets.json
