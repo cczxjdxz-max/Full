@@ -1,66 +1,49 @@
-name: FF-1.97.1-Hybrid-Patcher-50MB
+name: FF 1.97.1 Offline Patcher
 
 on:
   workflow_dispatch:
-    inputs:
-      drive_id:
-        description: 'ID ملف جوجل درايف'
-        required: true
-        default: '1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx'
 
 jobs:
-  build_50mb_patch:
+  patch_process:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🛠️ Setup Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-pip curl unzip file
-          pip install gdown lief
+      - name: Install gdown
+        run: pip install gdown
 
-      - name: 📥 1. Download & Prepare Lib
+      - name: Download Libil2cpp
         run: |
-          gdown --id ${{ github.event.inputs.drive_id }} -O archive.zip
-          unzip -o archive.zip -d temp_folder
-          find temp_folder -name "libil2cpp.so" -exec mv {} ./libil2cpp.so \;
-          
-          if [ ! -f "libil2cpp.so" ]; then
-            echo "❌ لم يتم العثور على المكتبة داخل الزيب!"
-            exit 1
-          fi
-          echo "✅ المكتبة الأصلية (116MB) جاهزة."
+          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O libil2cpp.so
 
-      - name: 🏗️ 2. Inject 50MB Space (The Dragon Cave)
+      - name: Apply Master Patch (Offline + Skins)
         run: |
           python3 -c "
-          import lief
-          import sys
+          import os
 
-          lib = lief.parse('libil2cpp.so')
-          if lib is None:
-              sys.exit(1)
+          def patch_lib(offset, hex_code):
+              with open('libil2cpp.so', 'r+b') as f:
+                  f.seek(offset)
+                  f.write(bytes.fromhex(hex_code))
+                  print(f'Patched: {hex(offset)}')
 
-          # إنشاء منطقة 50 ميجابايت (52,428,800 بايت)
-          ultra_size = 50 * 1024 * 1024
-          section = lief.ELF.Section('.dragon_cave')
+          # --- أوفستات إصدار 1.97.1 (ARM64) ---
           
-          # نملأها بالأصفار لتكون جاهزة للكتابة
-          section.content = [0] * ultra_size
-          
-          # صلاحيات كاملة: قراءة، كتابة، تنفيذ (R-W-X)
-          section.flags = 7 
-          
-          lib.add(section)
-          
-          print('💉 Injected 50MB successfully into the 116MB Lib!')
-          lib.write('libil2cpp_50mb.so')
+          # 1. كسر فحص الاتصال بالإنترنت (Network Check Bypass)
+          # نجعل الدالة ترجع True دائماً (0100A0E31EFF2FE1)
+          patch_lib(0x315168c, '0100A0E31EFF2FE1') 
+
+          # 2. كسر حماية تسجيل الدخول (Login Skip)
+          patch_lib(0x3184e38, '0100A0E31EFF2FE1')
+
+          # 3. تفعيل السكنات من ملفات الـ Data (Local Assets Unlock)
+          # هذه الدالة تجبر اللعبة على قراءة الملفات المحلية بدلاً من التحقق من السيرفر
+          patch_lib(0x30bc4f0, '0100A0E31EFF2FE1')
           "
 
-      - name: 🚀 3. Upload Result (Ready for MT Manager)
+      - name: Upload Patched Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FF-1.97.1-50MB-Ready
-          path: libil2cpp_50mb.so
+          name: FF-1.97.1-Offline-Fixed
+          path: libil2cpp.so
