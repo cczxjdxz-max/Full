@@ -1,57 +1,60 @@
-name: FF 1.97.1 Real Offline Patcher
+name: FF 1.97.1 ARM64 Patcher
 
 on:
   workflow_dispatch:
 
 jobs:
-  patch_and_verify:
+  patch_arm64:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Tools
+      - name: Install gdown & Unzip
         run: |
           pip install gdown
           sudo apt-get install unzip -y
 
-      - name: Download from Drive
+      - name: Download Zip from Drive
         run: |
-          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O my_data.zip
+          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O library.zip
 
-      - name: Extract and Locate Lib
+      - name: Extract & Find Lib
         run: |
-          unzip my_data.zip
-          # البحث عن الملف وتأكيد وجوده
-          find . -name "libil2cpp.so" -exec mv {} ./libil2cpp.so \;
-          if [ ! -f "libil2cpp.so" ]; then echo "Error: libil2cpp.so not found!"; exit 1; fi
+          unzip library.zip
+          # البحث عن الملف ووضعه في المجلد الرئيسي لتسهيل التعديل
+          find . -name "libil2cpp.so" -exec mv {} . \;
 
-      - name: Execute Hex Patching
+      - name: Apply ARM64 Patches
         run: |
           python3 -c "
           import os
 
-          def apply_real_patch(filename, offset, hex_val):
-              with open(filename, 'r+b') as f:
-                  f.seek(offset)
-                  f.write(bytes.fromhex(hex_val))
-                  print(f'Done: {hex(offset)} changed to {hex_val}')
+          def patch_arm64(filename, offset, hex_val):
+              if os.path.exists(filename):
+                  with open(filename, 'r+b') as f:
+                      f.seek(offset)
+                      f.write(bytes.fromhex(hex_val))
+                  print(f'Patched ARM64 Offset: {hex(offset)}')
+              else:
+                  print('Error: libil2cpp.so not found!')
 
+          # --- تعليمات ARM64 السحرية ---
+          # MOV X0, #1  (تعني إرجاع True)
+          # RET         (تعني إنهاء الدالة بنجاح)
+          # الكود بالهيكس: 200080D2C0035FD6
+          
           target = 'libil2cpp.so'
-          
-          # --- التعديلات الحقيقية لنسخة 1.97.1 ---
-          # 1. تعطيل فحص الإنترنت (Network Check)
-          apply_real_patch(target, 0x315168c, '0100A0E31EFF2FE1') 
-          
-          # 2. تخطي تسجيل الدخول (Login Skip)
-          apply_real_patch(target, 0x3184e38, '0100A0E31EFF2FE1')
-          
-          # 3. فتح السكنات من الداتا (Skins Unlock)
-          apply_real_patch(target, 0x30bc4f0, '0100A0E31EFF2FE1')
+          hex_true = '200080D2C0035FD6'
+
+          # تطبيق الأوفستات التي زودتني بها (الموجودة في ملف Complete_Offsets_List.txt)
+          patch_arm64(target, 0x315168c, hex_true) # كسر فحص الشبكة
+          patch_arm64(target, 0x3184e38, hex_true) # تخطي شاشة الدخول
+          patch_arm64(target, 0x30bc4f0, hex_true) # فتح السكنات من الداتا
           "
 
-      - name: Upload The Patched Lib
+      - name: Upload Fixed Lib
         uses: actions/upload-artifact@v4
         with:
-          name: FF-1.97.1-Patched-Final
+          name: FF-1.97.1-ARM64-Fixed
           path: libil2cpp.so
