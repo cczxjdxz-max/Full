@@ -1,49 +1,57 @@
-name: FF 1.97.1 Offline Patcher
+name: FF 1.97.1 Real Offline Patcher
 
 on:
   workflow_dispatch:
 
 jobs:
-  patch_process:
+  patch_and_verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install gdown
-        run: pip install gdown
-
-      - name: Download Libil2cpp
+      - name: Install Tools
         run: |
-          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O libil2cpp.so
+          pip install gdown
+          sudo apt-get install unzip -y
 
-      - name: Apply Master Patch (Offline + Skins)
+      - name: Download from Drive
+        run: |
+          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O my_data.zip
+
+      - name: Extract and Locate Lib
+        run: |
+          unzip my_data.zip
+          # البحث عن الملف وتأكيد وجوده
+          find . -name "libil2cpp.so" -exec mv {} ./libil2cpp.so \;
+          if [ ! -f "libil2cpp.so" ]; then echo "Error: libil2cpp.so not found!"; exit 1; fi
+
+      - name: Execute Hex Patching
         run: |
           python3 -c "
           import os
 
-          def patch_lib(offset, hex_code):
-              with open('libil2cpp.so', 'r+b') as f:
+          def apply_real_patch(filename, offset, hex_val):
+              with open(filename, 'r+b') as f:
                   f.seek(offset)
-                  f.write(bytes.fromhex(hex_code))
-                  print(f'Patched: {hex(offset)}')
+                  f.write(bytes.fromhex(hex_val))
+                  print(f'Done: {hex(offset)} changed to {hex_val}')
 
-          # --- أوفستات إصدار 1.97.1 (ARM64) ---
+          target = 'libil2cpp.so'
           
-          # 1. كسر فحص الاتصال بالإنترنت (Network Check Bypass)
-          # نجعل الدالة ترجع True دائماً (0100A0E31EFF2FE1)
-          patch_lib(0x315168c, '0100A0E31EFF2FE1') 
-
-          # 2. كسر حماية تسجيل الدخول (Login Skip)
-          patch_lib(0x3184e38, '0100A0E31EFF2FE1')
-
-          # 3. تفعيل السكنات من ملفات الـ Data (Local Assets Unlock)
-          # هذه الدالة تجبر اللعبة على قراءة الملفات المحلية بدلاً من التحقق من السيرفر
-          patch_lib(0x30bc4f0, '0100A0E31EFF2FE1')
+          # --- التعديلات الحقيقية لنسخة 1.97.1 ---
+          # 1. تعطيل فحص الإنترنت (Network Check)
+          apply_real_patch(target, 0x315168c, '0100A0E31EFF2FE1') 
+          
+          # 2. تخطي تسجيل الدخول (Login Skip)
+          apply_real_patch(target, 0x3184e38, '0100A0E31EFF2FE1')
+          
+          # 3. فتح السكنات من الداتا (Skins Unlock)
+          apply_real_patch(target, 0x30bc4f0, '0100A0E31EFF2FE1')
           "
 
-      - name: Upload Patched Artifact
+      - name: Upload The Patched Lib
         uses: actions/upload-artifact@v4
         with:
-          name: FF-1.97.1-Offline-Fixed
+          name: FF-1.97.1-Patched-Final
           path: libil2cpp.so
