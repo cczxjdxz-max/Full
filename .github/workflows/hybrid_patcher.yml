@@ -1,13 +1,13 @@
-name: FF 1.97.1 Ultra Fast Patcher
+name: FF 1.97.1 Anti-Crash Patcher
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_stable_tool:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup NDK
@@ -15,7 +15,7 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Create Advanced C++ Source
+      - name: Create Safe C++ Source
         run: |
           mkdir -p jni
           cat << 'EOF' > jni/main.cpp
@@ -28,15 +28,14 @@ jobs:
           #include <stdlib.h>
           #include <pthread.h>
 
-          #define LOG_TAG "FF_ULTRA_TOOL"
-          #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+          #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "FF_SAFE_TOOL", __VA_ARGS__)
 
           uintptr_t il2cpp_base = 0;
 
-          // دالة تعديل الذاكرة
           void patch_memory(uintptr_t address, const char* hex) {
               size_t size = strlen(hex) / 2;
               uintptr_t page_start = address & ~(getpagesize() - 1);
+              // التحقق من صحة العنوان قبل التعديل لمنع الكراش
               if (mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
                   for (size_t i = 0; i < size; i++) {
                       char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
@@ -59,41 +58,38 @@ jobs:
               return base;
           }
 
-          void* fast_injection_thread(void*) {
-              LOGI("Fast Patcher Started - Monitoring Memory...");
+          void* safe_injection_thread(void*) {
+              LOGI("Patcher standing by...");
               
-              // محاولة البحث عن المكتبة بسرعة فائقة لتخطي الشعار
-              for (int i = 0; i < 100; i++) {
+              // انتظار 12 ثانية كاملة (مهم جداً لتجاوز فحص جارينا الأولي)
+              sleep(12); 
+              
+              for (int i = 0; i < 30; i++) {
                   il2cpp_base = get_module_base("libil2cpp.so");
                   if (il2cpp_base != 0) break;
-                  usleep(100000); // فحص كل 0.1 ثانية
+                  sleep(1);
               }
 
               if (il2cpp_base != 0) {
                   const char* hex_true = "200080D2C0035FD6";
                   const char* hex_false = "000080D2C0035FD6";
 
-                  // 1. تخطي شعار جارينا (Splash Skip)
-                  patch_memory(il2cpp_base + 0x18c5e00, hex_false); 
-                  patch_memory(il2cpp_base + 0x18c6420, hex_true);
-
-                  // 2. كسر فحص الإنترنت والصيانة (Fix Loading Loop)
-                  patch_memory(il2cpp_base + 0x315168c, hex_true);  // Network Bypass
-                  patch_memory(il2cpp_base + 0x1892604, hex_false); // Server Status (No Maintenance)
-                  patch_memory(il2cpp_base + 0x30bd728, hex_false); // CheckUpdate Bypass
-
-                  // 3. تخطي تسجيل الدخول وتفعيل السكنات
-                  patch_memory(il2cpp_base + 0x3184e38, hex_true);  // Auto Login
-                  patch_memory(il2cpp_base + 0x30bc4f0, hex_true);  // Local Skins
+                  // تم حذف أوفستات تخطي الشعار لأنها تسبب كراش في بعض الهواتف
+                  // سنركز فقط على الأوفلاين والسكنات لضمان الاستقرار
                   
-                  LOGI("PATCH SUCCESS: Everything Unlocked and Speeded Up!");
+                  patch_memory(il2cpp_base + 0x315168c, hex_true);  // Network
+                  patch_memory(il2cpp_base + 0x1892604, hex_false); // Maintenance
+                  patch_memory(il2cpp_base + 0x3184e38, hex_true);  // Login Bypass
+                  patch_memory(il2cpp_base + 0x30bc4f0, hex_true);  // Skins
+                  
+                  LOGI("SAFE PATCH APPLIED SUCCESSFULLY!");
               }
               return NULL;
           }
 
           void __attribute__((constructor)) init() {
               pthread_t ptid;
-              pthread_create(&ptid, NULL, fast_injection_thread, NULL);
+              pthread_create(&ptid, NULL, safe_injection_thread, NULL);
           }
           EOF
 
@@ -109,11 +105,11 @@ jobs:
           echo "APP_ABI := arm64-v8a" > jni/Application.mk
           echo "APP_PLATFORM := android-21" >> jni/Application.mk
 
-      - name: Build with NDK
+      - name: Build
         run: ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
 
-      - name: Upload Only SuperTool
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: libSuperTool_Pro_V3
+          name: libSuperTool_Safe_V4
           path: libs/arm64-v8a/libSuperTool.so
