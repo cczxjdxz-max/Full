@@ -1,23 +1,21 @@
-name: FF 1.97.1 Master Build Tool
+name: FF 1.97.1 Pro Patcher (No Black Screen)
 
 on:
-  workflow_dispatch: # تشغيل يدوي من واجهة GitHub
+  workflow_dispatch:
 
 jobs:
-  build_everything:
+  build_and_fix:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Environment
+      - name: Setup Tools
         run: |
           pip install gdown
-          sudo apt-get install unzip python3 -y
+          sudo apt-get install unzip -y
 
-      # 1. إنشاء مجلد الكود المصدري للأداة C++ (jni)
-      - name: Create C++ Source Code
+      - name: Create Advanced C++ Source
         run: |
           mkdir -p jni
           cat << 'EOF' > jni/main.cpp
@@ -28,19 +26,24 @@ jobs:
           #include <string.h>
           #include <stdint.h>
           #include <stdlib.h>
+          #include <pthread.h>
 
           #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "OFFLINE_TOOL", __VA_ARGS__)
 
+          // دالة تعديل الذاكرة الآمنة
           void patch_memory(uintptr_t address, const char* hex) {
               size_t size = strlen(hex) / 2;
               uintptr_t page_start = address & ~(getpagesize() - 1);
-              mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC);
-              for (size_t i = 0; i < size; i++) {
-                  char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
-                  ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
+              if (mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
+                  for (size_t i = 0; i < size; i++) {
+                      char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
+                      ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
+                  }
+                  LOGI("Patched successfully at: %p", (void*)address);
               }
           }
 
+          // الحصول على عنوان المكتبة في الذاكرة
           uintptr_t get_module_base(const char* module_name) {
               FILE* fp = fopen("/proc/self/maps", "r");
               char line[512];
@@ -55,21 +58,40 @@ jobs:
               return base;
           }
 
-          void __attribute__((constructor)) init() {
-              LOGI("Patcher Started - Waiting for libil2cpp.so...");
-              uintptr_t il2cpp_base = 0;
-              while (il2cpp_base == 0) {
-                  il2cpp_base = get_module_base("libil2cpp.so");
-                  usleep(100000); 
-              }
-              // كود ARM64 للـ Return True: MOV X0, #1 | RET
-              const char* hex_true = "200080D2C0035FD6";
+          // الخيط المنفصل للحقن (Thread)
+          void* injection_thread(void*) {
+              LOGI("Thread started: Waiting for Game to Load...");
               
-              // تطبيق الأوفستات التي زودتني بها
-              patch_memory(il2cpp_base + 0x315168c, hex_true); // Network Bypass
-              patch_memory(il2cpp_base + 0x3184e38, hex_true); // Login Bypass
-              patch_memory(il2cpp_base + 0x30bc4f0, hex_true); // Local Skins
-              LOGI("SUCCESS: Offline & Skins Patched!");
+              uintptr_t il2cpp_base = 0;
+              // المحاولة لمدة دقيقة حتى يتم تحميل المكتبة الأصلية
+              for (int i = 0; i < 60; i++) {
+                  il2cpp_base = get_module_base("libil2cpp.so");
+                  if (il2cpp_base != 0) break;
+                  sleep(1); 
+              }
+
+              if (il2cpp_base != 0) {
+                  LOGI("Found libil2cpp.so at %p. Applying patches...", (void*)il2cpp_base);
+                  
+                  // ARM64: MOV X0, #1 | RET
+                  const char* hex_true = "200080D2C0035FD6";
+
+                  // استخدام الأوفستات التي زودتني بها
+                  patch_memory(il2cpp_base + 0x315168c, hex_true); // Network Bypass
+                  patch_memory(il2cpp_base + 0x3184e38, hex_true); // Login Bypass
+                  patch_memory(il2cpp_base + 0x30bc4f0, hex_true); // Skins Unlock
+                  
+                  LOGI("ALL PATCHES APPLIED! Game should work now.");
+              } else {
+                  LOGI("FATAL ERROR: Could not find libil2cpp.so");
+              }
+              return NULL;
+          }
+
+          // يتم استدعاؤها فور تحميل المكتبة
+          void __attribute__((constructor)) init() {
+              pthread_t ptid;
+              pthread_create(&ptid, NULL, injection_thread, NULL);
           }
           EOF
 
@@ -87,27 +109,24 @@ jobs:
           APP_PLATFORM := android-21
           EOF
 
-      # 2. بناء الأداة C++ باستخدام NDK
-      - name: Setup NDK & Build
+      - name: Build with NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r25c
 
-      - name: Build Tool
+      - name: Compile Library
         run: |
           ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
 
-      # 3. تحميل ملفك من Google Drive (للاحتفاظ بنسخة منه أو فحصه)
-      - name: Download Original Library
+      - name: Download Files from Drive
         run: |
-          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O original_files.zip
-          unzip original_files.zip -d extracted_files/
+          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O project_files.zip
+          unzip project_files.zip -d downloads/
 
-      # 4. رفع الأداة الجاهزة كـ Artifact
-      - name: Upload Finished Tools
+      - name: Upload Finished Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FF_1.97.1_Offline_Package
+          name: FF_1.97.1_SuperTool_V2
           path: |
             libs/arm64-v8a/libSuperTool.so
-            extracted_files/
+            downloads/
