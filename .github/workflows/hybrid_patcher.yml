@@ -1,60 +1,113 @@
-name: FF 1.97.1 ARM64 Patcher
+name: FF 1.97.1 Master Build Tool
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # تشغيل يدوي من واجهة GitHub
 
 jobs:
-  patch_arm64:
+  build_everything:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install gdown & Unzip
+      - name: Setup Environment
         run: |
           pip install gdown
-          sudo apt-get install unzip -y
+          sudo apt-get install unzip python3 -y
 
-      - name: Download Zip from Drive
+      # 1. إنشاء مجلد الكود المصدري للأداة C++ (jni)
+      - name: Create C++ Source Code
         run: |
-          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O library.zip
+          mkdir -p jni
+          cat << 'EOF' > jni/main.cpp
+          #include <jni.h>
+          #include <android/log.h>
+          #include <sys/mman.h>
+          #include <unistd.h>
+          #include <string.h>
+          #include <stdint.h>
+          #include <stdlib.h>
 
-      - name: Extract & Find Lib
+          #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "OFFLINE_TOOL", __VA_ARGS__)
+
+          void patch_memory(uintptr_t address, const char* hex) {
+              size_t size = strlen(hex) / 2;
+              uintptr_t page_start = address & ~(getpagesize() - 1);
+              mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC);
+              for (size_t i = 0; i < size; i++) {
+                  char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
+                  ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
+              }
+          }
+
+          uintptr_t get_module_base(const char* module_name) {
+              FILE* fp = fopen("/proc/self/maps", "r");
+              char line[512];
+              uintptr_t base = 0;
+              while (fp && fgets(line, sizeof(line), fp)) {
+                  if (strstr(line, module_name)) {
+                      base = strtoull(line, NULL, 16);
+                      break;
+                  }
+              }
+              if(fp) fclose(fp);
+              return base;
+          }
+
+          void __attribute__((constructor)) init() {
+              LOGI("Patcher Started - Waiting for libil2cpp.so...");
+              uintptr_t il2cpp_base = 0;
+              while (il2cpp_base == 0) {
+                  il2cpp_base = get_module_base("libil2cpp.so");
+                  usleep(100000); 
+              }
+              // كود ARM64 للـ Return True: MOV X0, #1 | RET
+              const char* hex_true = "200080D2C0035FD6";
+              
+              // تطبيق الأوفستات التي زودتني بها
+              patch_memory(il2cpp_base + 0x315168c, hex_true); // Network Bypass
+              patch_memory(il2cpp_base + 0x3184e38, hex_true); // Login Bypass
+              patch_memory(il2cpp_base + 0x30bc4f0, hex_true); // Local Skins
+              LOGI("SUCCESS: Offline & Skins Patched!");
+          }
+          EOF
+
+          cat << 'EOF' > jni/Android.mk
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE    := SuperTool
+          LOCAL_SRC_FILES := main.cpp
+          LOCAL_LDLIBS    := -llog
+          include $(BUILD_SHARED_LIBRARY)
+          EOF
+
+          cat << 'EOF' > jni/Application.mk
+          APP_ABI := arm64-v8a
+          APP_PLATFORM := android-21
+          EOF
+
+      # 2. بناء الأداة C++ باستخدام NDK
+      - name: Setup NDK & Build
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+
+      - name: Build Tool
         run: |
-          unzip library.zip
-          # البحث عن الملف ووضعه في المجلد الرئيسي لتسهيل التعديل
-          find . -name "libil2cpp.so" -exec mv {} . \;
+          ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
 
-      - name: Apply ARM64 Patches
+      # 3. تحميل ملفك من Google Drive (للاحتفاظ بنسخة منه أو فحصه)
+      - name: Download Original Library
         run: |
-          python3 -c "
-          import os
+          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O original_files.zip
+          unzip original_files.zip -d extracted_files/
 
-          def patch_arm64(filename, offset, hex_val):
-              if os.path.exists(filename):
-                  with open(filename, 'r+b') as f:
-                      f.seek(offset)
-                      f.write(bytes.fromhex(hex_val))
-                  print(f'Patched ARM64 Offset: {hex(offset)}')
-              else:
-                  print('Error: libil2cpp.so not found!')
-
-          # --- تعليمات ARM64 السحرية ---
-          # MOV X0, #1  (تعني إرجاع True)
-          # RET         (تعني إنهاء الدالة بنجاح)
-          # الكود بالهيكس: 200080D2C0035FD6
-          
-          target = 'libil2cpp.so'
-          hex_true = '200080D2C0035FD6'
-
-          # تطبيق الأوفستات التي زودتني بها (الموجودة في ملف Complete_Offsets_List.txt)
-          patch_arm64(target, 0x315168c, hex_true) # كسر فحص الشبكة
-          patch_arm64(target, 0x3184e38, hex_true) # تخطي شاشة الدخول
-          patch_arm64(target, 0x30bc4f0, hex_true) # فتح السكنات من الداتا
-          "
-
-      - name: Upload Fixed Lib
+      # 4. رفع الأداة الجاهزة كـ Artifact
+      - name: Upload Finished Tools
         uses: actions/upload-artifact@v4
         with:
-          name: FF-1.97.1-ARM64-Fixed
-          path: libil2cpp.so
+          name: FF_1.97.1_Offline_Package
+          path: |
+            libs/arm64-v8a/libSuperTool.so
+            extracted_files/
