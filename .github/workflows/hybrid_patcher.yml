@@ -1,261 +1,117 @@
-.class public Lcom/mod/menu/FloatingService;
-.super Landroid/app/Service;
-
-# instance fields
-.field private clickCount:I
-
-.field private isGhost:Z
-
-.field private mFloatingView:Landroid/view/View;
-
-.field private mParams:Landroid/view/WindowManager$LayoutParams;
-
-.field private mWindowManager:Landroid/view/WindowManager;
-
-
-# direct methods
-.method public constructor <init>()V
-    .registers 2
-
-    invoke-direct {p0}, Landroid/app/Service;-><init>()V
-
-    # تصحيح الخطأ: تعيين القيم هنا وليس في التعريف
-    const/4 v0, 0x0
-
-    iput v0, p0, Lcom/mod/menu/FloatingService;->clickCount:I
-
-    iput-boolean v0, p0, Lcom/mod/menu/FloatingService;->isGhost:Z
-
-    return-void
-.end method
-
-.method static synthetic access$000(Lcom/mod/menu/FloatingService;)V
-    .registers 1
-
-    invoke-direct {p0}, Lcom/mod/menu/FloatingService;->handleMenuClick()V
-
-    return-void
-.end method
-
-.method private handleMenuClick()V
-    .registers 4
-
-    # زيادة العداد
-    iget v0, p0, Lcom/mod/menu/FloatingService;->clickCount:I
-
-    add-int/lit8 v0, v0, 0x1
-
-    iput v0, p0, Lcom/mod/menu/FloatingService;->clickCount:I
-
-    # تحقق هل هي 5 نقرات؟
-    const/4 v1, 0x5
-
-    if-lt v0, v1, :cond_12
-
-    # تفعيل/تعطيل وضع الشبح
-    const/4 v1, 0x0
-
-    iput v1, p0, Lcom/mod/menu/FloatingService;->clickCount:I
-
-    invoke-direct {p0}, Lcom/mod/menu/FloatingService;->toggleGhostMode()V
-
-    goto :goto_15
-
-    :cond_12
-    # نقرة واحدة أو أقل من 5: أظهر حقل الإدخال
-    invoke-direct {p0}, Lcom/mod/menu/FloatingService;->showHexInputDialog()V
-
-    :goto_15
-    return-void
-.end method
-
-.method private showHexInputDialog()V
-    .registers 4
-
-    # إظهار رسالة توضح المطلوب حالياً
-    const-string v0, "اضغط 5 مرات للاختفاء | نقرة واحدة للإدخال"
-
-    const/4 v1, 0x0
-
-    invoke-static {p0, v0, v1}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
-
-    move-result-object v0
-
-    invoke-virtual {v0}, Landroid/widget/Toast;->show()V
-
-    # هنا يمكنك لاحقاً استدعاء AlertDialog للإدخال الحقيقي
-    return-void
-.end method
-
-.method private toggleGhostMode()V
-    .registers 5
-
-    iget-boolean v0, p0, Lcom/mod/menu/FloatingService;->isGhost:Z
-
-    const/4 v1, 0x1
-
-    if-nez v0, :cond_1c
-
-    # وضع الشبح ON: تجاهل اللمس
-    iput-boolean v1, p0, Lcom/mod/menu/FloatingService;->isGhost:Z
-
-    iget-object v0, p0, Lcom/mod/menu/FloatingService;->mParams:Landroid/view/WindowManager$LayoutParams;
-
-    iget v2, v0, Landroid/view/WindowManager$LayoutParams;->flags:I
-
-    or-int/lit8 v2, v2, 0x10
-
-    iput v2, v0, Landroid/view/WindowManager$LayoutParams;->flags:I
-
-    const-string v0, "👻 وضع الشبح: مفعل (اللمس يمر للعبة)"
-
-    goto :goto_28
-
-    :cond_1c
-    # وضع الشبح OFF: استعادة اللمس
-    const/4 v1, 0x0
-
-    iput-boolean v1, p0, Lcom/mod/menu/FloatingService;->isGhost:Z
-
-    iget-object v0, p0, Lcom/mod/menu/FloatingService;->mParams:Landroid/view/WindowManager$LayoutParams;
-
-    iget v2, v0, Landroid/view/WindowManager$LayoutParams;->flags:I
-
-    const/16 v3, -0x11
-
-    and-int/2addr v2, v3
-
-    iput v2, v0, Landroid/view/WindowManager$LayoutParams;->flags:I
-
-    const-string v0, "🖐️ وضع اللمس: مفعل (يمكنك التحكم بالقائمة)"
-
-    :goto_28
-    const/4 v1, 0x0
-
-    invoke-static {p0, v0, v1}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
-
-    move-result-object v0
-
-    invoke-virtual {v0}, Landroid/widget/Toast;->show()V
-
-    # تحديث واجهة المستخدم فوراً
-    iget-object v0, p0, Lcom/mod/menu/FloatingService;->mWindowManager:Landroid/view/WindowManager;
-
-    iget-object v1, p0, Lcom/mod/menu/FloatingService;->mFloatingView:Landroid/view/View;
-
-    iget-object v2, p0, Lcom/mod/menu/FloatingService;->mParams:Landroid/view/WindowManager$LayoutParams;
-
-    invoke-interface {v0, v1, v2}, Landroid/view/WindowManager;->updateViewLayout(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
-
-    return-void
-.end method
-
-
-# virtual methods
-.method public onBind(Landroid/content/Intent;)Landroid/os/IBinder;
-    .registers 3
-
-    const/4 v0, 0x0
-
-    return-object v0
-.end method
-
-.method public onCreate()V
-    .registers 10
-
-    invoke-super {p0}, Landroid/app/Service;->onCreate()V
-
-    const-string v0, "window"
-
-    invoke-virtual {p0, v0}, Lcom/mod/menu/FloatingService;->getSystemService(Ljava/lang/String;)Ljava/lang/Object;
-
-    move-result-object v0
-
-    check-cast v0, Landroid/view/WindowManager;
-
-    iput-object v0, p0, Lcom/mod/menu/FloatingService;->mWindowManager:Landroid/view/WindowManager;
-
-    new-instance v1, Landroid/widget/Button;
-
-    invoke-direct {v1, p0}, Landroid/widget/Button;-><init>(Landroid/content/Context;)V
-
-    iput-object v1, p0, Lcom/mod/menu/FloatingService;->mFloatingView:Landroid/view/View;
-
-    const-string v2, "MENU ⚡"
-
-    invoke-virtual {v1, v2}, Landroid/widget/Button;->setText(Ljava/lang/CharSequence;)V
-
-    const/4 v2, -0x1
-
-    invoke-virtual {v1, v2}, Landroid/widget/Button;->setTextColor(I)V
-
-    new-instance v2, Lcom/mod/menu/FloatingService$1;
-
-    invoke-direct {v2, p0}, Lcom/mod/menu/FloatingService$1;-><init>(Lcom/mod/menu/FloatingService;)V
-
-    invoke-virtual {v1, v2}, Landroid/widget/Button;->setOnClickListener(Landroid/view/View$OnClickListener;)V
-
-    new-instance v8, Landroid/view/WindowManager$LayoutParams;
-
-    const/4 v3, -0x2
-
-    const/4 v4, -0x2
-
-    sget v5, Landroid/os/Build$VERSION;->SDK_INT:I
-
-    const/16 v6, 0x1a
-
-    if-lt v5, v6, :cond_33
-
-    const/16 v5, 0x7f6
-
-    goto :goto_34
-
-    :cond_33
-    const/4 v5, 0x2
-
-    :goto_34
-    const/16 v6, 0x8
-
-    const/4 v7, -0x3
-
-    move-object v2, v8
-
-    invoke-direct/range {v2 .. v7}, Landroid/view/WindowManager$LayoutParams;-><init>(IIIII)V
-
-    # حفظ الـ Params للتعديل عليها لاحقاً في وضع الشبح
-    iput-object v8, p0, Lcom/mod/menu/FloatingService;->mParams:Landroid/view/WindowManager$LayoutParams;
-
-    const/16 v2, 0x33
-
-    iput v2, v8, Landroid/view/WindowManager$LayoutParams;->gravity:I
-
-    :try_start_3f
-    iget-object v2, p0, Lcom/mod/menu/FloatingService;->mWindowManager:Landroid/view/WindowManager;
-
-    iget-object v3, p0, Lcom/mod/menu/FloatingService;->mFloatingView:Landroid/view/View;
-
-    invoke-interface {v2, v3, v8}, Landroid/view/WindowManager;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
-    :try_end_46
-    .catchall {:try_start_3f .. :try_end_46} :catchall_46
-
-    :catchall_46
-    return-void
-.end method
-
-.method public onDestroy()V
-    .registers 3
-
-    invoke-super {p0}, Landroid/app/Service;->onDestroy()V
-
-    iget-object v0, p0, Lcom/mod/menu/FloatingService;->mFloatingView:Landroid/view/View;
-
-    if-eqz v0, :cond_c
-
-    iget-object v1, p0, Lcom/mod/menu/FloatingService;->mWindowManager:Landroid/view/WindowManager;
-
-    invoke-interface {v1, v0}, Landroid/view/WindowManager;->removeView(Landroid/view/View;)V
-
-    :cond_c
-    return-void
-.end method
+name: FF Ultra Injector Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_native_library:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+
+      - name: Create C++ Logic
+        run: |
+          mkdir -p jni
+          cat << 'EOF' > jni/main.cpp
+          #include <jni.h>
+          #include <android/log.h>
+          #include <sys/mman.h>
+          #include <unistd.h>
+          #include <string.h>
+          #include <stdint.h>
+          #include <stdlib.h>
+          #include <pthread.h>
+
+          #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "NATIVE_INJECTOR", __VA_ARGS__)
+
+          uintptr_t il2cpp_base = 0;
+
+          // دالة تعديل الذاكرة الأساسية
+          void patch_memory(uintptr_t address, const char* hex) {
+              if (address < 0xFFFFFF) return; 
+              size_t size = strlen(hex) / 2;
+              uintptr_t page_start = address & ~(getpagesize() - 1);
+              if (mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
+                  for (size_t i = 0; i < size; i++) {
+                      char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
+                      ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
+                  }
+                  LOGI("Successfully patched at: %p", (void*)address);
+              }
+          }
+
+          uintptr_t get_module_base(const char* module_name) {
+              FILE* fp = fopen("/proc/self/maps", "r");
+              char line[512];
+              uintptr_t base = 0;
+              while (fp && fgets(line, sizeof(line), fp)) {
+                  if (strstr(line, module_name)) {
+                      base = strtoull(line, NULL, 16);
+                      break;
+                  }
+              }
+              if(fp) fclose(fp);
+              return base;
+          }
+
+          // الدالة التي تستدعيها نافذة الإدخال في MT Manager
+          extern "C" JNIEXPORT void JNICALL
+          Java_com_mod_menu_FloatingService_nativeInject(JNIEnv *env, jobject thiz, jlong offset, jstring hex_string) {
+              const char *hex = env->GetStringUTFChars(hex_string, 0);
+              
+              // تحديث القاعدة إذا لم تكن موجودة
+              if (il2cpp_base == 0) {
+                  il2cpp_base = get_module_base("libil2cpp.so");
+              }
+
+              if (il2cpp_base != 0) {
+                  patch_memory(il2cpp_base + (uintptr_t)offset, hex);
+              } else {
+                  LOGI("Error: libil2cpp.so not found yet!");
+              }
+              
+              env->ReleaseStringUTFChars(hex_string, hex);
+          }
+
+          // خيط خلفي للتحقق من تشغيل اللعبة
+          void* init_thread(void*) {
+              while (il2cpp_base == 0) {
+                  il2cpp_base = get_module_base("libil2cpp.so");
+                  usleep(500000); 
+              }
+              LOGI("Library Loaded: Base = %p", (void*)il2cpp_base);
+              return NULL;
+          }
+
+          void __attribute__((constructor)) setup() {
+              pthread_t ptid;
+              pthread_create(&ptid, NULL, init_thread, NULL);
+          }
+          EOF
+
+          cat << 'EOF' > jni/Android.mk
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE    := SuperTool
+          LOCAL_SRC_FILES := main.cpp
+          LOCAL_LDLIBS    := -llog
+          include $(BUILD_SHARED_LIBRARY)
+          EOF
+
+          echo "APP_ABI := arm64-v8a" > jni/Application.mk
+          echo "APP_PLATFORM := android-21" >> jni/Application.mk
+
+      - name: Build
+        run: ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: libSuperTool_Final_V5
+          path: libs/arm64-v8a/libSuperTool.so
