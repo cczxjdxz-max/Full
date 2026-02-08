@@ -1,21 +1,21 @@
-name: FF 1.97.1 Pro Patcher (No Black Screen)
+name: FF SuperTool Build - Version 3.0
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_and_fix:
+  build_library:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Tools
-        run: |
-          pip install gdown
-          sudo apt-get install unzip -y
+      - name: Setup NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
 
-      - name: Create Advanced C++ Source
+      - name: Create C++ Source with Toast Support
         run: |
           mkdir -p jni
           cat << 'EOF' > jni/main.cpp
@@ -28,22 +28,39 @@ jobs:
           #include <stdlib.h>
           #include <pthread.h>
 
+          // تعريف Logcat للتصحيح
           #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "OFFLINE_TOOL", __VA_ARGS__)
 
-          // دالة تعديل الذاكرة الآمنة
+          uintptr_t il2cpp_base = 0;
+          JavaVM* g_vm = nullptr;
+
+          // دالة لإظهار رسالة Toast من داخل الـ C++
+          void show_toast(JNIEnv* env) {
+              jclass toast_class = env->FindClass("android/widget/Toast");
+              jmethodID make_text = env->GetStaticMethodID(toast_class, "makeText", "(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;");
+              
+              // الحصول على الـ Context (هذه الطريقة تعمل في معظم تطبيقات Unity)
+              jclass unity_player = env->FindClass("com/unity3d/player/UnityPlayer");
+              jfieldID activity_field = env->GetStaticFieldID(unity_player, "currentActivity", "Landroid/app/Activity;");
+              jobject activity = env->GetStaticObjectField(unity_player, activity_field);
+
+              jstring message = env->NewStringUTF("✅ تمت الإضافة بنجاح | Patched Successfully");
+              jobject toast_obj = env->CallStaticObjectMethod(toast_class, make_text, activity, message, 0); // 0 = LENGTH_SHORT
+              
+              jmethodID show = env->GetMethodID(toast_class, "show", "()V");
+              env->CallVoidMethod(toast_obj, show);
+          }
+
           void patch_memory(uintptr_t address, const char* hex) {
               size_t size = strlen(hex) / 2;
               uintptr_t page_start = address & ~(getpagesize() - 1);
-              if (mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
-                  for (size_t i = 0; i < size; i++) {
-                      char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
-                      ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
-                  }
-                  LOGI("Patched successfully at: %p", (void*)address);
+              mprotect((void*)page_start, getpagesize() * 2, PROT_READ | PROT_WRITE | PROT_EXEC);
+              for (size_t i = 0; i < size; i++) {
+                  char byte[3] = {hex[i*2], hex[i*2+1], '\0'};
+                  ((uint8_t*)address)[i] = (uint8_t)strtol(byte, NULL, 16);
               }
           }
 
-          // الحصول على عنوان المكتبة في الذاكرة
           uintptr_t get_module_base(const char* module_name) {
               FILE* fp = fopen("/proc/self/maps", "r");
               char line[512];
@@ -58,40 +75,31 @@ jobs:
               return base;
           }
 
-          // الخيط المنفصل للحقن (Thread)
           void* injection_thread(void*) {
-              LOGI("Thread started: Waiting for Game to Load...");
-              
-              uintptr_t il2cpp_base = 0;
-              // المحاولة لمدة دقيقة حتى يتم تحميل المكتبة الأصلية
-              for (int i = 0; i < 60; i++) {
+              while (il2cpp_base == 0) {
                   il2cpp_base = get_module_base("libil2cpp.so");
-                  if (il2cpp_base != 0) break;
-                  sleep(1); 
+                  usleep(500000);
               }
+              
+              const char* hex_true = "200080D2C0035FD6";
+              patch_memory(il2cpp_base + 0x315168c, hex_true); // Network
+              patch_memory(il2cpp_base + 0x3184e38, hex_true); // Login
+              patch_memory(il2cpp_base + 0x30bc4f0, hex_true); // Skins
 
-              if (il2cpp_base != 0) {
-                  LOGI("Found libil2cpp.so at %p. Applying patches...", (void*)il2cpp_base);
-                  
-                  // ARM64: MOV X0, #1 | RET
-                  const char* hex_true = "200080D2C0035FD6";
-
-                  // استخدام الأوفستات التي زودتني بها
-                  patch_memory(il2cpp_base + 0x315168c, hex_true); // Network Bypass
-                  patch_memory(il2cpp_base + 0x3184e38, hex_true); // Login Bypass
-                  patch_memory(il2cpp_base + 0x30bc4f0, hex_true); // Skins Unlock
-                  
-                  LOGI("ALL PATCHES APPLIED! Game should work now.");
-              } else {
-                  LOGI("FATAL ERROR: Could not find libil2cpp.so");
+              // استدعاء الـ Toast بعد نجاح الحقن
+              JNIEnv* env;
+              if (g_vm->AttachCurrentThread(&env, NULL) == JNI_OK) {
+                  show_toast(env);
+                  g_vm->DetachCurrentThread();
               }
               return NULL;
           }
 
-          // يتم استدعاؤها فور تحميل المكتبة
-          void __attribute__((constructor)) init() {
+          jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+              g_vm = vm;
               pthread_t ptid;
               pthread_create(&ptid, NULL, injection_thread, NULL);
+              return JNI_VERSION_1_6;
           }
           EOF
 
@@ -100,33 +108,18 @@ jobs:
           include $(CLEAR_VARS)
           LOCAL_MODULE    := SuperTool
           LOCAL_SRC_FILES := main.cpp
-          LOCAL_LDLIBS    := -llog
+          LOCAL_LDLIBS    := -llog -landroid
           include $(BUILD_SHARED_LIBRARY)
           EOF
 
-          cat << 'EOF' > jni/Application.mk
-          APP_ABI := arm64-v8a
-          APP_PLATFORM := android-21
-          EOF
+          echo "APP_ABI := arm64-v8a" > jni/Application.mk
+          echo "APP_PLATFORM := android-21" >> jni/Application.mk
 
-      - name: Build with NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r25c
+      - name: Build
+        run: ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
 
-      - name: Compile Library
-        run: |
-          ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI=arm64-v8a
-
-      - name: Download Files from Drive
-        run: |
-          gdown --id 1HAQgjylXbwUPW7FFVEWtP1etpxYGPNZx -O project_files.zip
-          unzip project_files.zip -d downloads/
-
-      - name: Upload Finished Artifact
+      - name: Upload Only SuperTool Library
         uses: actions/upload-artifact@v4
         with:
-          name: FF_1.97.1_SuperTool_V2
-          path: |
-            libs/arm64-v8a/libSuperTool.so
-            downloads/
+          name: libSuperTool_Final
+          path: libs/arm64-v8a/libSuperTool.so
